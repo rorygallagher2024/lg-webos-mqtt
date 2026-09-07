@@ -8,8 +8,14 @@ Verified on **LG OLED65B8SLC (webOS 4.4.3)**. Compatible with webOS 3.5+ running
 
 ## Features
 
-- **Home Assistant MQTT Auto-Discovery**: Automatically creates a single **"LG webOS TV"** device in Home Assistant with 24 native entities and zero YAML configuration needed.
+- **Home Assistant MQTT Auto-Discovery**: Automatically creates a single **"LG webOS TV"** device in Home Assistant with 33 native entities and zero YAML configuration needed.
 - **OLED Panel Blanking Switch (`switch.lg_tv_display_panel`)**: Turn off the OLED screen while audio/music continues playing (`turnOffScreen`). Perfect for listening to Spotify, Tidal, or AirPlay without risking OLED burn-in or wasting panel hours.
+- **OLED Panel Health & Pixel Refresher Observability**:
+  - **Total Panel Runtime (`sensor.lg_tv_oled_panel_hours`)**: Live cumulative panel operating hours tracked directly by the display controller.
+  - **Short Compensation Cycles (`sensor.lg_tv_oled_hours_since_compensation`, `sensor.lg_tv_oled_hours_until_compensation`)**: Monitors hours since the last 4-hour Off-RS cycle and calculates when the next one will trigger upon standby.
+  - **Deep Pixel Refresher (`sensor.lg_tv_oled_hours_since_refresher`, `sensor.lg_tv_oled_hours_until_refresher`)**: Tracks hours since the last 2,000-hour deep Pixel Refresher ("JB / Panel Wash") and estimates hours remaining until the next one.
+  - **Pixel Refresher Control (`switch.lg_tv_pixel_refresher_schedule`, `sensor.lg_tv_oled_refresher_status`)**: View refresher state and schedule/cancel a Pixel Refresher run for the next power-off directly from Home Assistant or the web UI.
+  - **Burn-In Protection Telemetry (`sensor.lg_tv_oled_screen_shift`, `sensor.lg_tv_oled_logo_dimming`)**: Real-time status of Screen Shift (pixel orbiting) and Logo Luminance Adjustment.
 - **Deep Video & Audio Observability**:
   - **Dynamic Range (`sensor.lg_tv_dynamic_range`)**: Real-time detection of **Dolby Vision**, **HDR**, or **SDR**.
   - **Picture Mode (`sensor.lg_tv_picture_mode`)**: Reports current profile (e.g. *Dolby Vision Cinema*, *ISF Expert*, *Game*).

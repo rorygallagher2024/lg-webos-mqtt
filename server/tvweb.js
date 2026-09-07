@@ -249,7 +249,7 @@ function luna(uri, payload, cb) {
 }
 
 function detectDeviceInfo(cb) {
-  luna('com.webos.service.tv.systemproperty/getSystemInfo',
+  luna('com.webos.service.tv.systemproperty/getSystemProperties',
     { keys: ['modelName', 'firmwareVersion', 'boardType'] },
     function (res) {
       if (res && res.modelName) {
@@ -272,6 +272,66 @@ function detectDeviceInfo(cb) {
 }
 
 // ---------------------------------------------------------------- stats
+var cachedOled = null;
+var lastOledCheck = 0;
+
+function refreshOledStats(picSettings, cb) {
+  var now = Date.now();
+  if (cachedOled && (now - lastOledCheck < 30000)) {
+    if (picSettings) {
+      if (picSettings.screenShift) cachedOled.screen_shift = picSettings.screenShift;
+      if (picSettings.logoLuminanceAdjust) cachedOled.logo_dimming = picSettings.logoLuminanceAdjust;
+    }
+    return cb(cachedOled);
+  }
+
+  var autoPnwashRaw = rd('/mnt/lg/cmn_data/pnwash/autoPnwashTime');
+  var lastRefresher = autoPnwashRaw ? parseInt(autoPnwashRaw, 10) : 0;
+
+  luna('com.webos.service.tv.systemproperty/getSystemProperties',
+    { keys: ['panelUsageTime', 'lastCompensationTimestamp'] },
+    function (sysRes) {
+      var usageUnits = (sysRes && sysRes.panelUsageTime) ? parseInt(sysRes.panelUsageTime, 10) : null;
+      var lastCompUnits = (sysRes && sysRes.lastCompensationTimestamp) ? parseInt(sysRes.lastCompensationTimestamp, 10) : null;
+
+      luna('com.webos.service.tv.display/getClearPanelNoiseStatus', {}, function (dispRes) {
+        var rawStatus = (dispRes && dispRes.status) ? dispRes.status : 'schedule';
+        var statusStr = 'Idle';
+        if (rawStatus === 'cancel_schedule') statusStr = 'Scheduled';
+        else if (rawStatus === 'processing') statusStr = 'Running';
+
+        var panelHours = (usageUnits !== null) ? Math.floor(usageUnits / 6) : 0;
+        var panelHoursExact = (usageUnits !== null) ? Math.round((usageUnits * 10 / 60) * 10) / 10 : 0;
+
+        var lastCompHours = (lastCompUnits !== null) ? Math.round((lastCompUnits * 10 / 60) * 10) / 10 : 0;
+        var hoursSinceComp = (usageUnits !== null && lastCompUnits !== null) ?
+          Math.round(((usageUnits - lastCompUnits) * 10 / 60) * 10) / 10 : 0;
+        var hoursUntilComp = Math.max(0, Math.round((4.0 - hoursSinceComp) * 10) / 10);
+
+        var hoursSinceRefresher = (panelHours && lastRefresher) ? Math.max(0, panelHours - lastRefresher) : 0;
+        var hoursUntilRefresher = Math.max(0, 2000 - hoursSinceRefresher);
+
+        cachedOled = {
+          panel_hours: panelHours,
+          panel_hours_exact: panelHoursExact,
+          last_compensation_hours: lastCompHours,
+          hours_since_comp: hoursSinceComp,
+          hours_until_comp: hoursUntilComp,
+          last_refresher_hours: lastRefresher,
+          hours_since_refresher: hoursSinceRefresher,
+          hours_until_refresher: hoursUntilRefresher,
+          refresher_status: statusStr,
+          refresher_status_raw: rawStatus,
+          screen_shift: (picSettings && picSettings.screenShift) ? picSettings.screenShift : 'off',
+          logo_dimming: (picSettings && picSettings.logoLuminanceAdjust) ? picSettings.logoLuminanceAdjust : 'off'
+        };
+        lastOledCheck = Date.now();
+        cb(cachedOled);
+      });
+    }
+  );
+}
+
 var prevNet = null;
 var lastStats = null;
 var lastStatsTime = 0;
@@ -373,7 +433,7 @@ function collectStats(cb) {
           (inputNameMap[shortApp] + ' (' + shortApp.toUpperCase() + ')') : shortApp;
       }
       luna('com.webos.service.settings/getSystemSettings',
-        { category: 'picture', keys: ['backlight', 'pictureMode', 'energySaving'] },
+        { category: 'picture', keys: ['backlight', 'pictureMode', 'energySaving', 'screenShift', 'logoLuminanceAdjust'] },
         function (pic) {
           if (pic && pic.settings) {
             var rawDr = (pic.dimension && pic.dimension.dynamicRange) ? pic.dimension.dynamicRange : 'sdr';
@@ -382,10 +442,15 @@ function collectStats(cb) {
               mode: formatPicMode(pic.settings.pictureMode),
               mode_raw: pic.settings.pictureMode || 'standard',
               backlight: num(pic.settings.backlight, 50),
-              energySaving: pic.settings.energySaving || 'off'
+              energySaving: pic.settings.energySaving || 'off',
+              screenShift: pic.settings.screenShift || 'off',
+              logoLuminanceAdjust: pic.settings.logoLuminanceAdjust || 'off'
             };
           }
-          flushStats(out);
+          refreshOledStats((pic && pic.settings) ? pic.settings : null, function (oled) {
+            out.oled = oled;
+            flushStats(out);
+          });
         }
       );
     });
@@ -443,6 +508,22 @@ function doControl(action, value, cb) {
       return luna('com.webos.service.tvpower/power/reboot', { reason: 'tvweb' },
                   function (r) { cb({ ok: !!(r && r.returnValue) }); });
 
+    case 'refresherSchedule':
+      return luna('com.webos.service.tv.display/requestClearPanelNoise', { mode: 'schedule' },
+                  function (r) {
+                    lastOledCheck = 0;
+                    lastStats = null;
+                    cb({ ok: !!(r && r.returnValue) });
+                  });
+
+    case 'refresherCancel':
+      return luna('com.webos.service.tv.display/requestClearPanelNoise', { mode: 'cancel_schedule' },
+                  function (r) {
+                    lastOledCheck = 0;
+                    lastStats = null;
+                    cb({ ok: !!(r && r.returnValue) });
+                  });
+
     default:
       return cb({ ok: false, error: 'unknown action' });
   }
@@ -487,6 +568,8 @@ var PAGE = [
 '    <div class="meta" id="audiometa">-</div></div>',
 '  <div class="card"><div class="lbl">Memory</div><div class="val"><span id="mem">-</span>%</div>',
 '    <div class="bar"><div class="fill" id="membar"></div></div><div class="meta" id="memmeta"></div></div>',
+'  <div class="card"><div class="lbl">OLED Panel &middot; Health</div><div class="val"><span id="panelhours">-</span> hrs</div>',
+'    <div class="meta" id="panelmeta">-</div></div>',
 '  <div class="card"><div class="lbl">Flash storage</div><div class="val" id="emmc">-</div><div class="meta" id="emmcmeta"></div></div>',
 '  <div class="card"><div class="lbl">Network</div><div class="val" id="rssi">-</div><div class="meta" id="netmeta"></div></div>',
 '  <div class="card"><div class="lbl">Swap (zram)</div><div class="val"><span id="swap">-</span>%</div>',
@@ -497,9 +580,11 @@ var PAGE = [
 '  <button onclick="c(\'volumeStep\',5)">Vol +</button>',
 '  <button onclick="c(\'mute\',true)">Mute</button>',
 '  <button onclick="c(\'mute\',false)">Unmute</button></div>',
-'  <div class="lbl" style="margin-top:14px">Screen</div>',
+'  <div class="lbl" style="margin-top:14px">Screen &middot; OLED Refresher</div>',
 '  <div class="row"><button onclick="c(\'screenOff\')">Screen off</button>',
-'  <button onclick="c(\'screenOn\')">Screen on</button></div>',
+'  <button onclick="c(\'screenOn\')">Screen on</button>',
+'  <button onclick="c(\'refresherSchedule\')">Schedule Refresher</button>',
+'  <button onclick="c(\'refresherCancel\')">Cancel Refresher</button></div>',
 '  <div class="lbl" style="margin-top:14px">Input</div>',
 '  <div class="row"><button id="btn_hdmi1" onclick="c(\'input\',\'hdmi1\')">HDMI 1</button>',
 '  <button id="btn_hdmi2" onclick="c(\'input\',\'hdmi2\')">HDMI 2</button>',
@@ -544,6 +629,15 @@ var PAGE = [
 '  } else {',
 '    q("hdr").textContent="-";',
 '    q("picmeta").textContent=d.signal||"-";',
+'  }',
+'  if(d.oled){',
+'    q("panelhours").textContent=(d.oled.panel_hours||0).toLocaleString();',
+'    var oledLines=[',
+'      "Short cycle: "+d.oled.hours_since_comp+"h ago (due in ~"+d.oled.hours_until_comp+"h)",',
+'      "Refresher: "+d.oled.hours_since_refresher+"h ago (~"+d.oled.hours_until_refresher+"h left)",',
+'      "Schedule: "+d.oled.refresher_status+" · Shift: "+String(d.oled.screen_shift||"off").toUpperCase()+" · Logo: "+String(d.oled.logo_dimming||"off").toUpperCase()',
+'    ];',
+'    q("panelmeta").innerHTML=oledLines.join("<br>");',
 '  }',
 '  const audioMap={mastervolume_headphone:"Optical / Headphone",tv_speaker:"TV Speaker",external_arc:"HDMI ARC",soundbar:"Soundbar"};',
 '  q("audiomode").textContent=audioMap[d.audio_output]||d.audio_output||"Internal";',
@@ -1091,6 +1185,100 @@ function setupHomeAssistant() {
           icon: 'mdi:message-text-outline',
           mode: 'text'
         }
+      },
+      {
+        type: 'sensor', id: 'oled_panel_hours',
+        payload: {
+          name: 'OLED Panel Hours',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.oled.panel_hours if value_json.oled else 0 }}',
+          unit_of_measurement: 'h',
+          state_class: 'total_increasing',
+          icon: 'mdi:timer-outline'
+        }
+      },
+      {
+        type: 'sensor', id: 'oled_hours_since_compensation',
+        payload: {
+          name: 'OLED Hours Since Short Cycle',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.oled.hours_since_comp if value_json.oled else 0 }}',
+          unit_of_measurement: 'h',
+          state_class: 'measurement',
+          icon: 'mdi:progress-clock'
+        }
+      },
+      {
+        type: 'sensor', id: 'oled_hours_until_compensation',
+        payload: {
+          name: 'OLED Hours Until Short Cycle',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.oled.hours_until_comp if value_json.oled else 0 }}',
+          unit_of_measurement: 'h',
+          state_class: 'measurement',
+          icon: 'mdi:timer-sand'
+        }
+      },
+      {
+        type: 'sensor', id: 'oled_hours_since_refresher',
+        payload: {
+          name: 'OLED Hours Since Pixel Refresher',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.oled.hours_since_refresher if value_json.oled else 0 }}',
+          unit_of_measurement: 'h',
+          state_class: 'measurement',
+          icon: 'mdi:history'
+        }
+      },
+      {
+        type: 'sensor', id: 'oled_hours_until_refresher',
+        payload: {
+          name: 'OLED Hours Until Pixel Refresher',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.oled.hours_until_refresher if value_json.oled else 0 }}',
+          unit_of_measurement: 'h',
+          state_class: 'measurement',
+          icon: 'mdi:update'
+        }
+      },
+      {
+        type: 'sensor', id: 'oled_refresher_status',
+        payload: {
+          name: 'Pixel Refresher Status',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.oled.refresher_status if value_json.oled else "Unknown" }}',
+          icon: 'mdi:television-shimmer'
+        }
+      },
+      {
+        type: 'sensor', id: 'oled_screen_shift',
+        payload: {
+          name: 'OLED Screen Shift',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.oled.screen_shift if value_json.oled else "Unknown" }}',
+          icon: 'mdi:arrow-all'
+        }
+      },
+      {
+        type: 'sensor', id: 'oled_logo_dimming',
+        payload: {
+          name: 'OLED Logo Dimming',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.oled.logo_dimming if value_json.oled else "Unknown" }}',
+          icon: 'mdi:television-guide'
+        }
+      },
+      {
+        type: 'switch', id: 'pixel_refresher_schedule',
+        payload: {
+          name: 'Schedule Pixel Refresher',
+          command_topic: pfx + '/command/refresher',
+          state_topic: telemetryTopic,
+          value_template: '{{ \'ON\' if value_json.oled and value_json.oled.refresher_status == \'Scheduled\' else \'OFF\' }}',
+          payload_on: 'schedule',
+          payload_off: 'cancel',
+          icon: 'mdi:television-shimmer'
+        }
       }
     ];
 
@@ -1202,6 +1390,14 @@ function setupHomeAssistant() {
 
     if (action === 'toast') {
       doControl('toast', val, function() {});
+      return;
+    }
+
+    if (action === 'refresher') {
+      var sch = (val.toLowerCase() === 'schedule' || val.toLowerCase() === 'on');
+      doControl(sch ? 'refresherSchedule' : 'refresherCancel', null, function() {
+        setTimeout(publishTelemetry, 400);
+      });
       return;
     }
 
