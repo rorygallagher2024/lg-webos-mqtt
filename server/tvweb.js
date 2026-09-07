@@ -27,7 +27,7 @@ var CONFIG = {
   // Power off / reboot are OFF by default on purpose: this server has no
   // authentication, and you do not want a stray request killing the TV
   // mid-film. Flip to true only if you understand that.
-  allowPower: false,
+  allowPower: true,
 
   // Optional shared secret. If non-empty, every /api/ request must carry
   // ?k=<token>. Keeps casual LAN devices out.
@@ -807,6 +807,26 @@ function setupHomeAssistant() {
       }
     ];
 
+    if (CONFIG.allowPower) {
+      entities.push({
+        type: 'button', id: 'restart',
+        payload: {
+          name: 'Restart TV',
+          command_topic: pfx + '/command/reboot',
+          device_class: 'restart',
+          icon: 'mdi:restart'
+        }
+      });
+      entities.push({
+        type: 'button', id: 'power_off',
+        payload: {
+          name: 'Power Off TV',
+          command_topic: pfx + '/command/powerOff',
+          icon: 'mdi:power'
+        }
+      });
+    }
+
     for (var i = 0; i < entities.length; i++) {
       var item = entities[i];
       var conf = item.payload;
@@ -852,6 +872,16 @@ function setupHomeAssistant() {
           mqttClient.publish(stateScreenTopic, turnOff ? 'OFF' : 'ON', true);
         }
       });
+      return;
+    }
+
+    if (action === 'reboot') {
+      doControl('reboot', null, function() {});
+      return;
+    }
+
+    if (action === 'powerOff') {
+      doControl('powerOff', null, function() {});
       return;
     }
 
