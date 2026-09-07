@@ -1610,6 +1610,18 @@ MiniMQTT.prototype.publish = function(topic, message, retain) {
   this.client.write(packet);
 };
 
+MiniMQTT.prototype.disconnect = function() {
+  if (this.client && this.connected) {
+    try {
+      this.client.write(toBuffer([0xe0, 0x00])); // DISCONNECT
+    } catch (e) {}
+    this.connected = false;
+    try {
+      this.client.end();
+    } catch (e) {}
+  }
+};
+
 // ---------------------------------------------------------------- Home Assistant Integration
 function setupHomeAssistant() {
   if (!CONFIG.mqtt || !CONFIG.mqtt.enabled || !CONFIG.mqtt.host) {
@@ -1642,7 +1654,7 @@ function setupHomeAssistant() {
     port: CONFIG.mqtt.port || 1883,
     username: CONFIG.mqtt.username || null,
     password: CONFIG.mqtt.password || null,
-    clientId: devId + '_' + Math.random().toString(16).slice(2, 6),
+    clientId: (CONFIG.mqtt.clientId || (devId + '_tvweb')),
     will: {
       topic: statusTopic,
       payload: 'offline',
@@ -2017,6 +2029,7 @@ function setupHomeAssistant() {
 
   function publishTelemetry() {
     if (!mqttClient.connected) return;
+    mqttClient.publish(statusTopic, 'online', true);
     collectStats(function(s) {
       mqttClient.publish(telemetryTopic, JSON.stringify(s), false);
     });
@@ -2099,6 +2112,15 @@ function setupHomeAssistant() {
 
   mqttClient.on('error', function(err) {
     console.error('mqtt error:', err.message);
+  });
+
+  process.on('SIGTERM', function() {
+    if (mqttClient) mqttClient.disconnect();
+    process.exit(0);
+  });
+  process.on('SIGINT', function() {
+    if (mqttClient) mqttClient.disconnect();
+    process.exit(0);
   });
 
   var intervalMs = CONFIG.mqtt.telemetryIntervalMs || 10000;
