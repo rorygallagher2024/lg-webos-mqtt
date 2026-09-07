@@ -463,20 +463,38 @@ var INPUTS = { hdmi1: 1, hdmi2: 1, hdmi3: 1, hdmi4: 1, livetv: 1 };
 function doControl(action, value, cb) {
   if (!CONFIG.allowControl) return cb({ ok: false, error: 'controls disabled in config' });
 
+  var origCb = cb;
+  cb = function (r) {
+    if (r && r.ok) lastStats = null;
+    origCb(r);
+  };
+
   switch (action) {
     case 'volume':
-      return luna('com.webos.audio/media/setVolume',
+      return luna('com.webos.audio/setVolume',
                   { volume: Math.max(0, Math.min(100, num(value, 10))) },
                   function (r) { cb({ ok: !!(r && r.returnValue) }); });
 
     case 'volumeStep':
-      return luna('com.webos.audio/media/offsetVolume',
-                  { offset: num(value, 1) },
-                  function (r) { cb({ ok: !!(r && r.returnValue) }); });
+      var step = num(value, 1);
+      if (step === 1) {
+        return luna('com.webos.audio/volumeUp', {}, function (r) { cb({ ok: !!(r && r.returnValue) }); });
+      }
+      if (step === -1) {
+        return luna('com.webos.audio/volumeDown', {}, function (r) { cb({ ok: !!(r && r.returnValue) }); });
+      }
+      return luna('com.webos.audio/getVolume', {}, function (cur) {
+        var curVol = (cur && typeof cur.volume === 'number') ? cur.volume : 10;
+        var target = Math.max(0, Math.min(100, curVol + step));
+        luna('com.webos.audio/setVolume', { volume: target }, function (r) {
+          cb({ ok: !!(r && r.returnValue) });
+        });
+      });
 
     case 'mute':
-      return luna('com.webos.audio/media/setMuted',
-                  { muted: value === 'true' || value === true },
+      var shouldMute = (value === 'true' || value === true || value === 'ON' || value === '1' || value === 1);
+      return luna('com.webos.audio/setMuted',
+                  { muted: shouldMute },
                   function (r) { cb({ ok: !!(r && r.returnValue) }); });
 
     case 'screenOff':   // OLED: blank the panel, keep audio playing
@@ -2081,14 +2099,16 @@ function setupHomeAssistant() {
     }
 
     if (action === 'mute') {
-      doControl('mute', val.toUpperCase() === 'ON', function() {
+      doControl('mute', val.toUpperCase() === 'ON', function (r) {
+        console.log('mqtt: mute set to ' + val + ', result: ' + JSON.stringify(r));
         setTimeout(publishTelemetry, 400);
       });
       return;
     }
 
     if (action === 'volume') {
-      doControl('volume', num(val, 10), function() {
+      doControl('volume', num(val, 10), function (r) {
+        console.log('mqtt: volume set to ' + val + ', result: ' + JSON.stringify(r));
         setTimeout(publishTelemetry, 400);
       });
       return;
