@@ -1,0 +1,4 @@
+.DS_Store
+server/config.json
+*.log
+.tvweb_httpd

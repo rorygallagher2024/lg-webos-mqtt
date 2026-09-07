@@ -1,0 +1,23 @@
+{
+  "port": 8080,
+  "host": "0.0.0.0",
+  "allowControl": true,
+  "allowPower": false,
+  "token": "",
+  "mqtt": {
+    "enabled": true,
+    "host": "192.168.1.125",
+    "port": 1883,
+    "username": "",
+    "password": "",
+    "topicPrefix": "lgtv",
+    "discoveryPrefix": "homeassistant",
+    "telemetryIntervalMs": 10000
+  },
+  "device": {
+    "id": "lg_b8_tv",
+    "name": "LG OLED B8 TV",
+    "model": "OLED65B8SLC",
+    "manufacturer": "LG"
+  }
+}
