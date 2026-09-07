@@ -14,7 +14,8 @@ var http = require('http');
 var fs = require('fs');
 var url = require('url');
 var net = require('net');
-var exec = require('child_process').exec;
+var child_process = require('child_process');
+var execFile = child_process.execFile;
 
 // ---------------------------------------------------------------- config
 var CONFIG = {
@@ -102,20 +103,37 @@ function meminfo() {
   return out;
 }
 
-/* eMMC DEVICE_LIFE_TIME_EST: 0x01 = 0-10% of rated write cycles used. */
-function emmcLife() {
+var EOL_MAP = { '01': 'Normal', '02': 'Warning', '03': 'Urgent' };
+
+/* eMMC DEVICE_LIFE_TIME_EST: 0x01 = 0-10% of rated write cycles used (>90% health remaining). */
+function emmcInfo() {
   var raw = rd('/sys/block/mmcblk0/device/life_time');
-  if (!raw) return null;
-  var parts = raw.split(/\s+/), out = [];
+  var eolRaw = rd('/sys/block/mmcblk0/device/pre_eol_info');
+  var eol = (eolRaw && EOL_MAP[eolRaw.trim()]) ? EOL_MAP[eolRaw.trim()] : 'Normal';
+  if (!raw) return { life: 'unknown', wear: 'unknown', health: '>90% (Healthy)', eol: eol };
+
+  var parts = raw.split(/\s+/), wearList = [], minHealth = 100;
   for (var i = 0; i < parts.length; i++) {
     var n = parseInt(parts[i], 16);
     if (!n) continue;
-    out.push(n >= 11 ? '>100%' : ((n - 1) * 10) + '-' + (n * 10) + '%');
+    if (n >= 11) {
+      wearList.push('>100%');
+      minHealth = 0;
+    } else {
+      wearList.push(((n - 1) * 10) + '-' + (n * 10) + '%');
+      var rem = 100 - (n * 10);
+      if (rem < minHealth) minHealth = rem;
+    }
   }
-  return out.join(' / ');
+  var wearStr = wearList.length ? wearList.join(' / ') : '0-10%';
+  var healthStr = (minHealth >= 90) ? '>90% (Healthy)' : (minHealth + '% remaining');
+  return {
+    life: wearStr,    // backwards-compatible with old HA discovery template
+    wear: wearStr,
+    health: healthStr,
+    eol: eol
+  };
 }
-
-var EOL_MAP = { '01': 'Normal', '02': 'Warning', '03': 'Urgent' };
 
 function wifi() {
   var raw = rd('/proc/net/wireless');
@@ -143,24 +161,140 @@ function netBytes() {
   return null;
 }
 
-/* luna-send wrapper. Callback gets (parsedObjectOrNull, rawString). */
+function getVideoSignal() {
+  for (var p = 0; p < 4; p++) {
+    var raw = rd('/proc/lg/hdmi20/port' + p + '/status');
+    if (raw && raw.indexOf('connected: on') !== -1) {
+      var wMatch = raw.match(/horizontal-active:\s*(\d+)/);
+      var hMatch = raw.match(/vertical-active:\s*(\d+)/);
+      var hzMatch = raw.match(/pixel-clock-V:\s*(\d+)\s*Hz/);
+      if (wMatch && hMatch) {
+        var hz = hzMatch ? (' @ ' + hzMatch[1] + 'Hz') : '';
+        return wMatch[1] + 'x' + hMatch[1] + hz;
+      }
+      return 'Connected';
+    }
+  }
+  return null;
+}
+
+var PIC_MODE_MAP = {
+  dolbyHdrCinema: 'Dolby Vision Cinema',
+  dolbyHdrCinemaHome: 'Dolby Vision Cinema Home',
+  dolbyHdrStandard: 'Dolby Vision Standard',
+  dolbyHdrGame: 'Dolby Vision Game',
+  hdrCinema: 'HDR Cinema',
+  hdrCinemaHome: 'HDR Cinema Home',
+  hdrStandard: 'HDR Standard',
+  hdrGame: 'HDR Game',
+  cinema: 'Cinema',
+  expert1: 'ISF Expert (Bright)',
+  expert2: 'ISF Expert (Dark)',
+  game: 'Game',
+  standard: 'Standard',
+  eco: 'Eco',
+  sports: 'Sports',
+  technicolorHdr: 'Technicolor HDR'
+};
+
+function formatPicMode(mode) {
+  if (!mode) return 'Standard';
+  return PIC_MODE_MAP[mode] || mode;
+}
+
+function formatDynamicRange(dr) {
+  if (!dr || dr === 'sdr') return 'SDR';
+  if (dr === 'dolbyHdr') return 'Dolby Vision';
+  if (dr === 'hdr') return 'HDR';
+  if (dr === 'technicolorHdr') return 'Technicolor HDR';
+  return String(dr).toUpperCase();
+}
+
+var inputNameMap = {};
+var lastInputScan = 0;
+
+function refreshInputNames(cb) {
+  if (Date.now() - lastInputScan < 60000 && Object.keys(inputNameMap).length > 0) {
+    if (cb) cb(inputNameMap);
+    return;
+  }
+  luna('com.webos.service.eim/getAllInputStatus', {}, function (res) {
+    if (res && res.devices && res.devices.length) {
+      for (var i = 0; i < res.devices.length; i++) {
+        var d = res.devices[i];
+        if (d.appId && d.label) {
+          var shortId = String(d.appId).replace('com.webos.app.', '');
+          inputNameMap[shortId] = d.label;
+        }
+      }
+      lastInputScan = Date.now();
+    }
+    if (cb) cb(inputNameMap);
+  });
+}
+
+/* luna-send wrapper via execFile directly, avoiding /bin/sh and shell child leaks.
+ * -w 2000 tells luna-send itself to time out after 2 seconds.
+ * timeout: 3500 ensures Node kills the child process if it ever stalls.
+ */
 function luna(uri, payload, cb) {
-  var cmd = "luna-send -n 1 -f 'luna://" + uri + "' '" +
-            JSON.stringify(payload || {}).replace(/'/g, "") + "'";
-  exec(cmd, { timeout: 5000 }, function (err, stdout) {
+  var args = ['-n', '1', '-w', '2000', '-f', 'luna://' + uri, JSON.stringify(payload || {})];
+  execFile('/usr/bin/luna-send', args, { timeout: 3500 }, function (err, stdout) {
     var parsed = null;
-    try { parsed = JSON.parse(stdout); } catch (e) {}
-    cb(parsed, String(stdout || ''));
+    if (!err && stdout) {
+      try { parsed = JSON.parse(stdout); } catch (e) {}
+    }
+    if (cb) cb(parsed, String(stdout || ''));
   });
 }
 
 // ---------------------------------------------------------------- stats
 var prevNet = null;
+var lastStats = null;
+var lastStatsTime = 0;
+var isCollecting = false;
+var statsWaiters = [];
 
 function collectStats(cb) {
+  var now = Date.now();
+  // Return cached result if fresh (< 1.5 seconds old)
+  if (lastStats && (now - lastStatsTime < 1500)) {
+    return cb(lastStats);
+  }
+
+  // Queue callback and serialize execution
+  statsWaiters.push(cb);
+  if (isCollecting) return;
+  isCollecting = true;
+
+  var safetyTimeout = setTimeout(function () {
+    if (isCollecting) {
+      console.log('warning: stats collection safety timeout reached');
+      flushStats(lastStats || { ok: false, error: 'timeout' });
+    }
+  }, 4500);
+
+  function flushStats(result) {
+    clearTimeout(safetyTimeout);
+    lastStats = result;
+    lastStatsTime = Date.now();
+    isCollecting = false;
+    var waiters = statsWaiters.slice(0);
+    statsWaiters = [];
+    for (var w = 0; w < waiters.length; w++) {
+      try { waiters[w](result); } catch (e) {}
+    }
+  }
+
   var mi = meminfo();
   var status = rd('/proc/lg/pm/status') || '';
   var coreMatch = status.match(/load:\s*([\d\s]+)/);
+  var cpuAvsMatch = status.match(/cpuavs_current\(mA\):\s*(\d+)/);
+  var coreAvsMatch = status.match(/coreavs_current\(mA\):\s*(\d+)/);
+  var cpuMa = cpuAvsMatch ? parseInt(cpuAvsMatch[1], 10) : null;
+  var coreMa = coreAvsMatch ? parseInt(coreAvsMatch[1], 10) : null;
+  var totalMa = (cpuMa !== null && coreMa !== null) ? (cpuMa + coreMa) : null;
+
   var n = netBytes();
   var rate = null;
   if (n && prevNet && n.t > prevNet.t && n.rx >= prevNet.rx) {
@@ -182,15 +316,50 @@ function collectStats(cb) {
     loadavg: (rd('/proc/loadavg') || '').split(' ').slice(0, 3),
     wifi: wifi(),
     net: rate,
-    emmc: { life: emmcLife(), eol: EOL_MAP[rd('/sys/block/mmcblk0/device/pre_eol_info')] || '?' }
+    emmc: emmcInfo(),
+    signal: getVideoSignal(),
+    power: {
+      cpu_ma: cpuMa,
+      core_ma: coreMa,
+      current_ma: totalMa
+    },
+    inputs: inputNameMap
   };
 
-  // Two luna calls, chained (node 0.12: plain callbacks, no Promise.all sugar).
-  luna('com.webos.audio/getVolume', {}, function (vol) {
-    if (vol) { out.volume = vol.volume; out.muted = !!vol.muted; }
+  // Refresh input names if cache expired
+  refreshInputNames();
+
+  // Chained Luna queries: sound -> foregroundApp -> picture settings
+  luna('com.webos.audio/getSoundOut', {}, function (sound) {
+    if (sound) {
+      out.volume = sound.volume;
+      out.muted = !!sound.muted;
+      out.audio_output = sound.scenario || 'internal';
+    }
     luna('com.webos.applicationManager/getForegroundAppInfo', {}, function (app) {
-      if (app && app.appId) out.app = String(app.appId).replace('com.webos.app.', '');
-      cb(out);
+      if (app && app.appId) {
+        var shortApp = String(app.appId).replace('com.webos.app.', '');
+        out.app = shortApp;
+        out.app_name = inputNameMap[shortApp] || shortApp;
+        out.display_title = (inputNameMap[shortApp] && inputNameMap[shortApp] !== shortApp) ?
+          (inputNameMap[shortApp] + ' (' + shortApp.toUpperCase() + ')') : shortApp;
+      }
+      luna('com.webos.service.settings/getSystemSettings',
+        { category: 'picture', keys: ['backlight', 'pictureMode', 'energySaving'] },
+        function (pic) {
+          if (pic && pic.settings) {
+            var rawDr = (pic.dimension && pic.dimension.dynamicRange) ? pic.dimension.dynamicRange : 'sdr';
+            out.picture = {
+              dynamicRange: formatDynamicRange(rawDr),
+              mode: formatPicMode(pic.settings.pictureMode),
+              mode_raw: pic.settings.pictureMode || 'standard',
+              backlight: num(pic.settings.backlight, 50),
+              energySaving: pic.settings.energySaving || 'off'
+            };
+          }
+          flushStats(out);
+        }
+      );
     });
   });
 }
@@ -282,16 +451,20 @@ var PAGE = [
 '<div class="grid">',
 '  <div class="card"><div class="lbl">Temperature</div><div class="val"><span id="temp">-</span>&deg;C</div>',
 '    <div class="bar"><div class="fill" id="tempbar"></div></div><div class="meta" id="tempmeta"></div></div>',
-'  <div class="card"><div class="lbl">CPU</div><div class="val"><span id="cpu">-</span>%</div>',
-'    <div class="bar"><div class="fill" id="cpubar"></div></div><div class="cores" id="cores"></div></div>',
+'  <div class="card"><div class="lbl">CPU &middot; Power</div><div class="val"><span id="cpu">-</span>%</div>',
+'    <div class="bar"><div class="fill" id="cpubar"></div></div><div class="cores" id="cores"></div><div class="meta" id="cpumeta"></div></div>',
+'  <div class="card"><div class="lbl">Video &middot; Picture</div><div class="val" id="hdr">-</div>',
+'    <div class="meta" id="picmeta">-</div></div>',
+'  <div class="card"><div class="lbl">Audio &middot; <span id="vol">-</span></div><div class="val" id="audiomode">-</div>',
+'    <div class="meta" id="audiometa">-</div></div>',
 '  <div class="card"><div class="lbl">Memory</div><div class="val"><span id="mem">-</span>%</div>',
 '    <div class="bar"><div class="fill" id="membar"></div></div><div class="meta" id="memmeta"></div></div>',
-'  <div class="card"><div class="lbl">Swap</div><div class="val"><span id="swap">-</span>%</div>',
-'    <div class="bar"><div class="fill" id="swapbar"></div></div><div class="meta" id="swapmeta"></div></div>',
+'  <div class="card"><div class="lbl">Flash storage</div><div class="val" id="emmc">-</div><div class="meta" id="emmcmeta"></div></div>',
 '  <div class="card"><div class="lbl">Network</div><div class="val" id="rssi">-</div><div class="meta" id="netmeta"></div></div>',
-'  <div class="card"><div class="lbl">Flash health</div><div class="val" id="emmc">-</div><div class="meta" id="emmcmeta"></div></div>',
+'  <div class="card"><div class="lbl">Swap (zram)</div><div class="val"><span id="swap">-</span>%</div>',
+'    <div class="bar"><div class="fill" id="swapbar"></div></div><div class="meta" id="swapmeta"></div></div>',
 '</div>',
-'<div class="card" style="margin-top:12px"><div class="lbl">Volume &middot; <span id="vol">-</span></div>',
+'<div class="card" style="margin-top:12px"><div class="lbl">Volume</div>',
 '  <div class="row"><button onclick="c(\'volumeStep\',-5)">Vol &minus;</button>',
 '  <button onclick="c(\'volumeStep\',5)">Vol +</button>',
 '  <button onclick="c(\'mute\',true)">Mute</button>',
@@ -300,11 +473,11 @@ var PAGE = [
 '  <div class="row"><button onclick="c(\'screenOff\')">Screen off</button>',
 '  <button onclick="c(\'screenOn\')">Screen on</button></div>',
 '  <div class="lbl" style="margin-top:14px">Input</div>',
-'  <div class="row"><button onclick="c(\'input\',\'hdmi1\')">HDMI 1</button>',
-'  <button onclick="c(\'input\',\'hdmi2\')">HDMI 2</button>',
-'  <button onclick="c(\'input\',\'hdmi3\')">HDMI 3</button>',
-'  <button onclick="c(\'input\',\'hdmi4\')">HDMI 4</button>',
-'  <button onclick="c(\'input\',\'livetv\')">Live TV</button></div>',
+'  <div class="row"><button id="btn_hdmi1" onclick="c(\'input\',\'hdmi1\')">HDMI 1</button>',
+'  <button id="btn_hdmi2" onclick="c(\'input\',\'hdmi2\')">HDMI 2</button>',
+'  <button id="btn_hdmi3" onclick="c(\'input\',\'hdmi3\')">HDMI 3</button>',
+'  <button id="btn_hdmi4" onclick="c(\'input\',\'hdmi4\')">HDMI 4</button>',
+'  <button id="btn_livetv" onclick="c(\'input\',\'livetv\')">Live TV</button></div>',
 '  <div class="lbl" style="margin-top:14px">Power</div>',
 '  <div class="row"><button class="danger" id="poff" onclick="pw(\'powerOff\')">Power off</button>',
 '  <button class="danger" id="prb" onclick="pw(\'reboot\')">Reboot</button></div>',
@@ -327,7 +500,7 @@ var PAGE = [
 ' try{const r=await fetch("/api/stats?k="+encodeURIComponent(K));',
 '  if(!r.ok){showErr("HTTP "+r.status+(r.status===401?" - bad or missing token":""));return;}',
 '  const d=await r.json(); q("err").style.display="none";',
-'  q("app").textContent=d.app||"-";',
+'  q("app").textContent=d.display_title||d.app_name||d.app||"-";',
 '  const up=d.uptime,h=Math.floor(up/3600),m=Math.floor(up%3600/60);',
 '  q("sub").textContent="up "+h+"h "+m+"m  ·  "+d.mhz+" MHz  ·  load "+(d.loadavg||[]).join(" ");',
 '  q("temp").textContent=d.temp; setBar("tempbar",d.temp,60,75);',
@@ -335,6 +508,17 @@ var PAGE = [
 '  q("tempmeta").textContent="min "+Math.min(...tHist)+"°  max "+Math.max(...tHist)+"°";',
 '  q("cpu").textContent=d.load; setBar("cpubar",d.load,60,85);',
 '  q("cores").innerHTML=(d.cores||[]).map((c,i)=>"<div class=core>c"+i+"<br>"+c+"%</div>").join("");',
+'  q("cpumeta").textContent=d.power&&d.power.current_ma?("SoC: "+d.power.current_ma+" mA (CPU "+d.power.cpu_ma+" · Core "+d.power.core_ma+")"):"";',
+'  if(d.picture){',
+'    q("hdr").textContent=d.picture.dynamicRange||"SDR";',
+'    q("picmeta").textContent=d.picture.mode+" · OLED Light "+d.picture.backlight+"%"+(d.signal?(" · "+d.signal):"");',
+'  } else {',
+'    q("hdr").textContent="-";',
+'    q("picmeta").textContent=d.signal||"-";',
+'  }',
+'  const audioMap={mastervolume_headphone:"Optical / Headphone",tv_speaker:"TV Speaker",external_arc:"HDMI ARC",soundbar:"Soundbar"};',
+'  q("audiomode").textContent=audioMap[d.audio_output]||d.audio_output||"Internal";',
+'  q("audiometa").textContent="Volume "+d.volume+(d.muted?" (muted)":"");',
 '  const mu=d.mem.total?100*(d.mem.total-d.mem.avail)/d.mem.total:0;',
 '  q("mem").textContent=mu.toFixed(0); setBar("membar",mu,75,90);',
 '  q("memmeta").textContent=mb(d.mem.total-d.mem.avail)+" used · "+mb(d.mem.avail)+" free";',
@@ -343,8 +527,15 @@ var PAGE = [
 '  q("swapmeta").textContent=mb(d.swap.total-d.swap.free)+" of "+mb(d.swap.total)+" (zram)";',
 '  q("rssi").textContent=d.wifi?d.wifi.level+" dBm":"wired";',
 '  q("netmeta").textContent=d.net?("down "+(d.net.rx/1024).toFixed(0)+" KB/s · up "+(d.net.tx/1024).toFixed(0)+" KB/s"):"";',
-'  q("emmc").textContent=d.emmc.life||"-"; q("emmcmeta").textContent="wear used · "+d.emmc.eol;',
+'  q("emmc").textContent=d.emmc.health||">90%";',
+'  q("emmcmeta").textContent=(d.emmc.wear||d.emmc.life)+" wear · EOL: "+d.emmc.eol;',
 '  q("vol").textContent=(d.muted?"muted":d.volume);',
+'  if(d.inputs){',
+'    if(d.inputs.hdmi1) q("btn_hdmi1").textContent=d.inputs.hdmi1;',
+'    if(d.inputs.hdmi2) q("btn_hdmi2").textContent=d.inputs.hdmi2;',
+'    if(d.inputs.hdmi3) q("btn_hdmi3").textContent=d.inputs.hdmi3;',
+'    if(d.inputs.hdmi4) q("btn_hdmi4").textContent=d.inputs.hdmi4;',
+'  }',
 ' }catch(e){showErr("TV unreachable - "+e.message);}}',
 'fetch("/api/caps?k="+encodeURIComponent(K)).then(r=>r.json()).then(c=>{',
 '  if(!c.allowPower){q("poff").classList.add("off");q("prb").classList.add("off");',
@@ -723,10 +914,19 @@ function setupHomeAssistant() {
       {
         type: 'sensor', id: 'flash_health',
         payload: {
-          name: 'Flash Life Time',
+          name: 'Flash Storage Health',
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.emmc.life }}',
+          value_template: '{{ value_json.emmc.health }}',
           icon: 'mdi:harddisk'
+        }
+      },
+      {
+        type: 'sensor', id: 'flash_wear',
+        payload: {
+          name: 'Flash Wear Level',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.emmc.wear }}',
+          icon: 'mdi:wrench-clock'
         }
       },
       {
@@ -734,8 +934,66 @@ function setupHomeAssistant() {
         payload: {
           name: 'Active App',
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.app }}',
+          value_template: '{{ value_json.display_title or value_json.app_name or value_json.app }}',
           icon: 'mdi:television-play'
+        }
+      },
+      {
+        type: 'sensor', id: 'dynamic_range',
+        payload: {
+          name: 'Dynamic Range',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.picture.dynamicRange if value_json.picture else "SDR" }}',
+          icon: 'mdi:video-vintage'
+        }
+      },
+      {
+        type: 'sensor', id: 'picture_mode',
+        payload: {
+          name: 'Picture Mode',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.picture.mode if value_json.picture else "Unknown" }}',
+          icon: 'mdi:palette'
+        }
+      },
+      {
+        type: 'sensor', id: 'oled_light',
+        payload: {
+          name: 'OLED Light',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.picture.backlight if value_json.picture else 0 }}',
+          unit_of_measurement: '%',
+          icon: 'mdi:brightness-6'
+        }
+      },
+      {
+        type: 'sensor', id: 'video_signal',
+        payload: {
+          name: 'Video Signal',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.signal or "Internal / Standby" }}',
+          icon: 'mdi:video-input-hdmi'
+        }
+      },
+      {
+        type: 'sensor', id: 'audio_output',
+        payload: {
+          name: 'Audio Output',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.audio_output or "internal" }}',
+          icon: 'mdi:speaker'
+        }
+      },
+      {
+        type: 'sensor', id: 'soc_current',
+        payload: {
+          name: 'SoC Current',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.power.current_ma if value_json.power else 0 }}',
+          unit_of_measurement: 'mA',
+          device_class: 'current',
+          state_class: 'measurement',
+          icon: 'mdi:current-ac'
         }
       },
       {

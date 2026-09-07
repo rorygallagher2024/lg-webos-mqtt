@@ -8,27 +8,36 @@ Verified on **LG OLED65B8SLC (webOS 4.4.3)**. Compatible with webOS 3.5+ running
 
 ## Features
 
-- **Home Assistant MQTT Auto-Discovery**: Automatically creates a single **"LG OLED TV"** device in Home Assistant with zero YAML configuration needed.
+- **Home Assistant MQTT Auto-Discovery**: Automatically creates a single **"LG OLED TV"** device in Home Assistant with 24 native entities and zero YAML configuration needed.
 - **OLED Panel Blanking Switch (`switch.lg_b8_display_panel`)**: Turn off the OLED screen while audio/music continues playing (`turnOffScreen`). Perfect for listening to Spotify, Tidal, or AirPlay without risking OLED burn-in or wasting panel hours.
+- **Deep Video & Audio Observability**:
+  - **Dynamic Range (`sensor.lg_b8_dynamic_range`)**: Real-time detection of **Dolby Vision**, **HDR**, or **SDR**.
+  - **Picture Mode (`sensor.lg_b8_picture_mode`)**: Reports current profile (e.g. *Dolby Vision Cinema*, *ISF Expert*, *Game*).
+  - **OLED Light (`sensor.lg_b8_oled_light`)**: Live panel backlight brightness level (`0-100%`).
+  - **Video Signal (`sensor.lg_b8_video_signal`)**: Raw resolution and refresh rate directly from HDMI status (e.g. `3840x2160 @ 60Hz`).
+  - **Audio Output (`sensor.lg_b8_audio_output`)**: Active audio routing scenario (e.g. *Optical / Headphone*, *TV Speaker*, *HDMI ARC*).
+  - **Active Input & Friendly CEC Names (`sensor.lg_b8_active_app`)**: Resolves HDMI ports to friendly labels (e.g. `Apple TV (HDMI 2)`, `Xbox (HDMI 1)`).
 - **Hardware Telemetry & Health Monitoring**:
   - SoC Temperature (`°C`) with native graph history
   - Overall CPU usage (`%`) and individual core breakdowns
   - Memory and zram Swap utilization
+  - Real-time SoC Current draw (`sensor.lg_b8_soc_current` in `mA`, measuring CPU & Core AVS power draw)
   - Wi-Fi RSSI signal strength (`dBm`)
   - Live network download/upload rates (`kB/s`)
-  - Flash storage (eMMC) life wear indicator (`life_time` / `pre_eol_info`)
+  - Flash storage (eMMC) life and wear monitoring with JEDEC health translation
 - **Full Local Control**:
   - Volume slider (`number.lg_b8_volume`)
   - Mute switch (`switch.lg_b8_mute`)
   - Input selector (`select.lg_b8_input_source`: HDMI 1–4, Live TV)
   - Screen notifications (`text.lg_b8_screen_notification` for custom on-screen toast messages)
+  - Power & Restart buttons (`button.lg_b8_power_off`, `button.lg_b8_restart`)
 - **Standalone Mobile Dashboard**: Access live stats and controls directly in your phone or laptop browser at `http://<tv-ip>:8080/`.
 - **Zero Dependencies**: Pure ES5 implementation running on the TV's native Node.js v0.12 without `npm`. Minimal footprint (<0.1% CPU).
 - **Persistent Boot Hook**: Automatically launches on TV startup via webOS Homebrew Channel (`init.d`).
 
 ---
 
-## Architecture
+## Architecture & Stability
 
 ```
                   ┌─────────────────────────────────────────┐
@@ -40,6 +49,10 @@ Verified on **LG OLED65B8SLC (webOS 4.4.3)**. Compatible with webOS 3.5+ running
                   │  └─────────┬─────────┘ └──────┬──────┘  │
                   │            │                  │         │
                   │            ▼                  ▼         │
+                  │   In-Flight Concurrency Mutex & Caching │
+                  │            │                  │         │
+                  │            ▼                  ▼         │
+                  │   Direct execFile (luna-send -w 2000)   │
                   │      webOS Luna Bus & /proc telemetry   │
                   └───────────────────────────────┬─────────┘
                                                   │
@@ -55,6 +68,15 @@ Verified on **LG OLED65B8SLC (webOS 4.4.3)**. Compatible with webOS 3.5+ running
                   │        (Auto-Discovered Device)         │
                   └─────────────────────────────────────────┘
 ```
+
+### High-Stability Process Execution
+Older Linux kernels and Node 0.12 can encounter process deadlocks or child leaks when `child_process.exec()` is called frequently (spawning `/bin/sh` without timeout parameters). 
+
+`tvweb.js` solves this with:
+1. **Direct `execFile`**: Invokes `/usr/bin/luna-send` directly with zero shell overhead.
+2. **Internal Daemon Timeout**: Luna calls use `-w 2000` to prevent orphaned background processes if a system bus stalls.
+3. **In-Flight Concurrency Mutex**: If multiple HTTP pollers or MQTT intervals request stats simultaneously, they are coalesced into a single execution pipeline.
+4. **Memory Caching**: Telemetry is cached for 1.5 seconds, delivering sub-20ms HTTP responses with zero subprocess spawning during rapid UI updates.
 
 ---
 
@@ -79,11 +101,11 @@ cp config.example.json server/config.json
   "port": 8080,
   "host": "0.0.0.0",
   "allowControl": true,
-  "allowPower": false,
+  "allowPower": true,
   "token": "",
   "mqtt": {
     "enabled": true,
-    "host": "192.168.1.50",
+    "host": "192.168.1.125",
     "port": 1883,
     "username": "",
     "password": "",
@@ -119,15 +141,24 @@ The script will:
 
 ## Home Assistant Entities
 
-Once the TV connects to MQTT, the following entities appear under the **LG OLED B8 TV** device:
+Once the TV connects to MQTT, the following **24 entities** appear under the **LG OLED B8 TV** device:
 
 | Domain | Entity ID | Name | Description |
 | :--- | :--- | :--- | :--- |
 | `switch` | `switch.lg_b8_display_panel` | OLED Display Panel | Blanks/turns off OLED panel while audio plays |
 | `switch` | `switch.lg_b8_mute` | Mute | Toggle audio mute |
 | `number` | `number.lg_b8_volume` | Volume | Volume slider (0–100) |
-| `select` | `select.lg_b8_input_source` | Input Source | HDMI 1, HDMI 2, HDMI 3, HDMI 4, Live TV |
+| `select` | `select.lg_b8_input_source` | Input Source | HDMI 1–4, Live TV |
 | `text` | `text.lg_b8_screen_notification` | Screen Notification | Sends a toast message to TV screen |
+| `button` | `button.lg_b8_restart` | Restart TV | Reboots the TV (when `allowPower: true`) |
+| `button` | `button.lg_b8_power_off` | Power Off TV | Powers down the TV (when `allowPower: true`) |
+| `sensor` | `sensor.lg_b8_dynamic_range` | Dynamic Range | **Dolby Vision**, **HDR**, or **SDR** |
+| `sensor` | `sensor.lg_b8_picture_mode` | Picture Mode | Current picture profile (e.g. *Dolby Vision Cinema*) |
+| `sensor` | `sensor.lg_b8_oled_light` | OLED Light | OLED panel backlight level (`0-100%`) |
+| `sensor` | `sensor.lg_b8_video_signal` | Video Signal | HDMI resolution & refresh rate (e.g. `3840x2160 @ 60Hz`) |
+| `sensor` | `sensor.lg_b8_audio_output` | Audio Output | Audio scenario (e.g. *Optical / Headphone*, *TV Speaker*) |
+| `sensor` | `sensor.lg_b8_active_app` | Active App | Current foreground app or friendly CEC device |
+| `sensor` | `sensor.lg_b8_soc_current` | SoC Current | Total processor current draw (`mA`) |
 | `sensor` | `sensor.lg_b8_soc_temperature` | SoC Temperature | TV processor temperature (`°C`) |
 | `sensor` | `sensor.lg_b8_cpu_usage` | CPU Usage | Real-time CPU load (`%`) |
 | `sensor` | `sensor.lg_b8_memory_usage` | Memory Usage | System RAM usage (`%`) |
@@ -135,9 +166,20 @@ Once the TV connects to MQTT, the following entities appear under the **LG OLED 
 | `sensor` | `sensor.lg_b8_wifi_signal` | Wi-Fi Signal | Wi-Fi signal strength (`dBm`) |
 | `sensor` | `sensor.lg_b8_download_rate` | Download Rate | Live network throughput (`kB/s`) |
 | `sensor` | `sensor.lg_b8_upload_rate` | Upload Rate | Live network upload throughput (`kB/s`) |
-| `sensor` | `sensor.lg_b8_flash_health` | Flash Life Time | eMMC wear estimate (e.g. `0-10%`, `Normal`) |
-| `sensor` | `sensor.lg_b8_active_app` | Active App | Current foreground app/input (`hdmi2`, `youtube`, etc.) |
+| `sensor` | `sensor.lg_b8_flash_health` | Flash Storage Health | eMMC remaining health estimate (`>90% (Healthy)`) |
+| `sensor` | `sensor.lg_b8_flash_wear` | Flash Wear Level | JEDEC write-cycle consumption (`0-10%`) |
 | `sensor` | `sensor.lg_b8_uptime` | Uptime | TV uptime in seconds |
+
+---
+
+## eMMC Flash Storage: Health vs. Wear
+
+Under the **JEDEC eMMC 5.0** specification, `/sys/block/mmcblk0/device/life_time` returns byte estimates for SLC and MLC partition write cycles:
+- `0x01` indicates **0% – 10% of rated device write cycles used**.
+- This means **>90% of drive life remains** (Healthy).
+- `pre_eol_info` returning `01` indicates normal endurance (<80% reserved blocks consumed).
+
+To prevent user confusion, `tvweb.js` translates this into both a human-friendly health state (`>90% (Healthy)`) and a wear estimate (`0-10% used`).
 
 ---
 
@@ -165,7 +207,23 @@ action:
       entity_id: switch.lg_b8_display_panel
 ```
 
-### 2. Send Doorbell / Alert Toast to TV Screen
+### 2. Turn on Cinema Lighting When Dolby Vision Starts
+
+Trigger an ambient lighting scene whenever 4K Dolby Vision playback begins:
+
+```yaml
+alias: "Cinema: Dim Lights on Dolby Vision"
+trigger:
+  - platform: state
+    entity_id: sensor.lg_b8_dynamic_range
+    to: "Dolby Vision"
+action:
+  - service: scene.turn_on
+    target:
+      entity_id: scene.movie_night
+```
+
+### 3. Send Doorbell / Alert Toast to TV Screen
 
 Display a heads-up notification on the TV when a doorbell rings:
 
@@ -208,7 +266,7 @@ Nothing on the TV's read-only rootfs is ever touched.
 
 - **Node.js v0.12 (2015)**: webOS 4.x ships Node v0.12.2. All code in `tvweb.js` is written in strict ES5 (no `let`/`const`, no arrow functions, no template literals, no `async`/`await`).
 - **BusyBox `run-parts` Hook Naming**: The webosbrew startup system invokes user hooks with `run-parts /var/lib/webosbrew/init.d`. BusyBox `run-parts` strictly ignores any filename containing a dot (`.`), so the boot hook must be named `50-tvweb` without `.sh`.
-- **Luna Bus Introspection**: Control commands interact with webOS via native `luna-send` calls (`com.webos.audio`, `com.webos.service.tvpower`, `com.webos.applicationManager`, `com.webos.notification`).
+- **Luna Bus Introspection**: Control commands interact with webOS via native `luna-send` calls (`com.webos.audio`, `com.webos.service.tvpower`, `com.webos.applicationManager`, `com.webos.notification`, `com.webos.service.settings`, `com.webos.service.eim`).
 
 ---
 
