@@ -1,4 +1,4 @@
-# LG webOS TV Dashboard & Home Assistant MQTT Integration
+# lg-webos-mqtt · LG webOS Dashboard & Home Assistant Integration
 
 <p align="center">
   <img src="https://img.shields.io/badge/webOS-3.5%20--%204.4+-blue?style=flat-square&logo=lg" alt="webOS 3.5 - 4.4+">
