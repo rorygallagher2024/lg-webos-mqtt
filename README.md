@@ -83,7 +83,7 @@ cp config.example.json server/config.json
   "token": "",
   "mqtt": {
     "enabled": true,
-    "host": "192.168.1.125",
+    "host": "192.168.1.50",
     "port": 1883,
     "username": "",
     "password": "",
@@ -106,7 +106,7 @@ Deploy `tvweb.js` and install the boot hook so it survives TV reboots:
 
 ```bash
 cd server
-./deploy.sh 192.168.1.134 --persist
+./deploy.sh <tv-ip> --persist
 ```
 
 The script will:
