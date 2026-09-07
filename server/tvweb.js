@@ -500,12 +500,17 @@ function doControl(action, value, cb) {
 
     case 'powerOff':
       if (!CONFIG.allowPower) return cb({ ok: false, error: 'power actions disabled (set allowPower)' });
-      return luna('com.webos.service.tvpower/power/powerOff', { reason: 'tvweb' },
-                  function (r) { cb({ ok: !!(r && r.returnValue) }); });
+      return luna('com.webos.service.tvpower/power/powerOff', { reason: 'remoteKey' },
+                  function (r) {
+                    if (r && r.returnValue) return cb({ ok: true });
+                    luna('com.webos.service.tvpower/power/powerOff', { reason: 'localKey' }, function (r2) {
+                      cb({ ok: !!(r2 && r2.returnValue), error: (r2 && r2.errorText) || (r && r.errorText) });
+                    });
+                  });
 
     case 'reboot':
       if (!CONFIG.allowPower) return cb({ ok: false, error: 'power actions disabled (set allowPower)' });
-      return luna('com.webos.service.tvpower/power/reboot', { reason: 'tvweb' },
+      return luna('com.webos.service.tvpower/power/reboot', { reason: 'remoteKey' },
                   function (r) { cb({ ok: !!(r && r.returnValue) }); });
 
     case 'refresherSchedule':
@@ -2062,12 +2067,16 @@ function setupHomeAssistant() {
     }
 
     if (action === 'reboot') {
-      doControl('reboot', null, function() {});
+      doControl('reboot', null, function (r) {
+        console.log('mqtt: reboot executed, result: ' + JSON.stringify(r));
+      });
       return;
     }
 
     if (action === 'powerOff') {
-      doControl('powerOff', null, function() {});
+      doControl('powerOff', null, function (r) {
+        console.log('mqtt: powerOff executed, result: ' + JSON.stringify(r));
+      });
       return;
     }
 
