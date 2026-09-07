@@ -86,6 +86,16 @@ Older Linux kernels and Node 0.12 can encounter process deadlocks or child leaks
 
 ---
 
+## ⚠️ Disclaimer & Safety
+
+**Use this software at your own risk.**
+
+- **Root Access & Hardware**: This project runs custom software with `root` privileges on an embedded Smart TV operating system. While designed to be lightweight, read-only to rootfs, and non-destructive, the authors and contributors assume **no responsibility or liability** for any damage, bootloops, bricked devices, voided warranties, data loss, OLED panel issues, or unexpected behavior resulting from the use or misuse of this software.
+- **Power & Control Commands**: Features such as rebooting, power off, screen blanking, and Pixel Refresher scheduling issue low-level commands directly to webOS system services (`luna-send`). Ensure you understand what each command does before executing it.
+- **Trademark Notice**: This is an independent, unofficial open-source community project. It is not affiliated with, endorsed by, or associated with LG Electronics Inc. in any way. webOS is a trademark of LG Electronics.
+
+---
+
 ## Quick Start
 
 ### 1. Prerequisites
