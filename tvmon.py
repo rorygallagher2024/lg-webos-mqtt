@@ -168,7 +168,7 @@ def main():
 
         o = ["\033[H"]
         if err:
-            o.append(f"{BOLD}{CYA}┌ LG B8 · {a.host} {RESET}\033[K\n\033[K\n")
+            o.append(f"{BOLD}{CYA}┌ LG TV · {a.host} {RESET}\033[K\n\033[K\n")
             o.append(f"{RED}  ✖  unreachable — {err}{RESET}\033[K\n")
             o.append(f"{DIM}     TV is most likely powered off. Retrying…{RESET}\033[K\n\033[J")
             sys.stdout.write("".join(o)); sys.stdout.flush()
@@ -192,8 +192,8 @@ def main():
                     cpu_stat = (sum(dt) - dt[3]) / sum(dt) * 100
             prev_stat = cur
 
-        model = jget(d.get("pic"), "modelName") or "OLED65B8"
-        head = f" LG B8 · {a.host} "
+        model = jget(d.get("pic"), "modelName") or "TV"
+        head = f" LG {model} · {a.host} "
         o.append(f"{BOLD}{CYA}┌{head}{'─'*max(0,58-len(head))}┐{RESET}\033[K\n")
 
         state = jget(d.get("power"), "state") or "?"

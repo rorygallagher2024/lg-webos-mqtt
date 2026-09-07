@@ -47,9 +47,9 @@ var CONFIG = {
   },
 
   device: {
-    id: 'lg_b8_tv',
-    name: 'LG OLED B8 TV',
-    model: 'OLED65B8SLC',
+    id: 'lg_tv',
+    name: '',
+    model: '',
     manufacturer: 'LG'
   }
 };
@@ -248,6 +248,29 @@ function luna(uri, payload, cb) {
   });
 }
 
+function detectDeviceInfo(cb) {
+  luna('com.webos.service.tv.systemproperty/getSystemInfo',
+    { keys: ['modelName', 'firmwareVersion', 'boardType'] },
+    function (res) {
+      if (res && res.modelName) {
+        if (!CONFIG.device.model || CONFIG.device.model === 'OLED65B8SLC' || CONFIG.device.model === 'webOS TV') {
+          CONFIG.device.model = res.modelName;
+        }
+        if (!CONFIG.device.name || CONFIG.device.name === 'LG webOS TV' || CONFIG.device.name === 'LG OLED B8 TV') {
+          CONFIG.device.name = 'LG ' + res.modelName;
+        }
+        if (res.firmwareVersion) {
+          CONFIG.device.sw_version = res.firmwareVersion;
+        }
+        console.log('device detected: ' + (CONFIG.device.name || 'LG TV') + ' (model: ' + CONFIG.device.model + ') fw: ' + (res.firmwareVersion || '?'));
+      }
+      if (!CONFIG.device.name) CONFIG.device.name = 'LG webOS TV';
+      if (!CONFIG.device.model) CONFIG.device.model = 'webOS TV';
+      if (cb) cb();
+    }
+  );
+}
+
 // ---------------------------------------------------------------- stats
 var prevNet = null;
 var lastStats = null;
@@ -306,6 +329,11 @@ function collectStats(cb) {
   var out = {
     ok: true,
     time: Date.now(),
+    device: {
+      id: CONFIG.device.id || 'lg_tv',
+      name: CONFIG.device.name || 'LG webOS TV',
+      model: CONFIG.device.model || 'webOS TV'
+    },
     temp: num(rd('/proc/lg/pm/temperature'), null),
     load: num(rd('/proc/lg/pm/current_load'), null),
     mhz: Math.round(num(rd('/proc/lg/pm/frequency'), 0) / 1000),
@@ -425,7 +453,7 @@ function doControl(action, value, cb) {
 var PAGE = [
 '<!doctype html><html><head><meta charset="utf-8">',
 '<meta name="viewport" content="width=device-width,initial-scale=1">',
-'<title>LG B8</title><style>',
+'<title>LG TV</title><style>',
 ':root{--bg:#0f1115;--card:#171a21;--fg:#e6e9ef;--dim:#8b93a7;--ok:#41d18b;--warn:#e8b84b;--crit:#f2665e;--acc:#5aa9e6}',
 '*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);',
 'font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:16px;max-width:760px;margin:0 auto}',
@@ -445,7 +473,7 @@ var PAGE = [
 '.danger{background:#3a1f24}.off{opacity:.45}',
 '#err{background:#3a1f24;color:var(--crit);padding:10px;border-radius:9px;margin-bottom:12px;display:none}',
 '</style></head><body>',
-'<h1>LG B8 &middot; <span id="app">-</span></h1>',
+'<h1><span id="devname">LG TV</span> &middot; <span id="app">-</span></h1>',
 '<div class="sub" id="sub">connecting...</div>',
 '<div id="err"></div>',
 '<div class="grid">',
@@ -500,6 +528,7 @@ var PAGE = [
 ' try{const r=await fetch("/api/stats?k="+encodeURIComponent(K));',
 '  if(!r.ok){showErr("HTTP "+r.status+(r.status===401?" - bad or missing token":""));return;}',
 '  const d=await r.json(); q("err").style.display="none";',
+'  if(d.device&&d.device.name){q("devname").textContent=d.device.name;document.title=d.device.name+(d.app?(" · "+(d.display_title||d.app)):"");}',
 '  q("app").textContent=d.display_title||d.app_name||d.app||"-";',
 '  const up=d.uptime,h=Math.floor(up/3600),m=Math.floor(up%3600/60);',
 '  q("sub").textContent="up "+h+"h "+m+"m  ·  "+d.mhz+" MHz  ·  load "+(d.loadavg||[]).join(" ");',
@@ -817,10 +846,10 @@ function setupHomeAssistant() {
 
   var devInfo = {
     identifiers: [devId],
-    name: (CONFIG.device && CONFIG.device.name) || 'LG OLED B8 TV',
-    model: (CONFIG.device && CONFIG.device.model) || 'OLED65B8SLC',
+    name: (CONFIG.device && CONFIG.device.name) || 'LG webOS TV',
+    model: (CONFIG.device && CONFIG.device.model) || 'webOS TV',
     manufacturer: (CONFIG.device && CONFIG.device.manufacturer) || 'LG',
-    sw_version: 'webOS 4.4.3 (tvweb)'
+    sw_version: (CONFIG.device && CONFIG.device.sw_version) || 'webOS (tvweb)'
   };
 
   var mqttClient = new MiniMQTT({
@@ -1097,6 +1126,13 @@ function setupHomeAssistant() {
       var discTopic = discPfx + '/' + item.type + '/' + devId + '/' + item.id + '/config';
       mqttClient.publish(discTopic, JSON.stringify(conf), true);
     }
+
+    if (devId !== 'lg_b8_tv') {
+      for (var k = 0; k < entities.length; k++) {
+        var oldDisc = discPfx + '/' + entities[k].type + '/lg_b8_tv/' + entities[k].id + '/config';
+        mqttClient.publish(oldDisc, '', true);
+      }
+    }
     console.log('mqtt: published ' + entities.length + ' Home Assistant discovery entities');
   }
 
@@ -1184,4 +1220,6 @@ function setupHomeAssistant() {
   mqttClient.connect();
 }
 
-setupHomeAssistant();
+detectDeviceInfo(function() {
+  setupHomeAssistant();
+});

@@ -1,7 +1,7 @@
 #!/bin/bash
-# Poll LG B8 (OLED65B8SLC, webOS 4.4.3) for SoC temp / CPU load.
-# Outputs JSON. Works over the rooted root-telnet on port 23.
-# Usage: ./lg-b8-stats.sh [ip]     default ip 192.168.1.134
+# Poll LG webOS TV for SoC temp / CPU load.
+# Outputs JSON. Works over rooted telnet on port 23.
+# Usage: ./tvstats.sh [tv-ip]
 
 TV="${1:-192.168.1.134}"
 

@@ -8,29 +8,29 @@ Verified on **LG OLED65B8SLC (webOS 4.4.3)**. Compatible with webOS 3.5+ running
 
 ## Features
 
-- **Home Assistant MQTT Auto-Discovery**: Automatically creates a single **"LG OLED TV"** device in Home Assistant with 24 native entities and zero YAML configuration needed.
-- **OLED Panel Blanking Switch (`switch.lg_b8_display_panel`)**: Turn off the OLED screen while audio/music continues playing (`turnOffScreen`). Perfect for listening to Spotify, Tidal, or AirPlay without risking OLED burn-in or wasting panel hours.
+- **Home Assistant MQTT Auto-Discovery**: Automatically creates a single **"LG webOS TV"** device in Home Assistant with 24 native entities and zero YAML configuration needed.
+- **OLED Panel Blanking Switch (`switch.lg_tv_display_panel`)**: Turn off the OLED screen while audio/music continues playing (`turnOffScreen`). Perfect for listening to Spotify, Tidal, or AirPlay without risking OLED burn-in or wasting panel hours.
 - **Deep Video & Audio Observability**:
-  - **Dynamic Range (`sensor.lg_b8_dynamic_range`)**: Real-time detection of **Dolby Vision**, **HDR**, or **SDR**.
-  - **Picture Mode (`sensor.lg_b8_picture_mode`)**: Reports current profile (e.g. *Dolby Vision Cinema*, *ISF Expert*, *Game*).
-  - **OLED Light (`sensor.lg_b8_oled_light`)**: Live panel backlight brightness level (`0-100%`).
-  - **Video Signal (`sensor.lg_b8_video_signal`)**: Raw resolution and refresh rate directly from HDMI status (e.g. `3840x2160 @ 60Hz`).
-  - **Audio Output (`sensor.lg_b8_audio_output`)**: Active audio routing scenario (e.g. *Optical / Headphone*, *TV Speaker*, *HDMI ARC*).
-  - **Active Input & Friendly CEC Names (`sensor.lg_b8_active_app`)**: Resolves HDMI ports to friendly labels (e.g. `Apple TV (HDMI 2)`, `Xbox (HDMI 1)`).
+  - **Dynamic Range (`sensor.lg_tv_dynamic_range`)**: Real-time detection of **Dolby Vision**, **HDR**, or **SDR**.
+  - **Picture Mode (`sensor.lg_tv_picture_mode`)**: Reports current profile (e.g. *Dolby Vision Cinema*, *ISF Expert*, *Game*).
+  - **OLED Light (`sensor.lg_tv_oled_light`)**: Live panel backlight brightness level (`0-100%`).
+  - **Video Signal (`sensor.lg_tv_video_signal`)**: Raw resolution and refresh rate directly from HDMI status (e.g. `3840x2160 @ 60Hz`).
+  - **Audio Output (`sensor.lg_tv_audio_output`)**: Active audio routing scenario (e.g. *Optical / Headphone*, *TV Speaker*, *HDMI ARC*).
+  - **Active Input & Friendly CEC Names (`sensor.lg_tv_active_app`)**: Resolves HDMI ports to friendly labels (e.g. `Apple TV (HDMI 2)`, `Xbox (HDMI 1)`).
 - **Hardware Telemetry & Health Monitoring**:
   - SoC Temperature (`°C`) with native graph history
   - Overall CPU usage (`%`) and individual core breakdowns
   - Memory and zram Swap utilization
-  - Real-time SoC Current draw (`sensor.lg_b8_soc_current` in `mA`, measuring CPU & Core AVS power draw)
+  - Real-time SoC Current draw (`sensor.lg_tv_soc_current` in `mA`, measuring CPU & Core AVS power draw)
   - Wi-Fi RSSI signal strength (`dBm`)
   - Live network download/upload rates (`kB/s`)
   - Flash storage (eMMC) life and wear monitoring with JEDEC health translation
 - **Full Local Control**:
-  - Volume slider (`number.lg_b8_volume`)
-  - Mute switch (`switch.lg_b8_mute`)
-  - Input selector (`select.lg_b8_input_source`: HDMI 1–4, Live TV)
-  - Screen notifications (`text.lg_b8_screen_notification` for custom on-screen toast messages)
-  - Power & Restart buttons (`button.lg_b8_power_off`, `button.lg_b8_restart`)
+  - Volume slider (`number.lg_tv_volume`)
+  - Mute switch (`switch.lg_tv_mute`)
+  - Input selector (`select.lg_tv_input_source`: HDMI 1–4, Live TV)
+  - Screen notifications (`text.lg_tv_screen_notification` for custom on-screen toast messages)
+  - Power & Restart buttons (`button.lg_tv_power_off`, `button.lg_tv_restart`)
 - **Standalone Mobile Dashboard**: Access live stats and controls directly in your phone or laptop browser at `http://<tv-ip>:8080/`.
 - **Zero Dependencies**: Pure ES5 implementation running on the TV's native Node.js v0.12 without `npm`. Minimal footprint (<0.1% CPU).
 - **Persistent Boot Hook**: Automatically launches on TV startup via webOS Homebrew Channel (`init.d`).
@@ -114,13 +114,15 @@ cp config.example.json server/config.json
     "telemetryIntervalMs": 10000
   },
   "device": {
-    "id": "lg_b8_tv",
-    "name": "LG OLED B8 TV",
-    "model": "OLED65B8SLC",
+    "id": "lg_tv",
+    "name": "LG webOS TV",
+    "model": "",
     "manufacturer": "LG"
   }
 }
 ```
+
+> **Note:** If `name` or `model` are left empty, `tvweb.js` automatically queries the TV's system property service to detect your exact model number (e.g. `OLED65B8SLC`, `OLED55C1PUB`, etc.) and firmware version!
 
 ### 3. Deploy to TV
 
@@ -141,34 +143,34 @@ The script will:
 
 ## Home Assistant Entities
 
-Once the TV connects to MQTT, the following **24 entities** appear under the **LG OLED B8 TV** device:
+Once the TV connects to MQTT, the following **24 entities** appear under the auto-discovered device (with your TV's actual detected model number):
 
 | Domain | Entity ID | Name | Description |
 | :--- | :--- | :--- | :--- |
-| `switch` | `switch.lg_b8_display_panel` | OLED Display Panel | Blanks/turns off OLED panel while audio plays |
-| `switch` | `switch.lg_b8_mute` | Mute | Toggle audio mute |
-| `number` | `number.lg_b8_volume` | Volume | Volume slider (0–100) |
-| `select` | `select.lg_b8_input_source` | Input Source | HDMI 1–4, Live TV |
-| `text` | `text.lg_b8_screen_notification` | Screen Notification | Sends a toast message to TV screen |
-| `button` | `button.lg_b8_restart` | Restart TV | Reboots the TV (when `allowPower: true`) |
-| `button` | `button.lg_b8_power_off` | Power Off TV | Powers down the TV (when `allowPower: true`) |
-| `sensor` | `sensor.lg_b8_dynamic_range` | Dynamic Range | **Dolby Vision**, **HDR**, or **SDR** |
-| `sensor` | `sensor.lg_b8_picture_mode` | Picture Mode | Current picture profile (e.g. *Dolby Vision Cinema*) |
-| `sensor` | `sensor.lg_b8_oled_light` | OLED Light | OLED panel backlight level (`0-100%`) |
-| `sensor` | `sensor.lg_b8_video_signal` | Video Signal | HDMI resolution & refresh rate (e.g. `3840x2160 @ 60Hz`) |
-| `sensor` | `sensor.lg_b8_audio_output` | Audio Output | Audio scenario (e.g. *Optical / Headphone*, *TV Speaker*) |
-| `sensor` | `sensor.lg_b8_active_app` | Active App | Current foreground app or friendly CEC device |
-| `sensor` | `sensor.lg_b8_soc_current` | SoC Current | Total processor current draw (`mA`) |
-| `sensor` | `sensor.lg_b8_soc_temperature` | SoC Temperature | TV processor temperature (`°C`) |
-| `sensor` | `sensor.lg_b8_cpu_usage` | CPU Usage | Real-time CPU load (`%`) |
-| `sensor` | `sensor.lg_b8_memory_usage` | Memory Usage | System RAM usage (`%`) |
-| `sensor` | `sensor.lg_b8_swap_usage` | Swap Usage | zram Swap usage (`%`) |
-| `sensor` | `sensor.lg_b8_wifi_signal` | Wi-Fi Signal | Wi-Fi signal strength (`dBm`) |
-| `sensor` | `sensor.lg_b8_download_rate` | Download Rate | Live network throughput (`kB/s`) |
-| `sensor` | `sensor.lg_b8_upload_rate` | Upload Rate | Live network upload throughput (`kB/s`) |
-| `sensor` | `sensor.lg_b8_flash_health` | Flash Storage Health | eMMC remaining health estimate (`>90% (Healthy)`) |
-| `sensor` | `sensor.lg_b8_flash_wear` | Flash Wear Level | JEDEC write-cycle consumption (`0-10%`) |
-| `sensor` | `sensor.lg_b8_uptime` | Uptime | TV uptime in seconds |
+| `switch` | `switch.lg_tv_display_panel` | OLED Display Panel | Blanks/turns off OLED panel while audio plays |
+| `switch` | `switch.lg_tv_mute` | Mute | Toggle audio mute |
+| `number` | `number.lg_tv_volume` | Volume | Volume slider (0–100) |
+| `select` | `select.lg_tv_input_source` | Input Source | HDMI 1–4, Live TV |
+| `text` | `text.lg_tv_screen_notification` | Screen Notification | Sends a toast message to TV screen |
+| `button` | `button.lg_tv_restart` | Restart TV | Reboots the TV (when `allowPower: true`) |
+| `button` | `button.lg_tv_power_off` | Power Off TV | Powers down the TV (when `allowPower: true`) |
+| `sensor` | `sensor.lg_tv_dynamic_range` | Dynamic Range | **Dolby Vision**, **HDR**, or **SDR** |
+| `sensor` | `sensor.lg_tv_picture_mode` | Picture Mode | Current picture profile (e.g. *Dolby Vision Cinema*) |
+| `sensor` | `sensor.lg_tv_oled_light` | OLED Light | OLED panel backlight level (`0-100%`) |
+| `sensor` | `sensor.lg_tv_video_signal` | Video Signal | HDMI resolution & refresh rate (e.g. `3840x2160 @ 60Hz`) |
+| `sensor` | `sensor.lg_tv_audio_output` | Audio Output | Audio scenario (e.g. *Optical / Headphone*, *TV Speaker*) |
+| `sensor` | `sensor.lg_tv_active_app` | Active App | Current foreground app or friendly CEC device |
+| `sensor` | `sensor.lg_tv_soc_current` | SoC Current | Total processor current draw (`mA`) |
+| `sensor` | `sensor.lg_tv_soc_temperature` | SoC Temperature | TV processor temperature (`°C`) |
+| `sensor` | `sensor.lg_tv_cpu_usage` | CPU Usage | Real-time CPU load (`%`) |
+| `sensor` | `sensor.lg_tv_memory_usage` | Memory Usage | System RAM usage (`%`) |
+| `sensor` | `sensor.lg_tv_swap_usage` | Swap Usage | zram Swap usage (`%`) |
+| `sensor` | `sensor.lg_tv_wifi_signal` | Wi-Fi Signal | Wi-Fi signal strength (`dBm`) |
+| `sensor` | `sensor.lg_tv_download_rate` | Download Rate | Live network throughput (`kB/s`) |
+| `sensor` | `sensor.lg_tv_upload_rate` | Upload Rate | Live network upload throughput (`kB/s`) |
+| `sensor` | `sensor.lg_tv_flash_health` | Flash Storage Health | eMMC remaining health estimate (`>90% (Healthy)`) |
+| `sensor` | `sensor.lg_tv_flash_wear` | Flash Wear Level | JEDEC write-cycle consumption (`0-10%`) |
+| `sensor` | `sensor.lg_tv_uptime` | Uptime | TV uptime in seconds |
 
 ---
 
@@ -193,18 +195,18 @@ Save OLED panel hours and prevent burn-in when the TV is used as a music streame
 alias: "TV: Turn Off Screen for Music"
 trigger:
   - platform: state
-    entity_id: sensor.lg_b8_active_app
+    entity_id: sensor.lg_tv_active_app
     to: "spotify"
     for:
       seconds: 30
 condition:
   - condition: state
-    entity_id: switch.lg_b8_display_panel
+    entity_id: switch.lg_tv_display_panel
     state: "on"
 action:
   - service: switch.turn_off
     target:
-      entity_id: switch.lg_b8_display_panel
+      entity_id: switch.lg_tv_display_panel
 ```
 
 ### 2. Turn on Cinema Lighting When Dolby Vision Starts
@@ -215,7 +217,7 @@ Trigger an ambient lighting scene whenever 4K Dolby Vision playback begins:
 alias: "Cinema: Dim Lights on Dolby Vision"
 trigger:
   - platform: state
-    entity_id: sensor.lg_b8_dynamic_range
+    entity_id: sensor.lg_tv_dynamic_range
     to: "Dolby Vision"
 action:
   - service: scene.turn_on
@@ -236,7 +238,7 @@ trigger:
 action:
   - service: text.set_value
     target:
-      entity_id: text.lg_b8_screen_notification
+      entity_id: text.lg_tv_screen_notification
     data:
       value: "Motion detected at front door"
 ```

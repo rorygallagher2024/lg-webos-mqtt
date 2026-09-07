@@ -15,9 +15,9 @@
     "telemetryIntervalMs": 10000
   },
   "device": {
-    "id": "lg_b8_tv",
-    "name": "LG OLED B8 TV",
-    "model": "OLED65B8SLC",
+    "id": "lg_tv",
+    "name": "LG webOS TV",
+    "model": "",
     "manufacturer": "LG"
   }
 }
