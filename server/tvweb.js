@@ -350,6 +350,15 @@ function refreshOledStats(picSettings, cb) {
 }
 
 var prevNet = null;
+/* Short server-side history of SoC temperature. The dashboard's trace would
+   otherwise start empty on every load and take minutes to say anything. */
+var TEMP_HISTORY_MAX = 120;
+var tempHistory = [];
+function pushTemp(t) {
+  if (typeof t !== 'number' || isNaN(t)) return;
+  tempHistory.push(t);
+  if (tempHistory.length > TEMP_HISTORY_MAX) tempHistory.shift();
+}
 var lastStats = null;
 var lastStatsTime = 0;
 var isCollecting = false;
@@ -412,6 +421,7 @@ function collectStats(cb) {
       model: CONFIG.device.model || 'webOS TV'
     },
     temp: num(rd('/proc/lg/pm/temperature'), null),
+    temps: null,   // filled in below from the ring buffer
     load: num(rd('/proc/lg/pm/current_load'), null),
     mhz: Math.round(num(rd('/proc/lg/pm/frequency'), 0) / 1000),
     cores: coreMatch ? coreMatch[1].trim().split(/\s+/).map(Number) : [],
@@ -430,6 +440,9 @@ function collectStats(cb) {
     },
     inputs: inputNameMap
   };
+
+  pushTemp(out.temp);
+  out.temps = tempHistory.slice();
 
   // Refresh input names if cache expired
   refreshInputNames();
