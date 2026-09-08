@@ -14,6 +14,7 @@ var http = require('http');
 var fs = require('fs');
 var url = require('url');
 var net = require('net');
+var tls = require('tls');
 var child_process = require('child_process');
 var path = require('path');
 var execFile = child_process.execFile;
@@ -42,7 +43,13 @@ var CONFIG = {
     // every install at whatever happens to be at that IP on the user's LAN.
     enabled: false,
     host: '',
-    port: 1883,
+    // null means "pick by transport": 1883 plain, 8883 with tls. A literal
+    // 1883 here would survive the config merge and silently defeat that.
+    port: null,
+    // Encrypt the broker connection. Without this the username and password
+    // cross the network in cleartext. Port defaults to 8883 when enabled.
+    tls: false,
+    tlsRejectUnauthorized: true,
     username: '',
     password: '',
     topicPrefix: 'lgtv',
@@ -58,8 +65,19 @@ var CONFIG = {
   }
 };
 
+/* Scanned before loadConfig so --config can point at an alternative file:
+   handy for a second TV, or for testing without touching the live config. */
+function argvConfigPath() {
+  var a = process.argv.slice(2);
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] === '--config' && a[i + 1]) return a[i + 1];
+  }
+  return null;
+}
+
 function loadConfig() {
-  var paths = ['/var/lib/tvweb/config.json', './config.json'];
+  var override = argvConfigPath();
+  var paths = override ? [override] : ['/var/lib/tvweb/config.json', './config.json'];
   for (var i = 0; i < paths.length; i++) {
     try {
       if (fs.existsSync(paths[i])) {
@@ -74,6 +92,22 @@ function loadConfig() {
           } else {
             CONFIG[k] = userConf[k];
           }
+        }
+        /*
+         * The file holds broker credentials in plaintext. Default webOS perms
+         * leave it world-readable (0644), and TV apps run as wam/nobody - so
+         * tighten it to owner-only. Note this is mitigation, not a fix: while
+         * the homebrew root telnet on port 23 is open, nothing on this TV is
+         * secret. Use a dedicated, ACL-restricted broker user.
+         */
+        try {
+          var mode = fs.statSync(paths[i]).mode & 0777;
+          if (mode !== 0600) {
+            fs.chmodSync(paths[i], 0600);
+            console.log('tightened permissions on ' + paths[i] + ' to 0600');
+          }
+        } catch (e) {
+          console.error('warning: could not chmod ' + paths[i] + ': ' + e.message);
         }
         console.log('loaded configuration from ' + paths[i]);
         break;
@@ -96,6 +130,7 @@ loadConfig();
   for (var i = 0; i < a.length; i++) {
     if (a[i] === '--port' && a[i + 1]) CONFIG.port = parseInt(a[++i], 10) || CONFIG.port;
     else if (a[i] === '--host' && a[i + 1]) CONFIG.host = a[++i];
+    else if (a[i] === '--config') i++;   // consumed before loadConfig
     else if (a[i] === '--no-mqtt') { CONFIG.mqtt = CONFIG.mqtt || {}; CONFIG.mqtt.enabled = false; }
     else if (a[i] === '--no-control') CONFIG.allowControl = false;
   }
@@ -294,6 +329,35 @@ function detectDeviceInfo(cb) {
 // ---------------------------------------------------------------- stats
 var cachedOled = null;
 var lastOledCheck = 0;
+
+/*
+ * Not every webOS set is an OLED - LCD/QNED/NanoCell models run the same
+ * firmware but have no panel-hours counter, no Off-RS compensation and no
+ * Pixel Refresher. Detect once and omit the whole block rather than reporting
+ * a confident 0 hours, which reads as a real measurement.
+ *
+ * Two independent signals, either is sufficient:
+ *   - /var/luna/preferences/paneltype_oled, written by the platform
+ *   - a panelUsageTime that actually comes back from systemproperty
+ */
+var isOled = null;   // null = not yet determined
+
+function detectOled(cb) {
+  if (isOled !== null) return cb(isOled);
+  if (fs.existsSync('/var/luna/preferences/paneltype_oled')) {
+    isOled = true;
+    console.log('panel: OLED (paneltype_oled present)');
+    return cb(true);
+  }
+  luna('com.webos.service.tv.systemproperty/getSystemProperties',
+    { keys: ['panelUsageTime'] },
+    function (res) {
+      isOled = !!(res && res.panelUsageTime);
+      console.log('panel: ' + (isOled ? 'OLED (panelUsageTime reported)'
+                                      : 'not OLED - panel features disabled'));
+      cb(isOled);
+    });
+}
 
 function refreshOledStats(picSettings, cb) {
   var now = Date.now();
@@ -510,9 +574,16 @@ function collectStats(cb) {
               logoLuminanceAdjust: pic.settings.logoLuminanceAdjust || 'off'
             };
           }
-          refreshOledStats((pic && pic.settings) ? pic.settings : null, function (oled) {
-            out.oled = oled;
-            flushStats(out);
+          detectOled(function (oledPanel) {
+            out.capabilities = { oled: oledPanel };
+            if (!oledPanel) {
+              out.oled = null;
+              return flushStats(out);
+            }
+            refreshOledStats((pic && pic.settings) ? pic.settings : null, function (oled) {
+              out.oled = oled;
+              flushStats(out);
+            });
           });
         }
       );
@@ -1637,6 +1708,7 @@ http.createServer(function (req, res) {
   console.log('tvweb listening on ' + CONFIG.host + ':' + CONFIG.port +
               '  control=' + CONFIG.allowControl + '  power=' + CONFIG.allowPower +
               '  auth=' + (CONFIG.token ? 'token' : 'none'));
+  detectOled(function () {});   // resolve and log panel type up front
 });
 
 // ---------------------------------------------------------------- MiniMQTT Client (ES5)
@@ -1682,10 +1754,29 @@ MiniMQTT.prototype.connect = function() {
   if (this.client) return;
   clearTimeout(this.retryTimer);
 
-  var socket = net.createConnection({ host: this.opts.host, port: this.opts.port || 1883 });
+  /*
+   * Plain TCP by default, since that is what a typical home broker listens on.
+   * With mqtt.tls set, connect over TLS instead - otherwise the username and
+   * password cross the LAN in cleartext inside every CONNECT packet, and a
+   * reconnect loop resends them every few seconds.
+   */
+  var socket;
+  if (this.opts.tls) {
+    socket = tls.connect({
+      host: this.opts.host,
+      port: this.opts.port || 8883,
+      servername: this.opts.host,
+      // Self-signed broker certs are common on home networks. Turning this
+      // off keeps the traffic encrypted but stops authenticating the broker,
+      // so only do it on a network you trust.
+      rejectUnauthorized: this.opts.tlsRejectUnauthorized !== false
+    });
+  } else {
+    socket = net.createConnection({ host: this.opts.host, port: this.opts.port || 1883 });
+  }
   this.client = socket;
 
-  socket.on('connect', function() {
+  socket.on(self.opts.tls ? 'secureConnect' : 'connect', function() {
     var protoName = toBuffer([0, 4, 77, 81, 84, 84]); // 'MQTT'
     var protoLevel = toBuffer([4]); // 3.1.1
     var flags = 0x02; // CleanSession
@@ -1739,7 +1830,7 @@ MiniMQTT.prototype.connect = function() {
     self.client = null;
     clearInterval(self.pingTimer);
     if (wasConnected) {
-      console.log('mqtt: disconnected from ' + self.opts.host + ':' + (self.opts.port || 1883));
+      console.log('mqtt: disconnected from ' + self.opts.host + ':' + (self.opts.port || (self.opts.tls ? 8883 : 1883)));
       self.emit('close');
     }
     self.retryTimer = setTimeout(function() { self.connect(); }, 5000);
@@ -1873,9 +1964,12 @@ function setupHomeAssistant() {
     sw_version: (CONFIG.device && CONFIG.device.sw_version) || 'webOS (tvweb)'
   };
 
+  var useTls = !!CONFIG.mqtt.tls;
   var mqttClient = new MiniMQTT({
     host: CONFIG.mqtt.host,
-    port: CONFIG.mqtt.port || 1883,
+    port: CONFIG.mqtt.port || (useTls ? 8883 : 1883),
+    tls: useTls,
+    tlsRejectUnauthorized: CONFIG.mqtt.tlsRejectUnauthorized !== false,
     username: CONFIG.mqtt.username || null,
     password: CONFIG.mqtt.password || null,
     clientId: (CONFIG.mqtt.clientId || (devId + '_tvweb')),
@@ -2229,6 +2323,35 @@ function setupHomeAssistant() {
       });
     }
 
+    /*
+     * Panel-lifecycle entities only exist on OLED. On an LCD/QNED set the
+     * counters simply are not there, and publishing them would give Home
+     * Assistant a permanently "unknown" sensor - or worse, a confident 0 that
+     * looks like a real reading. Retained discovery configs are cleared so
+     * they disappear from HA rather than lingering as orphans.
+     */
+    var OLED_ONLY = {
+      oled_panel_hours: 1, oled_hours_since_compensation: 1,
+      oled_hours_until_compensation: 1, oled_hours_since_refresher: 1,
+      oled_hours_until_refresher: 1, oled_refresher_status: 1,
+      oled_screen_shift: 1, oled_logo_dimming: 1,
+      pixel_refresher_schedule: 1
+    };
+    if (isOled === false) {
+      var kept = [];
+      for (var d = 0; d < entities.length; d++) {
+        if (OLED_ONLY[entities[d].id]) {
+          var dead = discPfx + '/' + entities[d].type + '/' + devId + '/' + entities[d].id + '/config';
+          mqttClient.publish(dead, '', true);   // retained empty = remove
+        } else {
+          kept.push(entities[d]);
+        }
+      }
+      console.log('mqtt: not an OLED panel, withheld ' +
+                  (entities.length - kept.length) + ' panel entities');
+      entities = kept;
+    }
+
     for (var i = 0; i < entities.length; i++) {
       var item = entities[i];
       var conf = item.payload;
@@ -2260,10 +2383,13 @@ function setupHomeAssistant() {
   }
 
   mqttClient.on('connect', function() {
-    console.log('mqtt: connected to ' + CONFIG.mqtt.host + ':' + (CONFIG.mqtt.port || 1883));
+    console.log('mqtt: connected to ' + CONFIG.mqtt.host + ':' + mqttClient.opts.port +
+                (useTls ? ' (tls)' : ' (plaintext)'));
     mqttClient.publish(statusTopic, 'online', true);
     mqttClient.publish(stateScreenTopic, 'ON', true);
-    publishDiscovery();
+    // Resolve the panel type first: publishDiscovery filters on it, and on a
+    // first connect it would otherwise still be undetermined.
+    detectOled(function () { publishDiscovery(); });
     mqttClient.subscribe(pfx + '/command/#');
     publishTelemetry();
   });

@@ -1,0 +1,46 @@
+#!/bin/sh
+# tvwebctl - start/stop/restart the tvweb server on the TV.
+#
+# Exists as a script rather than an inline ssh command on purpose: `pkill -f
+# tvweb.js` typed into an ssh command matches the remote shell running that
+# very command (its argv contains the path), so the shell kills itself before
+# starting anything. Inside a script, the shell's argv is just this file.
+#
+# Usage: tvwebctl {start|stop|restart|status}
+
+APP=/var/lib/tvweb/tvweb.js
+LOG=/var/lib/tvweb/tvweb.log
+PIDFILE=/var/run/tvweb.pid
+NODE=/usr/bin/node
+
+stop() {
+  start-stop-daemon -K -q -p "$PIDFILE" 2>/dev/null
+  # Catch instances started before this script existed.
+  for p in $(ps -eo pid,args 2>/dev/null | grep "$APP" | grep -v grep | awk '{print $1}'); do
+    [ "$p" = "$$" ] && continue
+    kill -9 "$p" 2>/dev/null
+  done
+  rm -f "$PIDFILE"
+}
+
+start() {
+  [ -x "$NODE" ] || { echo "node not found at $NODE"; exit 1; }
+  [ -f "$APP" ]  || { echo "not installed: $APP"; exit 1; }
+  chmod 600 /var/lib/tvweb/config.json 2>/dev/null
+  # -b detaches and -m writes the pidfile, so the process survives the ssh
+  # session closing. `setsid ... &` alone does not.
+  start-stop-daemon -S -b -m -p "$PIDFILE" -x /bin/sh -- -c "exec $NODE $APP >$LOG 2>&1"
+}
+
+case "$1" in
+  start)   start ;;
+  stop)    stop ;;
+  restart) stop; sleep 1; start ;;
+  status)
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat $PIDFILE)" 2>/dev/null; then
+      echo "running (pid $(cat $PIDFILE))"
+    else
+      echo "not running"
+    fi ;;
+  *) echo "usage: $0 {start|stop|restart|status}"; exit 2 ;;
+esac
