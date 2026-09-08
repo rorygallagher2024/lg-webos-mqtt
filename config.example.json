@@ -5,8 +5,8 @@
   "allowPower": false,
   "token": "",
   "mqtt": {
-    "enabled": true,
-    "host": "192.168.1.50",
+    "enabled": false,
+    "host": "",
     "port": 1883,
     "username": "",
     "password": "",
