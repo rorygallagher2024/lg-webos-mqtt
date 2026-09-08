@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<title>LG B8</title>
+<title>LG OLED TV</title>
 <style>
 /* ---------------------------------------------------------------
    Type, after the Velo visualiser.
@@ -124,7 +124,7 @@ footer{margin-top:38px;font-size:10px;letter-spacing:.14em;text-transform:upperc
 <body>
 
 <header>
-  <div class="mark">LG B8 <span id="model">&mdash;</span></div>
+  <div class="mark">LG OLED TV <span id="model">&mdash;</span></div>
   <div class="src">
     <div class="t" id="source">&mdash;</div>
     <div class="m num" id="signal">&mdash;</div>
@@ -273,7 +273,10 @@ async function tick() {
     q('err').style.display = 'none';
     lastOk = Date.now();
 
-    q('model').textContent = (d.device && d.device.model) || '';
+    const model = (d.device && d.device.model) || '';
+    q('model').textContent = model;
+    const want = model ? 'LG OLED TV · ' + model : 'LG OLED TV';
+    if (document.title !== want) document.title = want;
     q('source').textContent = d.display_title || d.app_name || d.app || '—';
     const pic = d.picture || {};
     const dr = pic.dynamicRange || '';

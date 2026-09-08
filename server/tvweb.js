@@ -302,8 +302,26 @@ function refreshOledStats(picSettings, cb) {
     return cb(cachedOled);
   }
 
+  /*
+   * Both of these are counters in PANEL HOURS, not the 10-minute units that
+   * panelUsageTime uses - confirmed by autoOffRsTime tracking panelUsageTime/6
+   * almost exactly on a live set.
+   */
   var autoPnwashRaw = rd('/mnt/lg/cmn_data/pnwash/autoPnwashTime');
   var lastRefresher = autoPnwashRaw ? parseInt(autoPnwashRaw, 10) : 0;
+
+  /*
+   * The short Off-RS compensation interval is NOT a fixed 4 hours: the TV
+   * publishes it, and on a set in Home mode it is 24. (4h appears to be the
+   * Store-mode figure.) Read it, and fall back to 24 rather than 4.
+   */
+  var compIntervalRaw = rd('/mnt/lg/cmn_data/pnwash/autoOffRsIntervalHomeMode');
+  var compInterval = parseInt(compIntervalRaw, 10);
+  if (!compInterval || compInterval <= 0) compInterval = 24;
+
+  /* Deep Pixel Refresher ("Panel Wash") cadence. Not exposed anywhere on the
+     set, so it stays an assumption - named rather than buried in an expression. */
+  var REFRESHER_INTERVAL_HOURS = 2000;
 
   luna('com.webos.service.tv.systemproperty/getSystemProperties',
     { keys: ['panelUsageTime', 'lastCompensationTimestamp'] },
@@ -323,10 +341,10 @@ function refreshOledStats(picSettings, cb) {
         var lastCompHours = (lastCompUnits !== null) ? Math.round((lastCompUnits * 10 / 60) * 10) / 10 : 0;
         var hoursSinceComp = (usageUnits !== null && lastCompUnits !== null) ?
           Math.round(((usageUnits - lastCompUnits) * 10 / 60) * 10) / 10 : 0;
-        var hoursUntilComp = Math.max(0, Math.round((4.0 - hoursSinceComp) * 10) / 10);
+        var hoursUntilComp = Math.max(0, Math.round((compInterval - hoursSinceComp) * 10) / 10);
 
         var hoursSinceRefresher = (panelHours && lastRefresher) ? Math.max(0, panelHours - lastRefresher) : 0;
-        var hoursUntilRefresher = Math.max(0, 2000 - hoursSinceRefresher);
+        var hoursUntilRefresher = Math.max(0, REFRESHER_INTERVAL_HOURS - hoursSinceRefresher);
 
         cachedOled = {
           panel_hours: panelHours,
@@ -334,6 +352,8 @@ function refreshOledStats(picSettings, cb) {
           last_compensation_hours: lastCompHours,
           hours_since_comp: hoursSinceComp,
           hours_until_comp: hoursUntilComp,
+          comp_interval_hours: compInterval,
+          refresher_interval_hours: REFRESHER_INTERVAL_HOURS,
           last_refresher_hours: lastRefresher,
           hours_since_refresher: hoursSinceRefresher,
           hours_until_refresher: hoursUntilRefresher,
