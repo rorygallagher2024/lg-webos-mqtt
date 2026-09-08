@@ -457,7 +457,7 @@ var prevNet = null;
 var TEMP_HISTORY_MAX = 120;
 var tempHistory = [];
 function pushTemp(t) {
-  if (typeof t !== 'number' || isNaN(t)) return;
+  if (typeof t !== 'number' || isNaN(t) || t <= 0) return;   // 0 = sensor not ready
   tempHistory.push(t);
   if (tempHistory.length > TEMP_HISTORY_MAX) tempHistory.shift();
 }
@@ -522,7 +522,13 @@ function collectStats(cb) {
       name: CONFIG.device.name || 'LG webOS TV',
       model: CONFIG.device.model || 'webOS TV'
     },
-    temp: num(rd('/proc/lg/pm/temperature'), null),
+    /*
+     * The thermal sensor is not populated immediately after boot: for roughly
+     * the first 80 seconds /proc/lg/pm/temperature reads a literal 0, which is
+     * not a measurement. Reporting it would put a false 0C spike into Home
+     * Assistant's history on every reboot, so treat 0 as "not ready yet".
+     */
+    temp: (function () { var t = num(rd('/proc/lg/pm/temperature'), null); return t ? t : null; })(),
     temps: null,   // filled in below from the ring buffer
     load: num(rd('/proc/lg/pm/current_load'), null),
     mhz: Math.round(num(rd('/proc/lg/pm/frequency'), 0) / 1000),
@@ -543,7 +549,7 @@ function collectStats(cb) {
     inputs: inputNameMap
   };
 
-  pushTemp(out.temp);
+  pushTemp(out.temp);   // pushTemp already ignores non-numbers
   out.temps = tempHistory.slice();
 
   // Refresh input names if cache expired
@@ -796,10 +802,27 @@ function doControl(action, value, cb) {
                     });
                   });
 
+    /*
+     * Reboot deliberately does NOT go through tvpower.
+     *
+     * On webOS 4.4.3, luna://com.webos.service.tvpower/power/reboot accepts
+     * the request and reports success, but the kernel never restarts: the set
+     * drops off the network for about a minute and comes back with its uptime
+     * still climbing. Measured on an OLED65B8SLC - 12810s before the call,
+     * 12871s after. It behaves like a standby transition, not a reboot, so the
+     * button was reporting success while doing something else entirely.
+     *
+     * /sbin/reboot performs a real orderly restart (verified: uptime reset to
+     * 60s, services and the webosbrew boot hook all came back cleanly).
+     *
+     * Reply first - this process is about to go down with the system.
+     */
     case 'reboot':
       if (!CONFIG.allowPower) return cb({ ok: false, error: 'power actions disabled (set allowPower)' });
-      return luna('com.webos.service.tvpower/power/reboot', { reason: 'remoteKey' },
-                  function (r) { cb({ ok: !!(r && r.returnValue) }); });
+      cb({ ok: true, note: 'rebooting' });
+      return setTimeout(function () {
+        execFile('/bin/sh', ['-c', 'sync; /sbin/reboot'], function () {});
+      }, 400);
 
     case 'refresherSchedule':
       return luna('com.webos.service.tv.display/requestClearPanelNoise', { mode: 'schedule' },

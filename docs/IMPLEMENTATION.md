@@ -153,3 +153,52 @@ The dashboard bundles [Outfit](https://github.com/Outfitio/Outfit-Fonts) and
 [Manrope](https://github.com/sharanda/manrope) as variable fonts, both under the
 SIL Open Font License, served by the TV so the page needs no internet access.
 Licence texts ship alongside them in `server/assets/fonts/`.
+
+---
+
+## Consent flags cannot be changed from outside the Settings UI
+
+Writing `/var/luna/preferences/eula` looks like it works and does not. Tested
+on a live set:
+
+1. Flipped `thirdPartySharingAllowed` from `true` to `false`, validating the
+   JSON before replacing the file and regenerating `eula.md5` (which is simply
+   `md5sum` output, path included).
+2. The change persisted, was picked up by the dashboard, and survived 75
+   seconds with nothing rewriting it. All collection daemons stayed healthy.
+3. **After a genuine reboot the file was byte-identical to the original**
+   (md5 back to `85aca988…`, mtime set during boot). The platform restores or
+   regenerates it at startup.
+
+So the panel reports these flags and does not offer to change them. A toggle
+here would appear to work, survive inspection, and quietly revert on the next
+restart - worse than no toggle, because it manufactures confidence. Change them
+on the TV under Settings > General > About This TV > User Agreements.
+
+Note also that even a flag that *did* stick would only prove what the TV has
+recorded locally. It would not prove LG honours it, and the value may be
+mirrored against the account server-side.
+
+## tvpower reboot does not reboot
+
+`luna://com.webos.service.tvpower/power/reboot` accepts the request, validates
+its parameters (omitting `reason` returns `errorCode -7`) and reports success -
+but the kernel never restarts. Measured on an OLED65B8SLC running webOS 4.4.3:
+
+| | uptime |
+| :--- | :--- |
+| before the call | 12810s |
+| after (set was off the network ~65s) | 12871s |
+
+It behaves like a standby transition. `/sbin/reboot` performs a real restart:
+uptime reset to 60s, with services and the webosbrew boot hook all returning
+cleanly. The reboot control therefore uses the kernel path, replying to the
+client first because the process is about to go down with the system.
+
+## The thermal sensor lags boot
+
+`/proc/lg/pm/temperature` reads a literal `0` for roughly the first 80 seconds
+after a restart - valid at 83s uptime on the test set, still `0` at 73s. That
+is not a measurement, so it is reported as `null`, kept out of the history ring
+buffer, and shown as a dash. Publishing it would put a false 0&deg;C spike into
+Home Assistant's history on every reboot.

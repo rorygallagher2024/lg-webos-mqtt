@@ -369,8 +369,9 @@ async function tick() {
       pic.mode ? esc(pic.mode) : ''
     ].filter(Boolean).join('  ·  ');
 
-    q('temp').textContent = d.temp;
-    document.documentElement.style.setProperty('--hot', thermal(d.temp));
+    // null while the sensor warms up after a reboot - show a dash, not a zero
+    q('temp').textContent = (d.temp === null || d.temp === undefined) ? '--' : d.temp;
+    if (d.temp) document.documentElement.style.setProperty('--hot', thermal(d.temp));
     // Seed from the server's ring buffer on first paint so the trace says
     // something immediately, then track locally at the UI's own cadence.
     if (!hist.length && Array.isArray(d.temps) && d.temps.length) hist = d.temps.slice(-240);
@@ -454,7 +455,12 @@ async function c(action, value) {
   } catch (e) { showErr(e.message); }
 }
 function toggleMute() { c('mute', !muted); }
-function pw(a) { if (confirm('Really ' + (a === 'reboot' ? 'reboot' : 'power off') + ' the TV?')) c(a); }
+function pw(a) {
+  const msg = a === 'reboot'
+    ? 'Reboot the TV now? It will be unavailable for about a minute.'
+    : 'Power off the TV now?';
+  if (confirm(msg)) c(a);
+}
 
 fetch(api('/api/caps')).then(r => r.json()).then(cp => {
   if (!cp.allowPower) {
