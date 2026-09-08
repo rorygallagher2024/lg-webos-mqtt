@@ -115,7 +115,7 @@ Include your model, webOS version and
 works and falls back to the Homebrew Channel's **telnet** otherwise, so you do
 not have to change anything to get started.
 
-* **Already using SSH keys with your TV?** Nothing to do - skip to step 2.
+* **Already using SSH keys with your TV?** Nothing to do. Skip to step 2.
 * **Freshly rooted, telnet only?** That works too. Skip to step 2.
 * **Want to move to SSH?** Recommended, and it takes about five minutes:
   see [Moving from telnet to SSH](docs/SECURITY.md#moving-from-telnet-to-ssh).
