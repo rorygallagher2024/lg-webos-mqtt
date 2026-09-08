@@ -22,10 +22,9 @@ Volume, OLED panel blanking, source switching and power.
   <img src="docs/screenshots/dashboard.png" alt="Metrics: SoC temperature, resource readouts and OLED panel hours" width="900">
 </p>
 
-### Home Assistant &mdash; Auto-Discovered Device
+### Home Assistant (Auto-Discovered Device via MQTT)
 
-All 33 entities arrive over MQTT Discovery as a single device, with no YAML to
-write.
+All 33 entities arrive over MQTT Discovery as a single device
 <p align="center">
 <img width="1061" height="1042" alt="image" src="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235" />
 </p>
