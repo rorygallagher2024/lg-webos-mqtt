@@ -95,7 +95,7 @@ column means what you would hope.
 
 ### Tested on
 
-Developed against a single set, so the compatibility picture is thin. The Luna
+Tested on a single TV so far. The Luna
 service names and `/proc/lg` paths this relies on may differ across webOS
 versions and panel types.
 
@@ -103,12 +103,9 @@ versions and panel types.
 | :--- | :--- | :--- | :--- | :--- |
 | OLED65B8SLC | 4.4.3 | 05.50.70 | OLED | Fully working |
 
-**If you run it on anything else, please open an issue either way** &mdash;
-working or not. Include your model, webOS version and
-`/var/lib/tvweb/tvweb.log` and I will add a row. Reports from LCD/QNED sets are
-especially useful: the panel-health features are meant to detect themselves as
-unavailable there rather than report zeros, and that path has only been tested
-with a simulated payload.
+**If you run it on anything else, please open an issue whether it's working or not**
+Include your model, webOS version and
+`/var/lib/tvweb/tvweb.log` and I will add a row.
 
 ---
 
