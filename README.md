@@ -66,7 +66,7 @@ write.
 
 ## Requirements
 
-* A rooted LG webOS TV [Root tool here](https://github.com/throwaway96/dejavuln-autoroot/) with the
+* A rooted LG webOS TV ([Root tool here](https://github.com/throwaway96/dejavuln-autoroot/)) with the
   [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel).
 * An MQTT broker reachable on your LAN, if you want the Home Assistant side.
   The dashboard works without one.
