@@ -11,20 +11,13 @@ already ships.
 
 ### Local Controls
 
-Controls lead the page, since that is usually why you opened it. Volume, OLED
-panel blanking, source switching and power, driven straight over the Luna bus
-with no cloud round-trip.
+Volume, OLED panel blanking, source switching and power.
 
 <p align="center">
   <img src="docs/screenshots/controls.png" alt="Local control panel: volume, screen blanking, source switching and power" width="760">
 </p>
 
 ### Metrics
-
-Typography-led and monochrome, with colour reserved for meaning: headroom bars
-run green to amber to red, Dolby Vision is picked out where it appears, and the
-temperature stays white right through the normal operating band, taking colour
-only above 75&deg;C.
 
 <p align="center">
   <img src="docs/screenshots/dashboard.png" alt="Metrics: SoC temperature, resource readouts and OLED panel hours" width="900">
@@ -42,19 +35,17 @@ write.
 
 ## What it's for
 
-1. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
+
+1. **Controlling the TV without the cloud.** Volume, mute, input switching,
+   on-screen toast messages, power and reboot &mdash; all local Luna calls.
+
+2. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
    load, memory, swap, current draw, Wi-Fi signal and throughput &mdash; none of
    which webOS surfaces anywhere in its own UI.
 
-2. **Watching OLED panel wear.** Cumulative panel hours, where you are in the
+3. **Watching OLED panel wear.** Cumulative panel hours, where you are in the
    4-hour compensation cycle, and how far off the 2,000-hour Pixel Refresher is.
    You can schedule or cancel a refresher for the next power-off.
-
-3. **Controlling the TV without the cloud.** Volume, mute, input switching,
-   on-screen toast messages, power and reboot &mdash; all local Luna calls.
-
-4. **Blanking the screen for music.** Turn the OLED panel off while audio keeps
-   playing, so Spotify or AirPlay costs you no panel hours.
 
 ## Core features
 
@@ -200,9 +191,6 @@ Full detail, including the MQTT ACL guidance and optional TLS, is in
 - **Power and control commands.** Reboot, power off, screen blanking and Pixel
   Refresher scheduling issue low-level `luna-send` calls. Understand what each
   does before using it.
-- **Non-OLED sets.** Panel hours, compensation and the Pixel Refresher exist
-  only on OLED. They are detected as unavailable and omitted rather than
-  reported as zero.
 - **Trademarks.** An independent, unofficial community project, not affiliated
   with or endorsed by LG Electronics. webOS is a trademark of LG Electronics.
 - **Fonts.** Bundles [Outfit](https://github.com/Outfitio/Outfit-Fonts) and
