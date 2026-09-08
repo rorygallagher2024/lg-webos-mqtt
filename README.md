@@ -34,9 +34,8 @@ only above 75&deg;C.
 
 All 33 entities arrive over MQTT Discovery as a single device, with no YAML to
 write.
-
 <p align="center">
-  <img src="docs/screenshots/homeassistant.png" alt="Home Assistant device page listing the auto-discovered LG TV entities" width="720">
+<img width="1061" height="1042" alt="image" src="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235" />
 </p>
 
 ---
