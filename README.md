@@ -4,8 +4,7 @@ A telemetry server that runs **on** a rooted LG webOS TV. It serves a live
 dashboard to any browser on your network, and bridges the TV into Home
 Assistant over MQTT as a single auto-discovered device with 33 entities.
 
-Zero dependencies, zero install step: pure ES5 on the Node 0.12 runtime the TV
-already ships.
+There are no dependencies. This is pure ES5 on the Node 0.12 runtime that is on the TV.
 
 ---
 
@@ -49,11 +48,10 @@ column means what you would hope.
 
 
 1. **Controlling the TV without the cloud.** Volume, mute, input switching,
-   on-screen toast messages, power and reboot &mdash; all local Luna calls.
+   on-screen toast messages, power and reboot.
 
 2. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
-   load, memory, swap, current draw, Wi-Fi signal and throughput &mdash; none of
-   which webOS surfaces anywhere in its own UI.
+   load, memory, swap, current draw, Wi-Fi signal and throughput.
 
 3. **Watching OLED panel wear.** Cumulative panel hours, where you are in the
    4-hour compensation cycle, and how far off the 2,000-hour Pixel Refresher is.
@@ -61,8 +59,7 @@ column means what you would hope.
 
 4. **Seeing what LG collects.** Whether the content-recognition engine is
    actually running and sampling your screen, your advertising identifier, and
-   every data-collection agreement recorded on the set &mdash; in plain English
-   rather than acronyms.
+   every data-collection agreement recorded on the set.
 
 ## Core features
 
@@ -76,15 +73,15 @@ column means what you would hope.
   load, memory and zram swap, Wi-Fi RSSI, network throughput, and eMMC flash
   wear with JEDEC health translation.
 * **Bi-directional control.** Volume, mute, input select, screen blanking,
-  on-screen notifications, power and restart &mdash; from the dashboard or Home
-  Assistant.
+  on-screen notifications, power and restart (From the dashboard or Home
+  Assistant)
 * **Privacy panel.** Behind a toggle in the controls: whether LG's screen
   content recognition is actually running and sampling frames, your advertising
   identifier and whether ad tracking is limited, every data-collection
-  agreement recorded on the TV in plain English, and which of LG's collection
+  agreement recorded on the TV, and which of LG's collection
   services are alive. Includes buttons to reset the advertising ID and clear ad
   cookies, both of which are real platform calls rather than file edits.
-  Reporting only &mdash; the agreements themselves have no API and are changed
+  This just reports because the agreements themselves have no API and are changed
   on the TV, under Settings &rarr; General &rarr; About This TV &rarr; User
   Agreements. Deep link: `/?privacy=1`.
 * **Self-contained dashboard.** Fonts and assets are served by the TV, so the
@@ -122,14 +119,14 @@ with a simulated payload.
 works and falls back to the Homebrew Channel's **telnet** otherwise, so you do
 not have to change anything to get started.
 
-* **Already using SSH keys with your TV?** Nothing to do &mdash; skip to step 2.
+* **Already using SSH keys with your TV?** Nothing to do - skip to step 2.
 * **Freshly rooted, telnet only?** That works too. Skip to step 2.
 * **Want to move to SSH?** Recommended, and it takes about five minutes:
   see [Moving from telnet to SSH](docs/SECURITY.md#moving-from-telnet-to-ssh).
   You can do it before or after installing; `deploy.sh` works either side.
 
 Worth knowing whichever you choose: a rooted TV's telnet is an
-**unauthenticated root shell on port 23** &mdash; anyone on your network gets
+**unauthenticated root shell on port 23**. Anyone on your network gets
 root with no password. That comes from the rooting rather than from this
 project, but it is the largest exposure on the TV and worth closing when you
 get the chance.
@@ -203,7 +200,7 @@ Nothing on the TV's read-only rootfs is ever modified.
 
 The dashboard has **no authentication by default** and binds to `0.0.0.0`, so
 anyone who can reach the port can use every enabled control. On a home LAN that
-is usually the point &mdash; but set `"token": "something-long"` in
+is usually the point but you can set `"token": "something-long"` in
 `config.json` if you want it gated, and never port-forward it. If you only use
 Home Assistant, `"web": { "enabled": false }` removes the endpoint entirely.
 
