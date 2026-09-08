@@ -62,6 +62,9 @@ body{
 
 .lbl{font-weight:500;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--w50)}
 .rule{height:1px;background:var(--w10);border:0}
+/* `hidden` loses to any author display rule - .cols and .r are grids - so
+   restate it with priority. Without this, hiding those blocks silently fails. */
+[hidden]{display:none !important}
 
 /* ---- masthead ---- */
 header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;flex-wrap:wrap}
@@ -249,9 +252,12 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
 <section class="readouts" id="readouts"></section>
 
-<div class="cols" id="flashrow" hidden style="margin-top:clamp(30px,5vw,52px)">
-    <div><div class="lbl">Flash wear</div><div class="v num" id="flashval">&mdash;</div></div>
-    <div><div class="lbl">Flash health</div><div class="v" id="flasheol">&mdash;</div></div>
+<div class="panel" id="flashblock">
+    <div class="lbl">Flash storage</div>
+    <div class="cols" style="margin-top:14px">
+      <div><div class="lbl">Wear</div><div class="v num" id="flashval">&mdash;</div></div>
+      <div><div class="lbl">Health</div><div class="v" id="flasheol">&mdash;</div></div>
+    </div>
   </div>
 
   <section class="panel" id="panelblock" hidden>
@@ -261,7 +267,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     <div><div class="lbl">Compensation in</div><div class="v num" id="comp">&mdash;</div></div>
     <div><div class="lbl">Refresher in</div><div class="v num" id="refr">&mdash;</div></div>
     <div><div class="lbl">Refresher state</div><div class="v" id="rstate">&mdash;</div></div>
-    <div><div class="lbl">Flash wear</div><div class="v num" id="wear">&mdash;</div></div>
   </div>
 </section>
 </section>
@@ -414,13 +419,9 @@ async function tick() {
     q('comp').textContent = hrs(o.hours_until_comp) + ' h';
     q('refr').textContent = hrs(o.hours_until_refresher) + ' h';
     q('rstate').textContent = o.refresher_status || '—';
-    q('wear').textContent = (d.emmc && d.emmc.wear) || '—';
-    if (!hasOled && d.emmc && d.emmc.wear) {
-      // Flash health is not OLED-specific - keep it visible as its own row.
-      q('flashrow').hidden = false;
-      q('flashval').textContent = d.emmc.wear;
-      q('flasheol').textContent = d.emmc.eol || '';
-    }
+    // Flash storage is independent of panel type, so it always renders.
+    q('flashval').textContent = (d.emmc && d.emmc.wear) || '—';
+    q('flasheol').textContent = (d.emmc && d.emmc.health) || (d.emmc && d.emmc.eol) || '—';
 
     muted = !!d.muted;
     q('vol').textContent = muted ? 'MUTED' : d.volume;
