@@ -596,6 +596,121 @@ function collectStats(cb) {
   });
 }
 
+// ---------------------------------------------------------------- privacy
+/*
+ * Read-only view of LG's data collection, plus the two changes the platform
+ * itself offers an API for.
+ *
+ * The consent flags live in /var/luna/preferences/eula. There is no Luna
+ * setter for them - the Settings UI writes that file directly - so this
+ * REPORTS them and does not attempt to change them. Turning them off is done
+ * in the TV's own menus (General > About This TV > User Agreements).
+ *
+ * The two actions here are genuine Luna calls, not file edits: rotating the
+ * advertising identifier and clearing ad cookies.
+ *
+ * Labels are deliberately plain. "ACR" and "LMT" mean nothing to most people,
+ * so the UI is given a description for every row rather than an acronym.
+ */
+
+// Only flags whose meaning is actually known are described. Anything else is
+// surfaced under its raw name rather than given an invented explanation.
+var CONSENT_LABELS = {
+  acrAllowed:              ['Screen content recognition', 'Lets LG identify what is on your screen to profile your viewing'],
+  acrGdprAllowed:          ['Screen recognition (GDPR consent)', 'The EU consent record for screen content recognition'],
+  acrAdAllowed:            ['Ads based on what you watch', 'Uses recognised screen content to target advertising'],
+  customAdAllowed:         ['Personalised advertising', 'Tailors the ads shown on your TV to you'],
+  customadsAllowed:        ['Personalised advertising (secondary flag)', 'A second personalised-advertising consent record'],
+  cookiesAllowed:          ['Advertising cookies', 'Stores cookies used for ad tracking'],
+  thirdPartySharingAllowed:['Sharing your data with other companies', 'Passes your usage data to third parties'],
+  additionalDataAllowed:   ['Additional usage data', 'Extra analytics beyond what the TV needs to work'],
+  remoteDiagAllowed:       ['Remote diagnostics upload', 'Lets LG collect and upload diagnostic reports from your TV'],
+  voiceAllowed:            ['Voice recordings', 'Allows voice data to be collected and processed'],
+  voice2Allowed:           ['Voice recordings (secondary flag)', 'A second voice-data consent record']
+};
+
+// Daemons worth naming, with what they actually do.
+var PRIVACY_DAEMONS = {
+  acr2:       ['Content recognition service', 'Identifies what is on screen'],
+  admanager:  ['Advertising service', 'Fetches and displays ads on the TV'],
+  uploadd:    ['Diagnostics uploader', 'Sends diagnostic data to LG'],
+  rdxd:       ['Diagnostics collector', 'Gathers crash and diagnostic reports']
+};
+
+var cachedPrivacy = null, lastPrivacyCheck = 0;
+
+function readConsentFlags() {
+  var raw = rd('/var/luna/preferences/eula');
+  if (!raw) return null;
+  var out = { known: [], other: [] };
+  var re = /"([a-zA-Z0-9_]+Allowed)"\s*:\s*(true|false)/g, m;
+  while ((m = re.exec(raw)) !== null) {
+    var key = m[1], on = m[2] === 'true';
+    if (CONSENT_LABELS[key]) {
+      out.known.push({ key: key, label: CONSENT_LABELS[key][0], detail: CONSENT_LABELS[key][1], enabled: on });
+    } else {
+      out.other.push({ key: key, enabled: on });
+    }
+  }
+  return out;
+}
+
+function runningDaemons(cb) {
+  execFile('/bin/ps', ['-eo', 'args'], { timeout: 4000 }, function (err, stdout) {
+    var txt = String(stdout || ''), list = [];
+    for (var name in PRIVACY_DAEMONS) {
+      if (!PRIVACY_DAEMONS.hasOwnProperty(name)) continue;
+      list.push({
+        name: name,
+        label: PRIVACY_DAEMONS[name][0],
+        detail: PRIVACY_DAEMONS[name][1],
+        running: txt.indexOf('/usr/sbin/' + name) !== -1
+      });
+    }
+    cb(list);
+  });
+}
+
+function collectPrivacy(cb) {
+  var now = Date.now();
+  if (cachedPrivacy && (now - lastPrivacyCheck < 20000)) return cb(cachedPrivacy);
+
+  var out = { ok: true, consent: readConsentFlags() };
+
+  luna('com.webos.service.acr/getACRSolutionStatus', {}, function (acr) {
+    // `false` here means the recognition engine is not running at all.
+    out.acr = {
+      label: 'Screen content recognition',
+      detail: 'LG calls this ACR. It samples what is on screen to work out what you are watching.',
+      active: !!(acr && acr.ACRSolutionStatus)
+    };
+    luna('com.webos.service.acr/getVideoCaptureStatus', {}, function (cap) {
+      out.acr.capturing = !!(cap && cap.status && cap.status !== 'stopped');
+      out.acr.captureState = (cap && cap.status) ? cap.status : 'unknown';
+      luna('com.webos.service.admanager/getAdid', {}, function (ad) {
+        var id = (ad && ad.IFA) ? String(ad.IFA) : null;
+        out.advertisingId = {
+          label: 'Advertising identifier',
+          detail: 'A unique ID your TV hands to advertisers. Resetting it breaks the link to your past activity.',
+          // Truncated: enough to see it change after a reset, without putting
+          // the whole identifier on any screen that happens to be open.
+          shortId: id ? (id.slice(0, 8) + '...') : null,
+          present: !!id,
+          limitTracking: !!(ad && String(ad.LMT).toLowerCase() === 'on'),
+          limitTrackingLabel: 'Limit ad tracking',
+          limitTrackingDetail: 'When on, apps are asked not to use this ID to profile you.'
+        };
+        runningDaemons(function (daemons) {
+          out.daemons = daemons;
+          cachedPrivacy = out;
+          lastPrivacyCheck = Date.now();
+          cb(out);
+        });
+      });
+    });
+  });
+}
+
 // ---------------------------------------------------------------- controls
 var INPUTS = { hdmi1: 1, hdmi2: 1, hdmi3: 1, hdmi4: 1, livetv: 1 };
 
@@ -649,6 +764,22 @@ function doControl(action, value, cb) {
       return luna('com.webos.applicationManager/launch',
                   { id: 'com.webos.app.' + value },
                   function (r) { cb({ ok: !!(r && r.returnValue) }); });
+
+    /*
+     * Rotate the advertising identifier. A real Luna call, not a file edit -
+     * this is the same reset the TV's own menus perform.
+     */
+    case 'resetAdId':
+      return luna('com.webos.service.admanager/resetIFA', {}, function (r) {
+        cachedPrivacy = null;   // force a re-read so the UI shows the new id
+        cb({ ok: !!(r && r.returnValue !== false) });
+      });
+
+    case 'clearAdCookies':
+      return luna('com.webos.service.admanager/inactivateCookies', {}, function (r) {
+        cachedPrivacy = null;
+        cb({ ok: !!(r && r.returnValue !== false) });
+      });
 
     case 'toast':
       return luna('com.webos.notification/createToast',
@@ -1669,6 +1800,10 @@ var server = http.createServer(function (req, res) {
     return send(res, 200, JSON.stringify({
       ok: true, allowControl: CONFIG.allowControl, allowPower: CONFIG.allowPower
     }));
+  }
+
+  if (pathname === '/api/privacy') {
+    return collectPrivacy(function (pv) { send(res, 200, JSON.stringify(pv)); });
   }
 
   if (pathname === '/api/stats') {

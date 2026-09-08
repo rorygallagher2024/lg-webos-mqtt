@@ -61,6 +61,13 @@ write.
 * **Bi-directional control.** Volume, mute, input select, screen blanking,
   on-screen notifications, power and restart &mdash; from the dashboard or Home
   Assistant.
+* **Privacy panel.** Behind a toggle in the controls: whether LG's screen
+  content recognition is actually running and sampling frames, your advertising
+  identifier and whether ad tracking is limited, every data-collection
+  agreement recorded on the TV in plain English, and which of LG's collection
+  services are alive. Includes buttons to reset the advertising ID and clear ad
+  cookies. Reporting only &mdash; the agreements themselves are changed on the
+  TV, under Settings &rarr; General &rarr; About This TV &rarr; User Agreements.
 * **Self-contained dashboard.** Fonts and assets are served by the TV, so the
   page works with no internet access.
 

@@ -121,6 +121,23 @@ button.on{color:#000;background:var(--green);border-color:var(--green)}
 button[disabled]{opacity:.28;cursor:not-allowed}
 button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 
+
+/* ---- privacy pane ---- */
+.priv{margin-top:clamp(30px,5vw,48px);padding-top:clamp(24px,4vw,36px);border-top:1px solid var(--w12)}
+.pv-h{font-family:'Outfit';font-weight:300;font-size:clamp(20px,2.4vw,26px);color:var(--w100);margin:22px 0 4px}
+.pv-sub{font-size:13px;color:var(--w60);max-width:62ch;margin-bottom:16px}
+.pv-row{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;
+        padding:13px 0;border-bottom:1px solid var(--w06)}
+.pv-row .n{font-size:15px;color:var(--w100)}
+.pv-row .d{font-size:13px;color:var(--w60);margin-top:3px;max-width:58ch}
+.pill{font-family:'Manrope';font-weight:500;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+      padding:5px 10px;border:1px solid;border-radius:2px;white-space:nowrap}
+.pill.good{color:var(--green);border-color:var(--green)}
+.pill.warn{color:var(--cand);border-color:var(--cand)}
+.pill.bad{color:var(--red);border-color:var(--red)}
+.pill.idle{color:var(--w50);border-color:var(--w25)}
+.pv-note{font-size:13px;color:var(--w60);border-left:2px solid var(--w25);padding:10px 14px;margin:16px 0;max-width:64ch}
+.pv-id{font-family:'Outfit';font-weight:300;font-size:22px;color:var(--w100);font-variant-numeric:tabular-nums}
 #err{margin-top:18px;font-size:14px;color:var(--red);border-left:2px solid var(--red);padding:9px 13px;background:var(--w06);display:none}
 @media (max-width:620px){.src{text-align:left}.hero{gap:22px}}
 footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:uppercase;color:var(--w50);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
@@ -168,6 +185,10 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     <div class="btns" id="inputs"></div>
   </div>
 
+  <div class="set"><div class="lbl">Privacy &amp; data collection</div>
+    <div class="btns"><button id="privtoggle" onclick="togglePrivacy()">Show privacy panel</button></div>
+  </div>
+
   <div class="set"><div class="lbl">Power</div>
     <div class="btns">
       <button id="poff" onclick="pw('powerOff')">Power off</button>
@@ -175,6 +196,38 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     </div>
     <div class="sub" id="pwnote"></div>
   </div>
+</section>
+
+<section class="priv" id="privpane" hidden>
+  <div class="lbl">Privacy &amp; data collection</div>
+
+  <div class="pv-h">What your TV is doing right now</div>
+  <div class="pv-sub" id="pv-live-sub">&mdash;</div>
+  <div id="pv-live"></div>
+
+  <div class="pv-h">Advertising identifier</div>
+  <div class="pv-sub">A unique ID your TV hands to advertisers. Resetting it breaks the
+    link between your TV and any profile built from past activity.</div>
+  <div class="pv-id" id="pv-adid">&mdash;</div>
+  <div id="pv-lmt"></div>
+  <div class="btns" style="margin-top:14px;max-width:520px">
+    <button onclick="privAction('resetAdId')">Reset advertising ID</button>
+    <button onclick="privAction('clearAdCookies')">Clear ad cookies</button>
+  </div>
+
+  <div class="pv-h">What LG is allowed to collect</div>
+  <div class="pv-sub">These are the agreements recorded on the TV. <b>Off is the private
+    setting.</b></div>
+  <div id="pv-consent"></div>
+  <div class="pv-note">These cannot be changed from here &mdash; the TV owns them. Change
+    them on the TV itself under <b>Settings &rarr; General &rarr; About This TV &rarr;
+    User Agreements</b>, then reopen this panel to confirm.</div>
+
+  <div class="pv-h">Background services</div>
+  <div class="pv-sub">Whether LG's data-collection services are currently running. A
+    service can be running while its permission is switched off &mdash; it simply has
+    nothing it is allowed to send.</div>
+  <div id="pv-daemons"></div>
 </section>
 
 <section class="metrics">
@@ -409,6 +462,85 @@ fetch(api('/api/caps')).then(r => r.json()).then(cp => {
     q('pwnote').textContent = 'Disabled in config (allowPower: false).';
   }
 }).catch(() => {});
+
+
+/* ---- privacy panel ----------------------------------------------------
+   Loaded on demand: it costs several Luna calls, so there is no reason to
+   poll it alongside the 2s telemetry tick. */
+let privOpen = false;
+
+function pvPill(on, goodWhenOff) {
+  // For privacy, "off" is the desirable state, so the colouring is inverted
+  // relative to the metrics above.
+  const cls = goodWhenOff ? (on ? 'warn' : 'good') : (on ? 'bad' : 'idle');
+  return `<span class="pill ${cls}">${on ? 'On' : 'Off'}</span>`;
+}
+
+function pvRow(name, detail, pillHtml) {
+  return `<div class="pv-row"><div><div class="n">${name}</div>` +
+         `<div class="d">${detail}</div></div><div>${pillHtml}</div></div>`;
+}
+
+async function loadPrivacy() {
+  try {
+    const r = await fetch(api('/api/privacy'), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+
+    // live state
+    const a = d.acr || {};
+    q('pv-live-sub').textContent = a.detail || '';
+    q('pv-live').innerHTML =
+      pvRow(a.label || 'Screen content recognition',
+          a.active ? 'The recognition engine is running on your TV.'
+                   : 'The recognition engine is not running.',
+          `<span class="pill ${a.active ? 'bad' : 'good'}">${a.active ? 'Active' : 'Not running'}</span>`) +
+      pvRow('Screen capturing',
+          a.capturing ? 'Frames are being sampled from your screen right now.'
+                      : 'No frames are being sampled from your screen.',
+          `<span class="pill ${a.capturing ? 'bad' : 'good'}">${a.capturing ? 'Capturing' : 'Stopped'}</span>`);
+
+    // advertising id
+    const ad = d.advertisingId || {};
+    q('pv-adid').textContent = ad.present ? ad.shortId : 'none reported';
+    q('pv-lmt').innerHTML = pvRow(
+      ad.limitTrackingLabel || 'Limit ad tracking',
+      ad.limitTrackingDetail || '',
+      `<span class="pill ${ad.limitTracking ? 'good' : 'warn'}">${ad.limitTracking ? 'On' : 'Off'}</span>`);
+
+    // consent flags
+    const c = d.consent || { known: [], other: [] };
+    let html = c.known.map(f => pvRow(f.label, f.detail, pvPill(f.enabled, true))).join('');
+    if (c.other && c.other.length) {
+      html += c.other.map(f => pvRow(f.key,
+        'Recorded by the TV. No published description for this one.',
+        pvPill(f.enabled, true))).join('');
+    }
+    q('pv-consent').innerHTML = html || '<div class="d">Could not read the agreements file.</div>';
+
+    // services
+    q('pv-daemons').innerHTML = (d.daemons || []).map(x => pvRow(
+      x.label, x.detail,
+      `<span class="pill ${x.running ? 'idle' : 'good'}">${x.running ? 'Running' : 'Stopped'}</span>`)).join('');
+  } catch (e) {
+    q('pv-live').innerHTML = '<div class="d">Could not load privacy information &mdash; ' + e.message + '</div>';
+  }
+}
+
+function togglePrivacy() {
+  privOpen = !privOpen;
+  q('privpane').hidden = !privOpen;
+  q('privtoggle').textContent = privOpen ? 'Hide privacy panel' : 'Show privacy panel';
+  q('privtoggle').classList.toggle('on', privOpen);
+  if (privOpen) { loadPrivacy(); q('privpane').scrollIntoView({behavior:'smooth', block:'start'}); }
+}
+
+async function privAction(action) {
+  const nice = action === 'resetAdId' ? 'reset the advertising ID' : 'clear ad cookies';
+  if (!confirm('Really ' + nice + '?')) return;
+  await c(action);
+  setTimeout(loadPrivacy, 600);
+}
 
 tick();
 setInterval(tick, 2000);
