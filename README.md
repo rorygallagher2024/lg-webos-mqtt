@@ -16,14 +16,33 @@ Runs natively in pure ES5 on the TV's embedded Node.js runtime, exposing **33 re
 
 ## Web Dashboard & Home Assistant Integration
 
-<p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="LG webOS TV Obsidian Glassmorphic Dashboard" width="720">
-</p>
+### On-TV Dashboard
+
+Served by the TV itself, to any browser on the network. Typography-led and
+monochrome, with colour reserved for meaning: the temperature reading warms
+through the range, headroom bars run green to amber to red, and Dolby Vision
+is picked out where it appears.
 
 <p align="center">
-  <img src="docs/screenshots/controls.png" alt="Interactive Local Controls" width="48%">
-  &nbsp;
-  <img src="docs/screenshots/homeassistant.png" alt="Home Assistant Auto-Discovered Device" width="48%">
+  <img src="docs/screenshots/dashboard.png" alt="On-TV dashboard showing SoC temperature, resource readouts and OLED panel hours" width="800">
+</p>
+
+### Local Controls
+
+Volume, OLED panel blanking, source switching and power, driven straight over
+the Luna bus with no cloud round-trip.
+
+<p align="center">
+  <img src="docs/screenshots/controls.png" alt="Local control panel: volume, screen blanking, source switching and power" width="720">
+</p>
+
+### Home Assistant &mdash; Auto-Discovered Device
+
+All 33 entities arrive over MQTT Discovery as a single device, with no YAML to
+write.
+
+<p align="center">
+  <img src="docs/screenshots/homeassistant.png" alt="Home Assistant device page listing the auto-discovered LG TV entities" width="720">
 </p>
 
 ---
@@ -165,7 +184,7 @@ The script will:
 3. If `--persist` is specified, install `/var/lib/webosbrew/init.d/50-tvweb`.
 4. Clean up temporary transfer servers.
 
-Open `http://<tv-ip>:8080/` in your browser to view the live obsidian dashboard!
+Open `http://<tv-ip>:8080/` in your browser to view the live dashboard.
 
 ---
 

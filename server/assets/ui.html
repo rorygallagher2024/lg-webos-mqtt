@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>LG B8</title>
+<style>
+/* ---------------------------------------------------------------
+   Type, after the Velo visualiser.
+
+   Two families doing different jobs. Satoshi is the working face:
+   labels, captions, anything being read rather than looked at.
+   Clash Display is the spectacle face and earns its place only at
+   size - its character is in the wide apertures and tight joins,
+   none of which survive small. It is reserved for the few moments
+   meant to be looked at.
+
+   Weights are deliberately light. On black, at size, a regular
+   weight reads as heavy and a light weight reads as precise.
+
+   Palette is white on black at opacity steps. No accent hue:
+   level is carried by fill and opacity, never by colour.
+   --------------------------------------------------------------- */
+@font-face{font-family:'Clash Display';src:url('/assets/fonts/clash_display_extralight.otf') format('opentype');font-weight:200;font-display:swap}
+@font-face{font-family:'Clash Display';src:url('/assets/fonts/clash_display_light.otf') format('opentype');font-weight:300;font-display:swap}
+@font-face{font-family:'Satoshi';src:url('/assets/fonts/satoshi_light.otf') format('opentype');font-weight:300;font-display:swap}
+@font-face{font-family:'Satoshi';src:url('/assets/fonts/satoshi_regular.otf') format('opentype');font-weight:400;font-display:swap}
+@font-face{font-family:'Satoshi';src:url('/assets/fonts/satoshi_medium.otf') format('opentype');font-weight:500;font-display:swap}
+
+:root{
+  --w06:rgba(255,255,255,.06); --w10:rgba(255,255,255,.10);
+  --w12:rgba(255,255,255,.12); --w25:rgba(255,255,255,.25);
+  --w35:rgba(255,255,255,.35); --w50:rgba(255,255,255,.50);
+  --w60:rgba(255,255,255,.60); --w80:rgba(255,255,255,.80);
+  --w100:#fff;
+  /* Accents, taken from the Velo light-scene swatches (Nanoleaf/Hue/LIFX).
+     Used to carry meaning only - thermal state, headroom, signal format -
+     never as decoration. The chrome stays monochrome. */
+  --cool:#D4E3FF; --warm:#FFDEA1; --cand:#FFB04F;
+  --red:#FF3030;  --blue:#3061FF; --green:#30DE61; --purple:#8F30FF;
+  --gut:clamp(20px,5vw,64px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#000}
+body{
+  background:#000;color:var(--w80);
+  font-family:'Satoshi',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-weight:400;font-size:15px;line-height:1.5;
+  padding:var(--gut) var(--gut) calc(var(--gut) * 2);
+  max-width:1080px;margin:0 auto;
+  -webkit-font-smoothing:antialiased;
+}
+/* Live numerals sit in tabular figures. A proportional digit set makes a
+   live readout twitch sideways on every update, which is far more
+   distracting than the numbers themselves. */
+.num{font-variant-numeric:tabular-nums;font-feature-settings:'tnum' 1}
+
+.lbl{font-weight:500;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--w35)}
+.rule{height:1px;background:var(--w10);border:0}
+
+/* ---- masthead ---- */
+header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;flex-wrap:wrap}
+.mark{font-family:'Clash Display';font-weight:300;font-size:clamp(19px,2.4vw,26px);color:var(--w100);letter-spacing:.01em}
+.mark span{color:var(--w35)}
+.src{text-align:right}
+.src .t{font-family:'Clash Display';font-weight:300;font-size:clamp(15px,1.8vw,19px);color:var(--w80)}
+.src .m{font-size:11px;color:var(--w35);letter-spacing:.04em}
+.src .m b{font-weight:400}
+
+/* ---- the spectacle ---- */
+.hero{margin:clamp(34px,7vw,72px) 0 0;display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap}
+.hero .big{font-family:'Clash Display';font-weight:200;color:var(--hot,#fff);transition:color .8s ease;
+  font-size:clamp(96px,20vw,208px);line-height:.82;letter-spacing:-.025em}
+.hero .deg{font-size:.34em;color:var(--w35);vertical-align:super;letter-spacing:0}
+.hero .side{flex:1;min-width:210px;padding-bottom:10px}
+.trace{display:flex;align-items:flex-end;gap:2px;height:46px;margin-bottom:9px}
+.trace i{flex:1;background:var(--w25);min-height:1px;display:block;transition:background .8s ease}
+.trace i.warm{background:color-mix(in srgb,var(--hot,#fff) 45%,transparent)}
+.trace i.now{background:var(--hot,#fff)}
+.trace i.void{background:transparent}
+.meta{display:flex;justify-content:space-between;font-size:11px;color:var(--w35);letter-spacing:.04em}
+
+/* ---- readouts ---- */
+.readouts{margin-top:clamp(34px,6vw,64px);border-top:1px solid var(--w10)}
+.r{display:grid;grid-template-columns:clamp(118px,17%,176px) 1fr 92px;gap:20px;align-items:center;
+   padding:15px 0;border-bottom:1px solid var(--w06)}
+.r .v{font-family:'Clash Display';font-weight:200;font-size:26px;color:var(--w100);text-align:right;line-height:1}
+.r .v small{font-size:12px;color:var(--w35);margin-left:3px;font-family:'Satoshi';font-weight:400}
+.track{height:2px;background:var(--w06);position:relative;overflow:hidden}
+.track b{position:absolute;inset:0 auto 0 0;background:var(--w60);transition:width .45s cubic-bezier(.4,0,.2,1),background .5s ease}
+
+.r.hi .lbl{color:var(--w80)}
+.sub{font-size:11px;color:var(--w25);letter-spacing:.04em;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---- panel block: the second thing worth looking at ---- */
+.panel{margin-top:clamp(34px,6vw,64px);padding-top:clamp(26px,4vw,40px);border-top:1px solid var(--w12)}
+.panel .n{font-family:'Clash Display';font-weight:200;font-size:clamp(52px,9vw,90px);color:var(--w100);line-height:.9;letter-spacing:-.02em}
+.panel .n em{font-style:normal;color:var(--purple);font-size:.26em;color:var(--w35);letter-spacing:.14em;margin-left:12px;font-family:'Satoshi';font-weight:500}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:26px;margin-top:26px}
+.cols .v{font-family:'Clash Display';font-weight:300;font-size:21px;color:var(--w80);margin-top:5px}
+
+/* ---- controls ---- */
+.controls{margin-top:clamp(34px,6vw,64px);padding-top:clamp(26px,4vw,40px);border-top:1px solid var(--w12)}
+.set{margin-top:22px}
+.btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:11px}
+button{
+  font-family:'Satoshi';font-weight:500;font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--w60);background:transparent;border:1px solid var(--w12);
+  padding:14px 8px;cursor:pointer;transition:.16s ease;
+}
+button:hover{color:var(--w100);border-color:var(--w35)}
+button:active{background:var(--w10)}
+button.on{color:#000;background:var(--green);border-color:var(--green)}
+button[disabled]{opacity:.28;cursor:not-allowed}
+button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
+
+#err{margin-top:18px;font-size:12px;color:var(--red);border-left:2px solid var(--red);padding:9px 13px;background:var(--w06);display:none}
+@media (max-width:620px){.src{text-align:left}.hero{gap:22px}}
+footer{margin-top:38px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--w25);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.stale{opacity:.35;transition:opacity .3s}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="mark">LG B8 <span id="model">&mdash;</span></div>
+  <div class="src">
+    <div class="t" id="source">&mdash;</div>
+    <div class="m num" id="signal">&mdash;</div>
+  </div>
+</header>
+
+<section class="hero">
+  <div>
+    <div class="lbl" style="margin-bottom:14px">SoC temperature</div>
+    <div class="big num"><span id="temp">--</span><span class="deg">&deg;</span></div>
+  </div>
+  <div class="side">
+    <div class="trace" id="trace"></div>
+    <div class="meta num">
+      <span id="trange">&mdash;</span>
+      <span id="mhz">&mdash;</span>
+    </div>
+  </div>
+</section>
+
+<section class="readouts" id="readouts"></section>
+
+<section class="panel">
+  <div class="lbl">OLED panel</div>
+  <div class="n num" style="margin-top:12px"><span id="ph">&mdash;</span><em>hours</em></div>
+  <div class="cols">
+    <div><div class="lbl">Compensation in</div><div class="v num" id="comp">&mdash;</div></div>
+    <div><div class="lbl">Refresher in</div><div class="v num" id="refr">&mdash;</div></div>
+    <div><div class="lbl">Refresher state</div><div class="v" id="rstate">&mdash;</div></div>
+    <div><div class="lbl">Flash wear</div><div class="v num" id="wear">&mdash;</div></div>
+  </div>
+</section>
+
+<section class="controls">
+  <div class="lbl">Control</div>
+  <div id="err"></div>
+
+  <div class="set"><div class="lbl" style="color:var(--w25)">Volume &middot; <span id="vol" class="num">&mdash;</span></div>
+    <div class="btns">
+      <button onclick="c('volumeStep',-1)">Vol &minus;</button>
+      <button onclick="c('volumeStep',1)">Vol &plus;</button>
+      <button id="mute" onclick="toggleMute()">Mute</button>
+    </div>
+  </div>
+
+  <div class="set"><div class="lbl" style="color:var(--w25)">Panel</div>
+    <div class="btns">
+      <button onclick="c('screenOff')">Screen off</button>
+      <button onclick="c('screenOn')">Screen on</button>
+    </div>
+  </div>
+
+  <div class="set"><div class="lbl" style="color:var(--w25)">Source</div>
+    <div class="btns" id="inputs"></div>
+  </div>
+
+  <div class="set"><div class="lbl" style="color:var(--w25)">Power</div>
+    <div class="btns">
+      <button id="poff" onclick="pw('powerOff')">Power off</button>
+      <button id="prb" onclick="pw('reboot')">Reboot</button>
+    </div>
+    <div class="sub" id="pwnote"></div>
+  </div>
+</section>
+
+<footer>
+  <span id="uptime">&mdash;</span>
+  <span id="clock">&mdash;</span>
+</footer>
+
+<script>
+const K = new URLSearchParams(location.search).get('k') || '';
+const q = id => document.getElementById(id);
+const api = p => p + (K ? (p.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(K) : '');
+const mb = k => (k / 1024).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const esc = t => String(t).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const hrs = h => h == null ? '—' : (h >= 100 ? Math.round(h).toLocaleString() : h.toFixed(1));
+
+/* Level is carried by fill and opacity, never by hue - so "hi" is a state
+   class that brightens the row rather than turning it red. */
+const ROWS = [
+  { k: 'cpu',   label: 'Processor',  warn: 85 },
+  { k: 'mem',   label: 'Memory',     warn: 90 },
+  { k: 'swap',  label: 'Swap',       warn: 70 },
+  { k: 'net',   label: 'Network',    warn: 101, tint: 'var(--blue)' },
+  { k: 'draw',  label: 'Current',    warn: 101, tint: 'var(--warm)' }
+];
+const TINT = Object.fromEntries(ROWS.map(r => [r.k, r.tint || null]));
+
+/* A thermal ramp rather than a red/amber/green light: the hero warms as the
+   SoC does, which reads as temperature instead of as an alarm. */
+function thermal(t) {
+  if (t < 45) return 'var(--cool)';
+  if (t < 57) return 'var(--warm)';
+  if (t < 68) return 'var(--cand)';
+  return 'var(--red)';
+}
+function headroom(pct, warn) {
+  if (pct >= warn) return 'var(--red)';
+  if (pct >= warn * 0.8) return 'var(--cand)';
+  return 'var(--green)';
+}
+
+q('readouts').innerHTML = ROWS.map(r =>
+  `<div class="r" id="row-${r.k}">
+     <div><div class="lbl">${r.label}</div><div class="sub" id="sub-${r.k}"></div></div>
+     <div class="track"><b id="bar-${r.k}" style="width:0%"></b></div>
+     <div class="v num" id="val-${r.k}">—</div>
+   </div>`).join('');
+
+let hist = [], lastOk = 0, muted = false;
+
+const SLOTS = 56;
+function trace(vals) {
+  if (!vals.length) return;
+  const lo = Math.min(...vals), hi = Math.max(...vals), span = (hi - lo) || 1;
+  const recent = vals.slice(-SLOTS);
+  // Always lay out SLOTS columns, right-aligned, padding the left with empty
+  // ones. Otherwise two samples become two full-width bars - a grey slab
+  // rather than a trace.
+  const pad = SLOTS - recent.length;
+  let out = '';
+  for (let i = 0; i < pad; i++) out += '<i class="void"></i>';
+  recent.forEach((v, i) => {
+    const cls = i === recent.length - 1 ? 'now' : (i > recent.length - 14 ? 'warm' : '');
+    out += `<i class="${cls}" style="height:${8 + (v - lo) / span * 92}%"></i>`;
+  });
+  q('trace').innerHTML = out;
+}
+
+function row(k, val, pct, sub, warn) {
+  q('val-' + k).innerHTML = val;
+  const bar = q('bar-' + k);
+  bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+  bar.style.background = TINT[k] || headroom(pct, warn);
+  q('sub-' + k).textContent = sub || '';
+  q('row-' + k).classList.toggle('hi', pct >= warn);
+}
+
+async function tick() {
+  try {
+    const r = await fetch(api('/api/stats'), { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status === 401 ? 'Unauthorised — token missing or wrong' : 'HTTP ' + r.status);
+    const d = await r.json();
+    document.body.classList.remove('stale');
+    q('err').style.display = 'none';
+    lastOk = Date.now();
+
+    q('model').textContent = (d.device && d.device.model) || '';
+    q('source').textContent = d.display_title || d.app_name || d.app || '—';
+    const pic = d.picture || {};
+    const dr = pic.dynamicRange || '';
+    const drCol = /dolby/i.test(dr) ? 'var(--purple)' : /hdr/i.test(dr) ? 'var(--cand)' : 'var(--w35)';
+    q('signal').innerHTML = [
+      d.signal ? esc(d.signal) : '',
+      dr ? `<b style="color:${drCol}">${esc(dr)}</b>` : '',
+      pic.mode ? esc(pic.mode) : ''
+    ].filter(Boolean).join('  ·  ');
+
+    q('temp').textContent = d.temp;
+    document.documentElement.style.setProperty('--hot', thermal(d.temp));
+    // Seed from the server's ring buffer on first paint so the trace says
+    // something immediately, then track locally at the UI's own cadence.
+    if (!hist.length && Array.isArray(d.temps) && d.temps.length) hist = d.temps.slice(-240);
+    else { hist.push(d.temp); if (hist.length > 240) hist.shift(); }
+    trace(hist);
+    q('trange').textContent = 'MIN ' + Math.min(...hist) + '   MAX ' + Math.max(...hist);
+    q('mhz').textContent = d.mhz + ' MHZ';
+
+    const cores = (d.cores || []).map((c, i) => 'c' + i + ' ' + c).join('   ');
+    row('cpu', d.load + '<small>%</small>', d.load, cores, 85);
+
+    const mu = d.mem.total ? 100 * (d.mem.total - d.mem.avail) / d.mem.total : 0;
+    row('mem', mu.toFixed(0) + '<small>%</small>', mu,
+        mb(d.mem.total - d.mem.avail) + ' / ' + mb(d.mem.total) + ' MB', 90);
+
+    const su = d.swap.total ? 100 * (d.swap.total - d.swap.free) / d.swap.total : 0;
+    row('swap', su.toFixed(0) + '<small>%</small>', su,
+        mb(d.swap.total - d.swap.free) + ' / ' + mb(d.swap.total) + ' MB zram', 70);
+
+    const rx = d.net ? (d.net.rx / 1024) : 0, tx = d.net ? (d.net.tx / 1024) : 0;
+    row('net', rx.toFixed(0) + '<small>kB/s</small>', Math.min(100, rx / 20),
+        (d.wifi ? d.wifi.level + ' dBm   ' : '') + 'up ' + tx.toFixed(0) + ' kB/s', 101);
+
+    const ma = (d.power && d.power.current_ma) || 0;
+    row('draw', ma + '<small>mA</small>', Math.min(100, ma / 4),
+        d.power ? ('cpu ' + d.power.cpu_ma + '   core ' + d.power.core_ma) : '', 101);
+
+    const o = d.oled || {};
+    q('ph').textContent = (o.panel_hours || 0).toLocaleString();
+    q('comp').textContent = hrs(o.hours_until_comp) + ' h';
+    q('refr').textContent = hrs(o.hours_until_refresher) + ' h';
+    q('rstate').textContent = o.refresher_status || '—';
+    q('wear').textContent = (d.emmc && d.emmc.wear) || '—';
+
+    muted = !!d.muted;
+    q('vol').textContent = muted ? 'MUTED' : d.volume;
+    q('mute').classList.toggle('on', muted);
+
+    if (d.inputs && !q('inputs').dataset.built) {
+      q('inputs').innerHTML = Object.keys(d.inputs).map(k =>
+        `<button onclick="c('input','${k}')">${d.inputs[k]}</button>`).join('') +
+        `<button onclick="c('input','livetv')">Live TV</button>`;
+      q('inputs').dataset.built = '1';
+    }
+
+    const up = d.uptime, dd = Math.floor(up / 86400), hh = Math.floor(up % 86400 / 3600), mm = Math.floor(up % 3600 / 60);
+    q('uptime').textContent = 'Up ' + (dd ? dd + 'd ' : '') + hh + 'h ' + mm + 'm   ·   load ' + (d.loadavg || []).join(' ');
+    q('clock').textContent = new Date().toLocaleTimeString();
+  } catch (e) {
+    document.body.classList.add('stale');
+    if (Date.now() - lastOk > 6000) showErr(e.message || 'TV unreachable');
+  }
+}
+
+function showErr(m) { const e = q('err'); e.textContent = m; e.style.display = 'block'; }
+
+async function c(action, value) {
+  try {
+    const r = await fetch(api('/api/control'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, value })
+    });
+    const j = await r.json();
+    if (!j.ok) showErr(j.error || 'Action failed'); else q('err').style.display = 'none';
+    setTimeout(tick, 320);
+  } catch (e) { showErr(e.message); }
+}
+function toggleMute() { c('mute', !muted); }
+function pw(a) { if (confirm('Really ' + (a === 'reboot' ? 'reboot' : 'power off') + ' the TV?')) c(a); }
+
+fetch(api('/api/caps')).then(r => r.json()).then(cp => {
+  if (!cp.allowPower) {
+    q('poff').disabled = q('prb').disabled = true;
+    q('pwnote').textContent = 'Disabled in config (allowPower: false).';
+  }
+}).catch(() => {});
+
+tick();
+setInterval(tick, 2000);
+</script>
+</body>
+</html>

@@ -15,6 +15,7 @@ var fs = require('fs');
 var url = require('url');
 var net = require('net');
 var child_process = require('child_process');
+var path = require('path');
 var execFile = child_process.execFile;
 
 // ---------------------------------------------------------------- config
@@ -80,6 +81,22 @@ function loadConfig() {
   }
 }
 loadConfig();
+
+/*
+ * Command-line overrides, applied after the config file so they always win.
+ * Mainly so a second instance can be run alongside the live one for preview
+ * without stealing its port or double-publishing MQTT discovery:
+ *   node tvweb.js --port 8081 --no-mqtt
+ */
+(function applyArgv() {
+  var a = process.argv.slice(2);
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] === '--port' && a[i + 1]) CONFIG.port = parseInt(a[++i], 10) || CONFIG.port;
+    else if (a[i] === '--host' && a[i + 1]) CONFIG.host = a[++i];
+    else if (a[i] === '--no-mqtt') { CONFIG.mqtt = CONFIG.mqtt || {}; CONFIG.mqtt.enabled = false; }
+    else if (a[i] === '--no-control') CONFIG.allowControl = false;
+  }
+})();
 
 // ---------------------------------------------------------------- helpers
 function rd(path) {
@@ -333,6 +350,15 @@ function refreshOledStats(picSettings, cb) {
 }
 
 var prevNet = null;
+/* Short server-side history of SoC temperature. The dashboard's trace would
+   otherwise start empty on every load and take minutes to say anything. */
+var TEMP_HISTORY_MAX = 120;
+var tempHistory = [];
+function pushTemp(t) {
+  if (typeof t !== 'number' || isNaN(t)) return;
+  tempHistory.push(t);
+  if (tempHistory.length > TEMP_HISTORY_MAX) tempHistory.shift();
+}
 var lastStats = null;
 var lastStatsTime = 0;
 var isCollecting = false;
@@ -395,6 +421,7 @@ function collectStats(cb) {
       model: CONFIG.device.model || 'webOS TV'
     },
     temp: num(rd('/proc/lg/pm/temperature'), null),
+    temps: null,   // filled in below from the ring buffer
     load: num(rd('/proc/lg/pm/current_load'), null),
     mhz: Math.round(num(rd('/proc/lg/pm/frequency'), 0) / 1000),
     cores: coreMatch ? coreMatch[1].trim().split(/\s+/).map(Number) : [],
@@ -413,6 +440,9 @@ function collectStats(cb) {
     },
     inputs: inputNameMap
   };
+
+  pushTemp(out.temp);
+  out.temps = tempHistory.slice();
 
   // Refresh input names if cache expired
   refreshInputNames();
@@ -1432,6 +1462,51 @@ var PAGE = [
   '</html>'
 ].join('\n');
 
+// ------------------------------------------------------- external assets
+/*
+ * The UI is authored as a real HTML file (assets/ui.html) rather than a JS
+ * string array, so it can be edited and diffed like a web page. The embedded
+ * PAGE above stays as a fallback: if the asset is missing the server still
+ * serves a working dashboard instead of a blank screen.
+ */
+var ASSET_DIRS = [
+  path.join(__dirname, 'assets'),
+  '/var/lib/tvweb/assets'
+];
+
+function assetPath(rel) {
+  // Reject traversal before touching the filesystem.
+  if (rel.indexOf('\0') !== -1) return null;
+  var clean = path.normalize(rel).replace(/^(\.\.[\/\\])+/, '');
+  if (clean.indexOf('..') !== -1) return null;
+  for (var i = 0; i < ASSET_DIRS.length; i++) {
+    var full = path.join(ASSET_DIRS[i], clean);
+    if (full.indexOf(ASSET_DIRS[i]) !== 0) continue;   // outside the root
+    try { if (fs.existsSync(full) && fs.statSync(full).isFile()) return full; }
+    catch (e) {}
+  }
+  return null;
+}
+
+var UI_HTML = null;
+(function loadUI() {
+  var f = assetPath('ui.html');
+  if (!f) { console.log('assets: ui.html not found, using embedded page'); return; }
+  try {
+    UI_HTML = fs.readFileSync(f, 'utf8');
+    console.log('assets: serving ui.html from ' + f);
+  } catch (e) {
+    console.error('assets: could not read ui.html: ' + e.message);
+  }
+})();
+
+var MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.otf': 'font/otf', '.ttf': 'font/ttf', '.woff2': 'font/woff2',
+  '.css': 'text/css; charset=utf-8', '.js': 'application/javascript',
+  '.png': 'image/png', '.svg': 'image/svg+xml'
+};
+
 // ---------------------------------------------------------------- server
 function send(res, code, body, type) {
   res.writeHead(code, {
@@ -1448,27 +1523,62 @@ function authed(q) {
 
 http.createServer(function (req, res) {
   var u = url.parse(req.url, true);
-  var path = u.pathname;
+  var pathname = u.pathname;
 
-  if (path === '/' || path === '/index.html') {
-    return send(res, 200, PAGE, 'text/html; charset=utf-8');
+  if (pathname === '/' || pathname === '/index.html') {
+    return send(res, 200, UI_HTML || PAGE, 'text/html; charset=utf-8');
   }
 
-  if (path.indexOf('/api/') === 0 && !authed(u.query)) {
+  if (pathname.indexOf('/assets/') === 0) {
+    var file = assetPath(pathname.slice('/assets/'.length));
+    if (!file) return send(res, 404, JSON.stringify({ ok: false, error: 'not found' }));
+    return fs.readFile(file, function (e, buf) {
+      if (e) return send(res, 500, JSON.stringify({ ok: false, error: 'read failed' }));
+      res.writeHead(200, {
+        'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream',
+        'Cache-Control': 'public, max-age=86400'
+      });
+      res.end(buf);
+    });
+  }
+
+  if (pathname.indexOf('/api/') === 0 && !authed(u.query)) {
     return send(res, 401, JSON.stringify({ ok: false, error: 'bad or missing token' }));
   }
 
-  if (path === '/api/caps') {
+  if (pathname === '/api/caps') {
     return send(res, 200, JSON.stringify({
       ok: true, allowControl: CONFIG.allowControl, allowPower: CONFIG.allowPower
     }));
   }
 
-  if (path === '/api/stats') {
+  if (pathname === '/api/stats') {
     return collectStats(function (s) { send(res, 200, JSON.stringify(s)); });
   }
 
-  if (path === '/api/control' && req.method === 'POST') {
+  if (pathname === '/api/control' && req.method === 'POST') {
+    /*
+     * CSRF guard. Responses carry Access-Control-Allow-Origin:*, and a POST
+     * with a "simple" content type (text/plain, form-urlencoded) is sent by a
+     * browser WITHOUT a CORS preflight - so any web page the user visits could
+     * otherwise drive this TV. Requiring application/json forces a preflight,
+     * which this server never approves, and rejecting cross-site Origins
+     * closes the gap for anything that does slip through.
+     */
+    var ctype = String(req.headers['content-type'] || '').toLowerCase();
+    if (ctype.indexOf('application/json') !== 0) {
+      return send(res, 415, JSON.stringify({
+        ok: false, error: 'Content-Type must be application/json'
+      }));
+    }
+    var origin = req.headers.origin;
+    if (origin) {
+      var hostHdr = String(req.headers.host || '');
+      var oHost = String(origin).replace(/^https?:\/\//, '');
+      if (oHost !== hostHdr) {
+        return send(res, 403, JSON.stringify({ ok: false, error: 'cross-origin request refused' }));
+      }
+    }
     var body = '';
     req.on('data', function (d) {
       body += d;
