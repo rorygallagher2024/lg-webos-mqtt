@@ -21,7 +21,12 @@ var execFile = child_process.execFile;
 
 // ---------------------------------------------------------------- config
 var CONFIG = {
-  port: 8080,
+  // The dashboard. Turn this off if you drive everything from Home Assistant:
+  // it is an unauthenticated control endpoint unless `token` is set, and an
+  // MQTT-only install has no reason to expose one.  { "web": { "enabled": false } }
+  web: { enabled: true },
+
+  port: 8080,           // dashboard port
   host: '0.0.0.0',      // '127.0.0.1' to keep it TV-local only
 
   // Anyone who can reach this port can use the controls below.
@@ -1573,6 +1578,8 @@ var PAGE = [
  * PAGE above stays as a fallback: if the asset is missing the server still
  * serves a working dashboard instead of a blank screen.
  */
+var WEB_ENABLED = !(CONFIG.web && CONFIG.web.enabled === false);
+
 var ASSET_DIRS = [
   path.join(__dirname, 'assets'),
   '/var/lib/tvweb/assets'
@@ -1594,6 +1601,7 @@ function assetPath(rel) {
 
 var UI_HTML = null;
 (function loadUI() {
+  if (!WEB_ENABLED) return;   // nothing will serve it
   var f = assetPath('ui.html');
   if (!f) { console.log('assets: ui.html not found, using embedded page'); return; }
   try {
@@ -1632,7 +1640,7 @@ function authed(q) {
   return !CONFIG.token || q.k === CONFIG.token;
 }
 
-http.createServer(function (req, res) {
+var server = http.createServer(function (req, res) {
   var u = url.parse(req.url, true);
   var pathname = u.pathname;
 
@@ -1704,12 +1712,33 @@ http.createServer(function (req, res) {
   }
 
   send(res, 404, JSON.stringify({ ok: false, error: 'not found' }));
-}).listen(CONFIG.port, CONFIG.host, function () {
-  console.log('tvweb listening on ' + CONFIG.host + ':' + CONFIG.port +
-              '  control=' + CONFIG.allowControl + '  power=' + CONFIG.allowPower +
-              '  auth=' + (CONFIG.token ? 'token' : 'none'));
-  detectOled(function () {});   // resolve and log panel type up front
 });
+
+var webEnabled = WEB_ENABLED;
+var mqttEnabled = !!(CONFIG.mqtt && CONFIG.mqtt.enabled && CONFIG.mqtt.host);
+
+/*
+ * Refuse to sit there looking healthy while doing nothing. With both the
+ * dashboard and the MQTT bridge switched off there is no reason for the
+ * process to exist, and a silent no-op is harder to diagnose than an exit.
+ */
+if (!webEnabled && !mqttEnabled) {
+  console.error('nothing to do: web.enabled is false and mqtt is not configured.');
+  console.error('enable one of them in config.json.');
+  process.exit(1);
+}
+
+if (webEnabled) {
+  server.listen(CONFIG.port, CONFIG.host, function () {
+    console.log('tvweb listening on ' + CONFIG.host + ':' + CONFIG.port +
+                '  control=' + CONFIG.allowControl + '  power=' + CONFIG.allowPower +
+                '  auth=' + (CONFIG.token ? 'token' : 'none'));
+    detectOled(function () {});   // resolve and log panel type up front
+  });
+} else {
+  console.log('web dashboard disabled (web.enabled=false) - mqtt bridge only');
+  detectOled(function () {});
+}
 
 // ---------------------------------------------------------------- MiniMQTT Client (ES5)
 function encodeVarLength(len) {
