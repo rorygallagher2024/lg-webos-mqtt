@@ -542,6 +542,10 @@ async function privAction(action) {
   setTimeout(loadPrivacy, 600);
 }
 
+// Deep link straight to the privacy view: /?privacy=1 . Handy for a bookmark,
+// and it means the panel can be captured without a click.
+if (new URLSearchParams(location.search).get('privacy') === '1') togglePrivacy();
+
 tick();
 setInterval(tick, 2000);
 </script>

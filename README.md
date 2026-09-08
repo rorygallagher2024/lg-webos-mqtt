@@ -31,6 +31,18 @@ write.
 <img width="1061" height="1042" alt="image" src="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235" />
 </p>
 
+### Privacy Panel
+
+Behind a toggle in the controls, or at `/?privacy=1`. Reports live state from
+the TV rather than repeating a settings menu: whether LG's content recognition
+engine is running and sampling frames, your advertising identifier, and every
+agreement recorded on the set. Off is shown as the private setting, so a green
+column means what you would hope.
+
+<p align="center">
+  <img src="docs/screenshots/privacy.png" alt="Privacy panel showing content recognition status, advertising identifier and data collection agreements" width="800">
+</p>
+
 ---
 
 ## What it's for
@@ -46,6 +58,11 @@ write.
 3. **Watching OLED panel wear.** Cumulative panel hours, where you are in the
    4-hour compensation cycle, and how far off the 2,000-hour Pixel Refresher is.
    You can schedule or cancel a refresher for the next power-off.
+
+4. **Seeing what LG collects.** Whether the content-recognition engine is
+   actually running and sampling your screen, your advertising identifier, and
+   every data-collection agreement recorded on the set &mdash; in plain English
+   rather than acronyms.
 
 ## Core features
 
@@ -66,8 +83,10 @@ write.
   identifier and whether ad tracking is limited, every data-collection
   agreement recorded on the TV in plain English, and which of LG's collection
   services are alive. Includes buttons to reset the advertising ID and clear ad
-  cookies. Reporting only &mdash; the agreements themselves are changed on the
-  TV, under Settings &rarr; General &rarr; About This TV &rarr; User Agreements.
+  cookies, both of which are real platform calls rather than file edits.
+  Reporting only &mdash; the agreements themselves have no API and are changed
+  on the TV, under Settings &rarr; General &rarr; About This TV &rarr; User
+  Agreements. Deep link: `/?privacy=1`.
 * **Self-contained dashboard.** Fonts and assets are served by the TV, so the
   page works with no internet access.
 
