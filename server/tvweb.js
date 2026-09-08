@@ -330,6 +330,35 @@ function detectDeviceInfo(cb) {
 var cachedOled = null;
 var lastOledCheck = 0;
 
+/*
+ * Not every webOS set is an OLED - LCD/QNED/NanoCell models run the same
+ * firmware but have no panel-hours counter, no Off-RS compensation and no
+ * Pixel Refresher. Detect once and omit the whole block rather than reporting
+ * a confident 0 hours, which reads as a real measurement.
+ *
+ * Two independent signals, either is sufficient:
+ *   - /var/luna/preferences/paneltype_oled, written by the platform
+ *   - a panelUsageTime that actually comes back from systemproperty
+ */
+var isOled = null;   // null = not yet determined
+
+function detectOled(cb) {
+  if (isOled !== null) return cb(isOled);
+  if (fs.existsSync('/var/luna/preferences/paneltype_oled')) {
+    isOled = true;
+    console.log('panel: OLED (paneltype_oled present)');
+    return cb(true);
+  }
+  luna('com.webos.service.tv.systemproperty/getSystemProperties',
+    { keys: ['panelUsageTime'] },
+    function (res) {
+      isOled = !!(res && res.panelUsageTime);
+      console.log('panel: ' + (isOled ? 'OLED (panelUsageTime reported)'
+                                      : 'not OLED - panel features disabled'));
+      cb(isOled);
+    });
+}
+
 function refreshOledStats(picSettings, cb) {
   var now = Date.now();
   if (cachedOled && (now - lastOledCheck < 30000)) {
@@ -545,9 +574,16 @@ function collectStats(cb) {
               logoLuminanceAdjust: pic.settings.logoLuminanceAdjust || 'off'
             };
           }
-          refreshOledStats((pic && pic.settings) ? pic.settings : null, function (oled) {
-            out.oled = oled;
-            flushStats(out);
+          detectOled(function (oledPanel) {
+            out.capabilities = { oled: oledPanel };
+            if (!oledPanel) {
+              out.oled = null;
+              return flushStats(out);
+            }
+            refreshOledStats((pic && pic.settings) ? pic.settings : null, function (oled) {
+              out.oled = oled;
+              flushStats(out);
+            });
           });
         }
       );
@@ -1672,6 +1708,7 @@ http.createServer(function (req, res) {
   console.log('tvweb listening on ' + CONFIG.host + ':' + CONFIG.port +
               '  control=' + CONFIG.allowControl + '  power=' + CONFIG.allowPower +
               '  auth=' + (CONFIG.token ? 'token' : 'none'));
+  detectOled(function () {});   // resolve and log panel type up front
 });
 
 // ---------------------------------------------------------------- MiniMQTT Client (ES5)
@@ -2286,6 +2323,35 @@ function setupHomeAssistant() {
       });
     }
 
+    /*
+     * Panel-lifecycle entities only exist on OLED. On an LCD/QNED set the
+     * counters simply are not there, and publishing them would give Home
+     * Assistant a permanently "unknown" sensor - or worse, a confident 0 that
+     * looks like a real reading. Retained discovery configs are cleared so
+     * they disappear from HA rather than lingering as orphans.
+     */
+    var OLED_ONLY = {
+      oled_panel_hours: 1, oled_hours_since_compensation: 1,
+      oled_hours_until_compensation: 1, oled_hours_since_refresher: 1,
+      oled_hours_until_refresher: 1, oled_refresher_status: 1,
+      oled_screen_shift: 1, oled_logo_dimming: 1,
+      pixel_refresher_schedule: 1
+    };
+    if (isOled === false) {
+      var kept = [];
+      for (var d = 0; d < entities.length; d++) {
+        if (OLED_ONLY[entities[d].id]) {
+          var dead = discPfx + '/' + entities[d].type + '/' + devId + '/' + entities[d].id + '/config';
+          mqttClient.publish(dead, '', true);   // retained empty = remove
+        } else {
+          kept.push(entities[d]);
+        }
+      }
+      console.log('mqtt: not an OLED panel, withheld ' +
+                  (entities.length - kept.length) + ' panel entities');
+      entities = kept;
+    }
+
     for (var i = 0; i < entities.length; i++) {
       var item = entities[i];
       var conf = item.payload;
@@ -2321,7 +2387,9 @@ function setupHomeAssistant() {
                 (useTls ? ' (tls)' : ' (plaintext)'));
     mqttClient.publish(statusTopic, 'online', true);
     mqttClient.publish(stateScreenTopic, 'ON', true);
-    publishDiscovery();
+    // Resolve the panel type first: publishDiscovery filters on it, and on a
+    // first connect it would otherwise still be undetermined.
+    detectOled(function () { publishDiscovery(); });
     mqttClient.subscribe(pfx + '/command/#');
     publishTelemetry();
   });

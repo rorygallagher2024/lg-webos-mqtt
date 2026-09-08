@@ -195,7 +195,12 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
 <section class="readouts" id="readouts"></section>
 
-<section class="panel">
+<div class="cols" id="flashrow" hidden style="margin-top:clamp(30px,5vw,52px)">
+    <div><div class="lbl">Flash wear</div><div class="v num" id="flashval">&mdash;</div></div>
+    <div><div class="lbl">Flash health</div><div class="v" id="flasheol">&mdash;</div></div>
+  </div>
+
+  <section class="panel" id="panelblock" hidden>
   <div class="lbl">OLED panel</div>
   <div class="n num" style="margin-top:12px"><span id="ph">&mdash;</span><em>hours</em></div>
   <div class="cols">
@@ -332,6 +337,9 @@ async function tick() {
     row('swap', su.toFixed(0) + '<small>%</small>', su,
         mb(d.swap.total - d.swap.free) + ' / ' + mb(d.swap.total) + ' MB zram', 70);
 
+    // Wired sets report no wlan0; hide rather than showing a blank signal.
+    q('row-net').hidden = !(d.wifi || d.net);
+    q('row-draw').hidden = !(d.power && d.power.current_ma);
     const rx = d.net ? (d.net.rx / 1024) : 0, tx = d.net ? (d.net.tx / 1024) : 0;
     row('net', rx.toFixed(0) + '<small>kB/s</small>', Math.min(100, rx / 20),
         (d.wifi ? d.wifi.level + ' dBm   ' : '') + 'up ' + tx.toFixed(0) + ' kB/s', 101);
@@ -340,12 +348,24 @@ async function tick() {
     row('draw', ma + '<small>mA</small>', Math.min(100, ma / 4),
         d.power ? ('cpu ' + d.power.cpu_ma + '   core ' + d.power.core_ma) : '', 101);
 
+    /* Capability-driven: an LCD/QNED set has no panel-hours counter, no
+       compensation cycle and no Pixel Refresher, so hide the block entirely
+       rather than showing zeros that look like measurements. */
+    const hasOled = !!(d.oled && d.oled.panel_hours !== undefined) &&
+                    !(d.capabilities && d.capabilities.oled === false);
+    q('panelblock').hidden = !hasOled;
     const o = d.oled || {};
     q('ph').textContent = (o.panel_hours || 0).toLocaleString();
     q('comp').textContent = hrs(o.hours_until_comp) + ' h';
     q('refr').textContent = hrs(o.hours_until_refresher) + ' h';
     q('rstate').textContent = o.refresher_status || '—';
     q('wear').textContent = (d.emmc && d.emmc.wear) || '—';
+    if (!hasOled && d.emmc && d.emmc.wear) {
+      // Flash health is not OLED-specific - keep it visible as its own row.
+      q('flashrow').hidden = false;
+      q('flashval').textContent = d.emmc.wear;
+      q('flasheol').textContent = d.emmc.eol || '';
+    }
 
     muted = !!d.muted;
     q('vol').textContent = muted ? 'MUTED' : d.volume;

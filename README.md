@@ -324,6 +324,43 @@ it before exposing it more widely.
 
 ---
 
+### Use SSH, not telnet
+
+A rooted webOS TV exposes an **unauthenticated root shell on port 23**. Anyone
+on your network gets root with no credentials. The Homebrew Channel ships
+dropbear, so switching to key-based SSH is worth doing before anything else.
+
+**Order matters.** The Homebrew Channel sets a placeholder root password
+(`alpine`, a publicly known default) *unless* `/home/root/.ssh/authorized_keys`
+already exists. Enabling SSH without a key installed therefore gets you
+password login as root with a password everybody knows &mdash; no better than
+telnet. Install the key first:
+
+```bash
+# while telnet still works
+cat ~/.ssh/id_ed25519.pub | nc <tv-ip> 23   # or paste it into the shell:
+#   mkdir -p /home/root/.ssh
+#   echo 'ssh-ed25519 AAAA...' >> /home/root/.ssh/authorized_keys
+#   chmod 700 /home/root/.ssh && chmod 600 /home/root/.ssh/authorized_keys
+```
+
+Then, in order:
+
+1. Enable **SSH** in the Homebrew Channel settings.
+2. Reboot &mdash; startup.sh now sees the key, skips the `alpine` password and
+   starts dropbear.
+3. Verify `ssh root@<tv-ip>` works.
+4. **Only then** disable **telnet** in the Homebrew Channel.
+5. Reboot once more and confirm SSH still works.
+
+Do not disable telnet before step 3. If SSH does not come up you will have no
+root access, and recovery means re-rooting the TV.
+
+`deploy.sh` prefers SSH automatically and falls back to telnet, so it keeps
+working either way. Force the old path with `--telnet` if you need to.
+
+---
+
 ### Hardening the MQTT bridge
 
 Worth doing properly, because this is the part that reaches beyond the TV. The
@@ -382,6 +419,11 @@ single biggest improvement you can make.
 
 - **Root Access & Hardware**: This project runs custom software with `root` privileges on an embedded Smart TV operating system. While designed to be lightweight, read-only to rootfs, and non-destructive, the authors and contributors assume **no responsibility or liability** for any damage, bootloops, bricked devices, voided warranties, data loss, OLED panel issues, or unexpected behavior resulting from the use or misuse of this software.
 - **Power & Control Commands**: Features such as rebooting, power off, screen blanking, and Pixel Refresher scheduling issue low-level commands directly to webOS system services (`luna-send`). Ensure you understand what each command does before executing it.
+- **Non-OLED sets**: Panel hours, the Off-RS compensation cycle and the Pixel
+  Refresher only exist on OLED. On an LCD/QNED/NanoCell set these are detected
+  as unavailable and omitted &mdash; both from the dashboard and from MQTT
+  discovery &mdash; rather than reported as zero. Everything else works
+  normally.
 - **Compatibility**: Verified on a 2018 OLED65B8SLC running webOS 4.4.3
   (firmware 05.50.70). Other webOS versions are untested &mdash; the Luna calls
   and `/proc/lg` paths this relies on may differ. Reports welcome.
@@ -399,11 +441,11 @@ single biggest improvement you can make.
 To completely remove the service and boot hook from the TV:
 
 ```bash
-# Connect via telnet
-nc <tv-ip> 23
+# Connect (ssh preferred)
+ssh root@<tv-ip>        # or, if still on telnet:  nc <tv-ip> 23
 
 # Inside TV shell:
-pkill -9 -f tvweb.js
+/var/lib/tvweb/tvwebctl stop
 rm -rf /var/lib/tvweb
 rm -f /var/lib/webosbrew/init.d/50-tvweb*
 exit
