@@ -126,7 +126,26 @@ else
 fi
 
 echo
+# With the dashboard switched off there is no HTTP endpoint to poll, so report
+# the log instead of a false failure.
+WEB_OFF=""
+if [ -f "$DIR/config.json" ] && command -v python3 >/dev/null 2>&1; then
+  WEB_OFF=$(python3 -c 'import json,sys
+try:
+    c = json.load(open(sys.argv[1]))
+    print("1" if c.get("web", {}).get("enabled") is False else "")
+except Exception:
+    print("")' "$DIR/config.json" 2>/dev/null || true)
+fi
+
 echo "verifying ..."
-curl -s --max-time 8 "http://$TV:8080/api/caps" || echo "(no response yet - give it a moment)"
-echo
-echo "open  http://$TV:8080/"
+if [ -n "$WEB_OFF" ]; then
+  echo "dashboard disabled in config (web.enabled=false) - mqtt bridge only."
+  if use_ssh; then
+    ssh "${SSH_OPTS[@]}" "root@$TV" 'tail -4 /var/lib/tvweb/tvweb.log' 2>/dev/null
+  fi
+else
+  curl -s --max-time 8 "http://$TV:8080/api/caps" || echo "(no response yet - give it a moment)"
+  echo
+  echo "open  http://$TV:8080/"
+fi
