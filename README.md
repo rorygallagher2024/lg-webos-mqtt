@@ -52,7 +52,7 @@ column means what you would hope.
 2. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
    load, memory, swap, current draw, Wi-Fi signal and throughput.
 
-3. **Watching OLED panel wear.** Cumulative panel hours, where you are in the
+3. **Observing OLED panel wear.** Cumulative panel hours, where you are in the
    4-hour compensation cycle, and how far off the 2,000-hour Pixel Refresher is.
    You can schedule or cancel a refresher for the next power-off.
 
