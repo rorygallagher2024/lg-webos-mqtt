@@ -703,9 +703,13 @@ function collectPrivacy(cb) {
         out.advertisingId = {
           label: 'Advertising identifier',
           detail: 'A unique ID your TV hands to advertisers. Resetting it breaks the link to your past activity.',
-          // Truncated: enough to see it change after a reset, without putting
-          // the whole identifier on any screen that happens to be open.
-          shortId: id ? (id.slice(0, 8) + '...') : null,
+          /*
+           * The value is deliberately NOT returned, not even truncated. It is
+           * an identifier for this household, and the dashboard is the sort of
+           * thing that ends up in screenshots. Whether a reset worked is
+           * reported by the reset action itself, which compares before and
+           * after on the TV without either value leaving it.
+           */
           present: !!id,
           limitTracking: !!(ad && String(ad.LMT).toLowerCase() === 'on'),
           limitTrackingLabel: 'Limit ad tracking',
@@ -781,9 +785,20 @@ function doControl(action, value, cb) {
      * this is the same reset the TV's own menus perform.
      */
     case 'resetAdId':
-      return luna('com.webos.service.admanager/resetIFA', {}, function (r) {
-        cachedPrivacy = null;   // force a re-read so the UI shows the new id
-        cb({ ok: !!(r && r.returnValue !== false) });
+      // Read before and after so the UI can say whether it actually changed,
+      // without either identifier being sent anywhere.
+      return luna('com.webos.service.admanager/getAdid', {}, function (before) {
+        var was = (before && before.IFA) ? String(before.IFA) : null;
+        luna('com.webos.service.admanager/resetIFA', {}, function (r) {
+          luna('com.webos.service.admanager/getAdid', {}, function (after) {
+            var now = (after && after.IFA) ? String(after.IFA) : null;
+            cachedPrivacy = null;
+            cb({
+              ok: !!(r && r.returnValue !== false),
+              changed: !!(was && now && was !== now)
+            });
+          });
+        });
       });
 
     case 'clearAdCookies':

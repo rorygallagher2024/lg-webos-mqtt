@@ -209,6 +209,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <div class="pv-sub">A unique ID your TV hands to advertisers. Resetting it breaks the
     link between your TV and any profile built from past activity.</div>
   <div class="pv-id" id="pv-adid">&mdash;</div>
+  <div class="sub" id="pv-adnote" style="margin-top:2px"></div>
   <div id="pv-lmt"></div>
   <div class="btns" style="margin-top:14px;max-width:520px">
     <button onclick="privAction('resetAdId')">Reset advertising ID</button>
@@ -508,7 +509,12 @@ async function loadPrivacy() {
 
     // advertising id
     const ad = d.advertisingId || {};
-    q('pv-adid').textContent = ad.present ? ad.shortId : 'none reported';
+    // The identifier itself is never sent to the browser, so it cannot end up
+    // in a screenshot. Presence is all that is useful here.
+    q('pv-adid').textContent = ad.present ? 'Assigned' : 'None reported';
+    q('pv-adnote').textContent = ad.present
+      ? 'The value is deliberately not displayed.'
+      : '';
     q('pv-lmt').innerHTML = pvRow(
       ad.limitTrackingLabel || 'Limit ad tracking',
       ad.limitTrackingDetail || '',
@@ -544,8 +550,21 @@ function togglePrivacy() {
 async function privAction(action) {
   const nice = action === 'resetAdId' ? 'reset the advertising ID' : 'clear ad cookies';
   if (!confirm('Really ' + nice + '?')) return;
-  await c(action);
-  setTimeout(loadPrivacy, 600);
+  try {
+    const r = await fetch(api('/api/control'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    });
+    const j = await r.json();
+    if (!j.ok) { showErr(j.error || 'Action failed'); return; }
+    if (action === 'resetAdId') {
+      // The TV compared old and new for us; neither value came back.
+      q('pv-adnote').textContent = j.changed
+        ? 'Reset — the TV issued a new identifier.'
+        : 'Reset was accepted, but the identifier did not change.';
+    }
+  } catch (e) { showErr(e.message); return; }
+  setTimeout(loadPrivacy, 800);
 }
 
 // Deep link straight to the privacy view: /?privacy=1 . Handy for a bookmark,
