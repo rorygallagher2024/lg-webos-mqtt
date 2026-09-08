@@ -1,7 +1,7 @@
 # lg-webos-mqtt · LG webOS Dashboard & Home Assistant Integration
 
 <p align="center">
-  <img src="https://img.shields.io/badge/webOS-3.5%20--%204.4+-blue?style=flat-square&logo=lg" alt="webOS 3.5 - 4.4+">
+  <img src="https://img.shields.io/badge/webOS-4.4.3%20verified-blue?style=flat-square&logo=lg" alt="webOS 4.4.3 verified">
   <img src="https://img.shields.io/badge/Node.js-v0.12+-green?style=flat-square&logo=node.js" alt="Node.js v0.12+">
   <img src="https://img.shields.io/badge/Home%20Assistant-MQTT%20Discovery-orange?style=flat-square&logo=home-assistant" alt="Home Assistant MQTT Discovery">
   <img src="https://img.shields.io/badge/Dependencies-Zero-brightgreen?style=flat-square" alt="Zero Dependencies">
@@ -299,13 +299,46 @@ To prevent user confusion, `tvweb.js` translates this into both a human-friendly
 
 ---
 
+## Security
+
+This server has **no authentication by default**, and binds to `0.0.0.0` so it
+is reachable from anywhere on your network. Anyone who can reach the port can
+use every enabled control. On a home LAN that is usually the point; understand
+it before exposing it more widely.
+
+- **Set a token.** Put `"token": "something-long"` in `config.json` and every
+  `/api/` request must carry `?k=something-long`. Bookmark the dashboard with
+  the token in the URL. This gates the HTTP API only &mdash; **MQTT and the Home
+  Assistant integration are unaffected**, since they use a separate channel.
+- **`allowPower` ships disabled**, so a fresh install cannot be told to turn the
+  TV off by anything that finds the port. Enable it deliberately.
+- **Never port-forward this.** It is designed for a trusted LAN.
+- Bind to `127.0.0.1` instead of `0.0.0.0` if you only want the TV itself to
+  reach it.
+- No CORS headers are sent, so other websites cannot read your telemetry from
+  your browser. Cross-origin `POST`s are refused, and `/api/control` requires
+  `Content-Type: application/json`.
+- Remember the wider context: rooted webOS exposes an **unauthenticated root
+  telnet on port 23**. That is a far bigger exposure than this server, and it
+  is worth closing off if you have not already.
+
+---
+
 ## ⚠️ Disclaimer & Safety
 
 **Use this software at your own risk.**
 
 - **Root Access & Hardware**: This project runs custom software with `root` privileges on an embedded Smart TV operating system. While designed to be lightweight, read-only to rootfs, and non-destructive, the authors and contributors assume **no responsibility or liability** for any damage, bootloops, bricked devices, voided warranties, data loss, OLED panel issues, or unexpected behavior resulting from the use or misuse of this software.
 - **Power & Control Commands**: Features such as rebooting, power off, screen blanking, and Pixel Refresher scheduling issue low-level commands directly to webOS system services (`luna-send`). Ensure you understand what each command does before executing it.
+- **Compatibility**: Verified on a 2018 OLED65B8SLC running webOS 4.4.3
+  (firmware 05.50.70). Other webOS versions are untested &mdash; the Luna calls
+  and `/proc/lg` paths this relies on may differ. Reports welcome.
 - **Trademark Notice**: This is an independent, unofficial open-source community project. It is not affiliated with, endorsed by, or associated with LG Electronics Inc. in any way. webOS is a trademark of LG Electronics.
+- **Fonts**: The dashboard bundles [Outfit](https://github.com/Outfitio/Outfit-Fonts)
+  and [Manrope](https://github.com/sharanda/manrope), both under the
+  [SIL Open Font License 1.1](https://openfontlicense.org/). Licence texts ship
+  in `server/assets/fonts/`. They are served by the TV, so the dashboard needs
+  no internet access.
 
 ---
 
