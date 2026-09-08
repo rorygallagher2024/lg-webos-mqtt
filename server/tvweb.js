@@ -302,8 +302,35 @@ function refreshOledStats(picSettings, cb) {
     return cb(cachedOled);
   }
 
+  /*
+   * Both of these are counters in PANEL HOURS, not the 10-minute units that
+   * panelUsageTime uses - confirmed by autoOffRsTime tracking panelUsageTime/6
+   * almost exactly on a live set.
+   */
   var autoPnwashRaw = rd('/mnt/lg/cmn_data/pnwash/autoPnwashTime');
   var lastRefresher = autoPnwashRaw ? parseInt(autoPnwashRaw, 10) : 0;
+
+  /*
+   * Short Off-RS compensation interval. The file reads 24 on this set, which
+   * is NOT 24 hours: it is expressed in the same 10-minute units as
+   * panelUsageTime and lastCompensationTimestamp, the counters it gets
+   * compared against. 24 * 10min = 4h, which is LG's documented cumulative
+   * viewing cycle.
+   *
+   * Note the directory is not internally consistent - autoOffRsTime alongside
+   * it IS in whole panel hours - so do not "simplify" this by assuming one
+   * unit throughout.
+   */
+  var compIntervalRaw = rd('/mnt/lg/cmn_data/pnwash/autoOffRsIntervalHomeMode');
+  var compIntervalUnits = parseInt(compIntervalRaw, 10);
+  if (!compIntervalUnits || compIntervalUnits <= 0) compIntervalUnits = 24;
+  var compInterval = Math.round((compIntervalUnits * 10 / 60) * 10) / 10;
+  // Guard against a value in an unexpected unit producing a nonsense countdown.
+  if (compInterval < 0.5 || compInterval > 24) compInterval = 4;
+
+  /* Deep Pixel Refresher ("Panel Wash") cadence. Not exposed anywhere on the
+     set, so it stays an assumption - named rather than buried in an expression. */
+  var REFRESHER_INTERVAL_HOURS = 2000;
 
   luna('com.webos.service.tv.systemproperty/getSystemProperties',
     { keys: ['panelUsageTime', 'lastCompensationTimestamp'] },
@@ -323,10 +350,10 @@ function refreshOledStats(picSettings, cb) {
         var lastCompHours = (lastCompUnits !== null) ? Math.round((lastCompUnits * 10 / 60) * 10) / 10 : 0;
         var hoursSinceComp = (usageUnits !== null && lastCompUnits !== null) ?
           Math.round(((usageUnits - lastCompUnits) * 10 / 60) * 10) / 10 : 0;
-        var hoursUntilComp = Math.max(0, Math.round((4.0 - hoursSinceComp) * 10) / 10);
+        var hoursUntilComp = Math.max(0, Math.round((compInterval - hoursSinceComp) * 10) / 10);
 
         var hoursSinceRefresher = (panelHours && lastRefresher) ? Math.max(0, panelHours - lastRefresher) : 0;
-        var hoursUntilRefresher = Math.max(0, 2000 - hoursSinceRefresher);
+        var hoursUntilRefresher = Math.max(0, REFRESHER_INTERVAL_HOURS - hoursSinceRefresher);
 
         cachedOled = {
           panel_hours: panelHours,
@@ -334,6 +361,9 @@ function refreshOledStats(picSettings, cb) {
           last_compensation_hours: lastCompHours,
           hours_since_comp: hoursSinceComp,
           hours_until_comp: hoursUntilComp,
+          comp_interval_hours: compInterval,
+          comp_interval_units: compIntervalUnits,
+          refresher_interval_hours: REFRESHER_INTERVAL_HOURS,
           last_refresher_hours: lastRefresher,
           hours_since_refresher: hoursSinceRefresher,
           hours_until_refresher: hoursUntilRefresher,
