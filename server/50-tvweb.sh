@@ -14,6 +14,11 @@
 
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:$PATH
 
+# Restore adblock bind-mount if enabled
+if [ -f /var/lib/tvweb/adblock_enabled ] && [ -f /var/lib/tvweb/adblock_hosts ]; then
+  mount --bind /var/lib/tvweb/adblock_hosts /etc/hosts 2>/dev/null || true
+fi
+
 # Detach fully so upstart/webosbrew startup is never held up by this.
 (
   sleep 20   # let the TV finish booting before adding load

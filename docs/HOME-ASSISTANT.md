@@ -6,15 +6,23 @@ Entity reference and example automations.
 
 ## Entities
 
-Once connected to your MQTT broker, Home Assistant automatically discovers **33 native entities** under a single unified device:
+Once connected to your MQTT broker, Home Assistant automatically discovers **41 native entities** under a single unified device:
 
 | Domain | Entity ID | Name | Description |
 | :--- | :--- | :--- | :--- |
 | `switch` | `switch.lg_tv_display_panel` | OLED Display Panel | Blanks/turns off OLED panel while audio plays |
 | `switch` | `switch.lg_tv_mute` | Mute | Toggle audio mute |
 | `switch` | `switch.lg_tv_pixel_refresher_schedule` | Schedule Pixel Refresher | Schedule/cancel 1-hour calibration for next standby |
+| `switch` | `switch.lg_tv_ad_blocker` | Ad & Telemetry Blocker | On-TV `/etc/hosts` blackhole for LG ad/tracking domains |
 | `number` | `number.lg_tv_volume` | Volume | Volume slider (0–100) |
 | `select` | `select.lg_tv_input_source` | Input Source | HDMI 1–4, Live TV |
+| `select` | `select.lg_tv_app` | Launch App | Installed apps (YouTube, Netflix, Prime Video, Spotify, etc.) |
+| `select` | `select.lg_tv_picture_mode` | Picture Mode | Switch profiles (ISF Dark/Bright, Cinema, Game, Standard) |
+| `select` | `select.lg_tv_sound_output` | Sound Output | Switch outputs (TV Speaker, HDMI ARC, Optical, Headphone) |
+| `button` | `button.lg_tv_play` | Play | Resume media playback |
+| `button` | `button.lg_tv_pause` | Pause | Pause media playback |
+| `button` | `button.lg_tv_play_pause` | Play / Pause | Toggle media playback |
+| `button` | `button.lg_tv_stop` | Stop | Stop media playback |
 | `text` | `text.lg_tv_screen_notification` | Screen Notification | Send custom toast messages to TV screen |
 | `button` | `button.lg_tv_restart` | Restart TV | Reboots the TV (requires `allowPower: true`) |
 | `button` | `button.lg_tv_power_off` | Power Off TV | Powers off the TV (requires `allowPower: true`) |
@@ -104,3 +112,91 @@ action:
 ```
 
 ---
+
+## Universal Media Player Setup
+
+Home Assistant Core does not offer native MQTT discovery for `media_player` platforms. To group all the discovered volume, mute, power, playback, and source controls into a single native media player card:
+
+Add the following to your `configuration.yaml`:
+
+```yaml
+media_player:
+  - platform: universal
+    name: "LG OLED TV"
+    unique_id: lg_oled_tv_media_player
+    children: []
+    commands:
+      turn_on:
+        service: wake_on_lan.send_magic_packet
+        data:
+          mac: "YOUR_TV_MAC_ADDRESS"
+      turn_off:
+        service: button.press
+        target:
+          entity_id: button.lg_tv_power_off
+      volume_up:
+        service: mqtt.publish
+        data:
+          topic: "lgtv/command/volume"
+          payload: "+1"
+      volume_down:
+        service: mqtt.publish
+        data:
+          topic: "lgtv/command/volume"
+          payload: "-1"
+      volume_set:
+        service: number.set_value
+        target:
+          entity_id: number.lg_tv_volume
+        data:
+          value: "{{ volume * 100 }}"
+      volume_mute:
+        service: switch.toggle
+        target:
+          entity_id: switch.lg_tv_mute
+      media_play:
+        service: button.press
+        target:
+          entity_id: button.lg_tv_play
+      media_pause:
+        service: button.press
+        target:
+          entity_id: button.lg_tv_pause
+      media_play_pause:
+        service: button.press
+        target:
+          entity_id: button.lg_tv_play_pause
+      media_stop:
+        service: button.press
+        target:
+          entity_id: button.lg_tv_stop
+      select_source:
+        service: select.select_option
+        target:
+          entity_id: select.lg_tv_input_source
+        data:
+          option: "{{ source }}"
+    attributes:
+      state: switch.lg_tv_display_panel
+      is_volume_muted: switch.lg_tv_mute
+      volume_level: number.lg_tv_volume
+      source: select.lg_tv_input_source
+      source_list: select.lg_tv_input_source|options
+```
+
+---
+
+## Wake-on-LAN (WoL) Setup
+
+When the TV enters standby mode, the Linux kernel and Node daemon shut down. To turn the TV on directly from Home Assistant:
+
+1. Enable **LG QuickStart+** on the TV:
+   * **Settings &rarr; General &rarr; Quick Start+ &rarr; On**
+2. Enable **Mobile TV On / Turn on via Wi-Fi/LAN**:
+   * **Settings &rarr; General &rarr; Mobile TV On &rarr; Turn on via Wi-Fi** (or Wired)
+3. In Home Assistant, add the `wake_on_lan` integration to your `configuration.yaml`:
+   ```yaml
+   wake_on_lan:
+   ```
+4. Now the `wake_on_lan.send_magic_packet` action will wake the TV from deep standby.
+
