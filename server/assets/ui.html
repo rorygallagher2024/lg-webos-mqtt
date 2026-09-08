@@ -7,26 +7,27 @@
 <title>LG OLED TV</title>
 <style>
 /* ---------------------------------------------------------------
-   Type, after the Velo visualiser.
+   Type.
 
-   Two families doing different jobs. Satoshi is the working face:
+   Two families doing different jobs. Manrope is the working face:
    labels, captions, anything being read rather than looked at.
-   Clash Display is the spectacle face and earns its place only at
-   size - its character is in the wide apertures and tight joins,
-   none of which survive small. It is reserved for the few moments
-   meant to be looked at.
+   Outfit is the spectacle face and earns its place only at size -
+   its character is in the wide apertures and geometric bowls,
+   neither of which survives small. It is reserved for the few
+   moments meant to be looked at.
 
    Weights are deliberately light. On black, at size, a regular
    weight reads as heavy and a light weight reads as precise.
 
    Palette is white on black at opacity steps. No accent hue:
    level is carried by fill and opacity, never by colour.
+
+   Both faces are SIL Open Font License, bundled and served by the
+   TV itself so the dashboard needs no internet access. Licences
+   ship alongside them in assets/fonts/.
    --------------------------------------------------------------- */
-@font-face{font-family:'Clash Display';src:url('/assets/fonts/clash_display_extralight.otf') format('opentype');font-weight:200;font-display:swap}
-@font-face{font-family:'Clash Display';src:url('/assets/fonts/clash_display_light.otf') format('opentype');font-weight:300;font-display:swap}
-@font-face{font-family:'Satoshi';src:url('/assets/fonts/satoshi_light.otf') format('opentype');font-weight:300;font-display:swap}
-@font-face{font-family:'Satoshi';src:url('/assets/fonts/satoshi_regular.otf') format('opentype');font-weight:400;font-display:swap}
-@font-face{font-family:'Satoshi';src:url('/assets/fonts/satoshi_medium.otf') format('opentype');font-weight:500;font-display:swap}
+@font-face{font-family:'Outfit';src:url('/assets/fonts/Outfit.ttf') format('truetype');font-weight:100 900;font-display:swap}
+@font-face{font-family:'Manrope';src:url('/assets/fonts/Manrope.ttf') format('truetype');font-weight:200 800;font-display:swap}
 
 :root{
   --w06:rgba(255,255,255,.06); --w10:rgba(255,255,255,.10);
@@ -48,7 +49,7 @@
 html{background:#000}
 body{
   background:#000;color:var(--w80);
-  font-family:'Satoshi',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   font-weight:400;font-size:15px;line-height:1.5;
   padding:var(--gut) var(--gut) calc(var(--gut) * 2);
   max-width:1080px;margin:0 auto;
@@ -64,16 +65,16 @@ body{
 
 /* ---- masthead ---- */
 header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;flex-wrap:wrap}
-.mark{font-family:'Clash Display';font-weight:300;font-size:clamp(19px,2.4vw,26px);color:var(--w100);letter-spacing:.01em}
+.mark{font-family:'Outfit';font-weight:300;font-size:clamp(19px,2.4vw,26px);color:var(--w100);letter-spacing:.01em}
 .mark span{color:var(--w50)}
 .src{text-align:right}
-.src .t{font-family:'Clash Display';font-weight:300;font-size:clamp(15px,1.8vw,19px);color:var(--w80)}
+.src .t{font-family:'Outfit';font-weight:300;font-size:clamp(15px,1.8vw,19px);color:var(--w80)}
 .src .m{font-size:13px;color:var(--w50);letter-spacing:.02em}
 .src .m b{font-weight:400}
 
 /* ---- the spectacle ---- */
 .hero{margin:clamp(20px,4vw,34px) 0 0;display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap}
-.hero .big{font-family:'Clash Display';font-weight:200;color:var(--hot,#fff);transition:color .8s ease;
+.hero .big{font-family:'Outfit';font-weight:200;color:var(--hot,#fff);transition:color .8s ease;
   font-size:clamp(96px,20vw,208px);line-height:.82;letter-spacing:-.025em}
 .hero .deg{font-size:.34em;color:var(--w35);vertical-align:super;letter-spacing:0}
 .hero .side{flex:1;min-width:210px;padding-bottom:10px}
@@ -88,8 +89,8 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 .readouts{margin-top:clamp(30px,5vw,52px);border-top:1px solid var(--w10)}
 .r{display:grid;grid-template-columns:clamp(118px,17%,176px) 1fr 92px;gap:20px;align-items:center;
    padding:15px 0;border-bottom:1px solid var(--w06)}
-.r .v{font-family:'Clash Display';font-weight:200;font-size:26px;color:var(--w100);text-align:right;line-height:1}
-.r .v small{font-size:13px;color:var(--w50);margin-left:4px;font-family:'Satoshi';font-weight:400}
+.r .v{font-family:'Outfit';font-weight:200;font-size:26px;color:var(--w100);text-align:right;line-height:1}
+.r .v small{font-size:13px;color:var(--w50);margin-left:4px;font-family:'Manrope';font-weight:400}
 .track{height:2px;background:var(--w06);position:relative;overflow:hidden}
 .track b{position:absolute;inset:0 auto 0 0;background:var(--w60);transition:width .45s cubic-bezier(.4,0,.2,1),background .5s ease}
 
@@ -98,19 +99,19 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 
 /* ---- panel block: the second thing worth looking at ---- */
 .panel{margin-top:clamp(30px,5vw,52px);padding-top:clamp(24px,4vw,36px);border-top:1px solid var(--w10)}
-.panel .n{font-family:'Clash Display';font-weight:200;font-size:clamp(52px,9vw,90px);color:var(--w100);line-height:.9;letter-spacing:-.02em}
-.panel .n em{font-style:normal;color:var(--purple-t);font-size:.26em;letter-spacing:.14em;margin-left:12px;font-family:'Satoshi';font-weight:500}
+.panel .n{font-family:'Outfit';font-weight:200;font-size:clamp(52px,9vw,90px);color:var(--w100);line-height:.9;letter-spacing:-.02em}
+.panel .n em{font-style:normal;color:var(--purple-t);font-size:.26em;letter-spacing:.14em;margin-left:12px;font-family:'Manrope';font-weight:500}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:26px;margin-top:26px}
-.cols .v{font-family:'Clash Display';font-weight:300;font-size:24px;color:var(--w100);margin-top:6px}
+.cols .v{font-family:'Outfit';font-weight:300;font-size:24px;color:var(--w100);margin-top:6px}
 
 /* ---- controls ---- */
 .controls{margin-top:clamp(30px,5vw,48px);padding-top:clamp(24px,4vw,36px);border-top:1px solid var(--w12)}
 .metrics{margin-top:clamp(34px,6vw,64px);padding-top:clamp(24px,4vw,36px);border-top:1px solid var(--w12)}
-.sec{font-family:'Satoshi';font-weight:500;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--w50)}
+.sec{font-family:'Manrope';font-weight:500;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--w50)}
 .set{margin-top:22px}
 .btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:11px}
 button{
-  font-family:'Satoshi';font-weight:500;font-size:13px;letter-spacing:.10em;text-transform:uppercase;
+  font-family:'Manrope';font-weight:500;font-size:13px;letter-spacing:.10em;text-transform:uppercase;
   color:var(--w80);background:transparent;border:1px solid var(--w25);
   padding:16px 10px;min-height:48px;cursor:pointer;transition:.16s ease;
 }

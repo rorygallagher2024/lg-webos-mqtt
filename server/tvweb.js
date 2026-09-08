@@ -26,10 +26,11 @@ var CONFIG = {
   // Anyone who can reach this port can use the controls below.
   allowControl: true,   // volume, screen off/on, input switching, toast
 
-  // Power off / reboot are OFF by default on purpose: this server has no
-  // authentication, and you do not want a stray request killing the TV
-  // mid-film. Flip to true only if you understand that.
-  allowPower: true,
+  // Power off / reboot ship DISABLED, because there is no authentication
+  // unless `token` is set and a fresh install should not expose "turn the TV
+  // off" to the whole network. Enable in your own config.json:
+  //     { "allowPower": true }
+  allowPower: false,
 
   // Optional shared secret. If non-empty, every /api/ request must carry
   // ?k=<token>. Keeps casual LAN devices out.
@@ -37,8 +38,10 @@ var CONFIG = {
 
   // Home Assistant & MQTT Integration
   mqtt: {
-    enabled: true,
-    host: '192.168.1.125',
+    // Off until a broker is configured. Shipping an address here would point
+    // every install at whatever happens to be at that IP on the user's LAN.
+    enabled: false,
+    host: '',
     port: 1883,
     username: '',
     password: '',
@@ -1539,10 +1542,17 @@ var MIME = {
 
 // ---------------------------------------------------------------- server
 function send(res, code, body, type) {
+  /*
+   * No Access-Control-Allow-Origin. The telemetry includes what is currently
+   * playing, the model, panel hours and usage, and a wildcard here let any
+   * site the user happened to visit read all of it from their browser. The
+   * dashboard is same-origin, so it needs no CORS grant.
+   */
   res.writeHead(code, {
     'Content-Type': type || 'application/json',
     'Cache-Control': 'no-store',
-    'Access-Control-Allow-Origin': '*'
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer'
   });
   res.end(body);
 }
