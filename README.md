@@ -79,8 +79,8 @@ column means what you would hope.
   identifier and whether ad tracking is limited, every data-collection
   agreement recorded on the TV, and which of LG's collection
   services are alive. Includes buttons to reset the advertising ID and clear ad
-  cookies, both of which are real platform calls rather than file edits.
-  This just reports because the agreements themselves have no API and are changed
+  cookies.
+  This feature just reports because the agreements themselves have no API and are changed
   on the TV, under Settings &rarr; General &rarr; About This TV &rarr; User
   Agreements. Deep link: `/?privacy=1`.
 * **Self-contained dashboard.** Fonts and assets are served by the TV, so the
