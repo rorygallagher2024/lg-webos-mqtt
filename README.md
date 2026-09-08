@@ -16,24 +16,25 @@ Runs natively in pure ES5 on the TV's embedded Node.js runtime, exposing **33 re
 
 ## Web Dashboard & Home Assistant Integration
 
-### On-TV Dashboard
-
-Served by the TV itself, to any browser on the network. Typography-led and
-monochrome, with colour reserved for meaning: the temperature reading warms
-through the range, headroom bars run green to amber to red, and Dolby Vision
-is picked out where it appears.
-
-<p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="On-TV dashboard showing SoC temperature, resource readouts and OLED panel hours" width="800">
-</p>
-
 ### Local Controls
 
-Volume, OLED panel blanking, source switching and power, driven straight over
-the Luna bus with no cloud round-trip.
+Controls lead the page, since that is usually why you opened it. Volume, OLED
+panel blanking, source switching and power, driven straight over the Luna bus
+with no cloud round-trip.
 
 <p align="center">
-  <img src="docs/screenshots/controls.png" alt="Local control panel: volume, screen blanking, source switching and power" width="720">
+  <img src="docs/screenshots/controls.png" alt="Local control panel: volume, screen blanking, source switching and power" width="760">
+</p>
+
+### Metrics
+
+Typography-led and monochrome, with colour reserved for meaning: the
+temperature reading warms through its range, headroom bars run green to amber
+to red, and Dolby Vision is picked out where it appears. Body text meets WCAG
+AA contrast (4.5:1) on black.
+
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="Metrics: SoC temperature, resource readouts and OLED panel hours" width="900">
 </p>
 
 ### Home Assistant &mdash; Auto-Discovered Device
