@@ -311,13 +311,22 @@ function refreshOledStats(picSettings, cb) {
   var lastRefresher = autoPnwashRaw ? parseInt(autoPnwashRaw, 10) : 0;
 
   /*
-   * The short Off-RS compensation interval is NOT a fixed 4 hours: the TV
-   * publishes it, and on a set in Home mode it is 24. (4h appears to be the
-   * Store-mode figure.) Read it, and fall back to 24 rather than 4.
+   * Short Off-RS compensation interval. The file reads 24 on this set, which
+   * is NOT 24 hours: it is expressed in the same 10-minute units as
+   * panelUsageTime and lastCompensationTimestamp, the counters it gets
+   * compared against. 24 * 10min = 4h, which is LG's documented cumulative
+   * viewing cycle.
+   *
+   * Note the directory is not internally consistent - autoOffRsTime alongside
+   * it IS in whole panel hours - so do not "simplify" this by assuming one
+   * unit throughout.
    */
   var compIntervalRaw = rd('/mnt/lg/cmn_data/pnwash/autoOffRsIntervalHomeMode');
-  var compInterval = parseInt(compIntervalRaw, 10);
-  if (!compInterval || compInterval <= 0) compInterval = 24;
+  var compIntervalUnits = parseInt(compIntervalRaw, 10);
+  if (!compIntervalUnits || compIntervalUnits <= 0) compIntervalUnits = 24;
+  var compInterval = Math.round((compIntervalUnits * 10 / 60) * 10) / 10;
+  // Guard against a value in an unexpected unit producing a nonsense countdown.
+  if (compInterval < 0.5 || compInterval > 24) compInterval = 4;
 
   /* Deep Pixel Refresher ("Panel Wash") cadence. Not exposed anywhere on the
      set, so it stays an assumption - named rather than buried in an expression. */
@@ -353,6 +362,7 @@ function refreshOledStats(picSettings, cb) {
           hours_since_comp: hoursSinceComp,
           hours_until_comp: hoursUntilComp,
           comp_interval_hours: compInterval,
+          comp_interval_units: compIntervalUnits,
           refresher_interval_hours: REFRESHER_INTERVAL_HOURS,
           last_refresher_hours: lastRefresher,
           hours_since_refresher: hoursSinceRefresher,
