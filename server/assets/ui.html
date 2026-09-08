@@ -181,7 +181,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
 
 
-<main class="grid-wrap">
+<main class="grid-wrap" id="main-grid">
   <!-- Left Column: Telemetry & Metrics -->
   <div class="col-telemetry">
     <div class="col-sec">Metrics</div>
@@ -764,7 +764,18 @@ async function privAction(action) {
 
 // Deep link straight to the privacy view: /?privacy=1 . Handy for a bookmark,
 // and it means the panel can be captured without a click.
-if (new URLSearchParams(location.search).get('privacy') === '1') togglePrivacy();
+if (new URLSearchParams(location.search).get('privacy') === '1') {
+  if (new URLSearchParams(location.search).get('only') === '1' && q('main-grid')) {
+    q('main-grid').hidden = true;
+  }
+  togglePrivacy();
+}
+
+if (new URLSearchParams(location.search).get('controls') === '1') {
+  const tel = document.querySelector('.col-telemetry');
+  if (tel) tel.hidden = true;
+  if (q('main-grid')) q('main-grid').style.gridTemplateColumns = '1fr';
+}
 
 tick();
 setInterval(tick, 2000);
