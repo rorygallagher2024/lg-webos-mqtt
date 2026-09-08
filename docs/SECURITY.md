@@ -28,19 +28,45 @@ it before exposing it more widely.
 
 ---
 
-## Why telnet has to go
+## Moving from telnet to SSH
 
 A rooted webOS TV exposes an **unauthenticated root shell on port 23**. Anyone
 on your network gets root with no credentials, which makes every other measure
 here mitigation rather than a fix &mdash; nothing stored on the TV is secret
 while it is open.
 
-The Homebrew Channel ships dropbear, so moving to key-based SSH needs no extra
-software. The step-by-step migration is in the
-[README](../README.md#1-set-up-access), including the ordering trap: the
-Homebrew Channel sets the well-known `alpine` root password unless
-`authorized_keys` already exists, so enabling SSH without a key installed is no
-safer than telnet.
+The Homebrew Channel ships dropbear, so this needs no extra software. If you
+already have your key on the TV and telnet turned off, you are done; there is
+nothing here for you.
+
+**The order matters.** The Homebrew Channel sets a placeholder root password
+(`alpine`, a publicly known default) *unless* `/home/root/.ssh/authorized_keys`
+already exists. Enabling SSH without a key installed therefore gets you
+password login as root with a password everybody knows &mdash; no safer than
+telnet.
+
+1. In the Homebrew Channel, turn **SSH** on.
+2. **Reboot.** The flag is only read at boot.
+3. Install your key. The placeholder password `alpine` gets you in this once:
+   ```bash
+   ssh-copy-id root@<tv-ip>
+   ```
+   Prefer not to use that password at all? Append your key over telnet instead:
+   ```bash
+   mkdir -p /home/root/.ssh
+   echo 'ssh-ed25519 AAAA...' >> /home/root/.ssh/authorized_keys
+   chmod 700 /home/root/.ssh && chmod 600 /home/root/.ssh/authorized_keys
+   ```
+4. **Reboot again.** With a key present the placeholder password is no longer
+   set, and only key auth works.
+5. Confirm it: `ssh root@<tv-ip>`
+6. Now turn **telnet** off in the Homebrew Channel.
+
+**Do not turn telnet off before step 5.** If SSH does not come up you will have
+no root access, and recovery means re-rooting the TV.
+
+`deploy.sh` prefers SSH and falls back to telnet automatically, so it keeps
+working throughout. `--telnet` forces the old path if you need it.
 
 ---
 

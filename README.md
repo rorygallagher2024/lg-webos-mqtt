@@ -90,35 +90,23 @@ with a simulated payload.
 
 ---
 
-## 1. Set up access
+## 1. Access
 
-A rooted TV exposes an **unauthenticated root shell on telnet port 23** &mdash;
-anyone on your network gets root with no password. Move to SSH first. The
-Homebrew Channel already ships dropbear, so nothing extra is needed.
+`deploy.sh` needs a root shell on the TV. It uses **SSH** when key-based login
+works and falls back to the Homebrew Channel's **telnet** otherwise, so you do
+not have to change anything to get started.
 
-The order matters. The Homebrew Channel sets a placeholder root password
-(`alpine`, a publicly known default) *unless* `/home/root/.ssh/authorized_keys`
-already exists, so enabling SSH without a key gets you password login as root
-with a password everybody knows.
+* **Already using SSH keys with your TV?** Nothing to do &mdash; skip to step 2.
+* **Freshly rooted, telnet only?** That works too. Skip to step 2.
+* **Want to move to SSH?** Recommended, and it takes about five minutes:
+  see [Moving from telnet to SSH](docs/SECURITY.md#moving-from-telnet-to-ssh).
+  You can do it before or after installing; `deploy.sh` works either side.
 
-1. In the Homebrew Channel, turn **SSH** on.
-2. **Reboot** &mdash; the flag is only read at boot.
-3. Install your key. The placeholder password `alpine` gets you in this once:
-   ```bash
-   ssh-copy-id root@<tv-ip>
-   ```
-4. **Reboot again.** With a key present, the placeholder password is no longer
-   set and only key auth works.
-5. Confirm it: `ssh root@<tv-ip>`
-6. Now turn **telnet** off in the Homebrew Channel.
-
-**Do not turn telnet off before step 5.** If SSH does not come up you will have
-no root access, and recovery means re-rooting the TV.
-
-> Prefer not to touch the `alpine` password at all? Install your key over telnet
-> at step 3 instead &mdash; telnet is on by default on a freshly rooted set.
-> Either way, `deploy.sh` prefers SSH and falls back to telnet automatically, so
-> it works before and after the switch.
+Worth knowing whichever you choose: a rooted TV's telnet is an
+**unauthenticated root shell on port 23** &mdash; anyone on your network gets
+root with no password. That comes from the rooting rather than from this
+project, but it is the largest exposure on the TV and worth closing when you
+get the chance.
 
 ## 2. Configure
 
