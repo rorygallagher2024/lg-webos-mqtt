@@ -66,7 +66,7 @@ write.
 
 ## Requirements
 
-* A rooted LG webOS TV with the
+* A rooted LG webOS TV [Root tool here](https://github.com/throwaway96/dejavuln-autoroot/) with the
   [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel).
   Verified on a 2018 OLED65B8SLC running webOS 4.4.3 (firmware 05.50.70);
   other versions are untested.
