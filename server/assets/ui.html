@@ -230,13 +230,20 @@ const ROWS = [
 ];
 const TINT = Object.fromEntries(ROWS.map(r => [r.k, r.tint || null]));
 
-/* A thermal ramp rather than a red/amber/green light: the hero warms as the
-   SoC does, which reads as temperature instead of as an alarm. */
+/*
+ * The hero stays white through the whole normal operating band, and only takes
+ * colour when something is actually wrong. Colouring an ordinary reading just
+ * trains you to ignore it.
+ *
+ * Observed on this panel: ~37C idle, ~61C sustained during Dolby Vision
+ * playback. 75C therefore leaves real headroom above anything seen in normal
+ * use, so amber means "worth a look" rather than "business as usual".
+ */
+var TEMP_WARN = 75, TEMP_CRIT = 85;
 function thermal(t) {
-  if (t < 45) return 'var(--cool)';
-  if (t < 57) return 'var(--warm)';
-  if (t < 68) return 'var(--cand)';
-  return 'var(--red)';
+  if (t >= TEMP_CRIT) return 'var(--red)';
+  if (t >= TEMP_WARN) return 'var(--cand)';
+  return 'var(--w100)';
 }
 function headroom(pct, warn) {
   if (pct >= warn) return 'var(--red)';

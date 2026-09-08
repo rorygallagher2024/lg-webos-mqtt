@@ -28,10 +28,10 @@ with no cloud round-trip.
 
 ### Metrics
 
-Typography-led and monochrome, with colour reserved for meaning: the
-temperature reading warms through its range, headroom bars run green to amber
-to red, and Dolby Vision is picked out where it appears. Body text meets WCAG
-AA contrast (4.5:1) on black.
+Typography-led and monochrome, with colour reserved for meaning: headroom bars
+run green to amber to red, Dolby Vision is picked out where it appears, and the
+temperature stays white right through the normal operating band, taking colour
+only above 75&deg;C. Body text meets WCAG AA contrast (4.5:1) on black.
 
 <p align="center">
   <img src="docs/screenshots/dashboard.png" alt="Metrics: SoC temperature, resource readouts and OLED panel hours" width="900">
