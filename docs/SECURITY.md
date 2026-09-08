@@ -11,6 +11,9 @@ it before exposing it more widely.
   Assistant integration are unaffected**, since they use a separate channel.
 - **`allowPower` ships disabled**, so a fresh install cannot be told to turn the
   TV off by anything that finds the port. Enable it deliberately.
+- **Turn the dashboard off if you do not use it.** `"web": { "enabled": false }`
+  removes the HTTP endpoint altogether, which is stronger than gating it with a
+  token. An MQTT-only install has no reason to expose one.
 - **Never port-forward this.** It is designed for a trusted LAN.
 - Bind to `127.0.0.1` instead of `0.0.0.0` if you only want the TV itself to
   reach it.

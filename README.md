@@ -121,9 +121,21 @@ no root access, and recovery means re-rooting the TV.
 cp config.example.json server/config.json
 ```
 
-Set your broker under `mqtt` and turn it on. Leave `mqtt.enabled` false if you
-only want the dashboard. Leaving `device.name` and `device.model` empty makes
-the TV report its own model and firmware at runtime.
+Set your broker under `mqtt` and turn it on. Leaving `device.name` and
+`device.model` empty makes the TV report its own model and firmware at runtime.
+
+Both halves are independent, so run whichever you want:
+
+| | `web.enabled` | `mqtt.enabled` |
+| :--- | :--- | :--- |
+| Dashboard and Home Assistant *(default)* | `true` | `true` |
+| Dashboard only | `true` | `false` |
+| Home Assistant only | `false` | `true` |
+
+If you drive everything from Home Assistant, set `"web": { "enabled": false }`.
+The dashboard is an unauthenticated control endpoint unless you set `token`, so
+an MQTT-only install is better off without one. With both disabled the server
+exits rather than idling.
 
 `allowPower` ships disabled, because there is no authentication unless you set
 `token` &mdash; a fresh install should not expose "turn the TV off" to the whole
@@ -170,10 +182,11 @@ Nothing on the TV's read-only rootfs is ever modified.
 
 ## Security
 
-The server has **no authentication by default** and binds to `0.0.0.0`, so
+The dashboard has **no authentication by default** and binds to `0.0.0.0`, so
 anyone who can reach the port can use every enabled control. On a home LAN that
 is usually the point &mdash; but set `"token": "something-long"` in
-`config.json` if you want it gated, and never port-forward it.
+`config.json` if you want it gated, and never port-forward it. If you only use
+Home Assistant, `"web": { "enabled": false }` removes the endpoint entirely.
 
 Setting a token affects the dashboard only. **Home Assistant is unaffected**,
 since MQTT is a separate channel.
