@@ -1,20 +1,13 @@
-# lg-webos-mqtt · LG webOS Dashboard & Home Assistant Integration
+# LG webOS TV Dashboard & Home Assistant Bridge
 
-<p align="center">
-  <img src="https://img.shields.io/badge/webOS-4.4.3%20verified-blue?style=flat-square&logo=lg" alt="webOS 4.4.3 verified">
-  <img src="https://img.shields.io/badge/Node.js-v0.12+-green?style=flat-square&logo=node.js" alt="Node.js v0.12+">
-  <img src="https://img.shields.io/badge/Home%20Assistant-MQTT%20Discovery-orange?style=flat-square&logo=home-assistant" alt="Home Assistant MQTT Discovery">
-  <img src="https://img.shields.io/badge/Dependencies-Zero-brightgreen?style=flat-square" alt="Zero Dependencies">
-  <img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License: MIT">
-</p>
+A telemetry server that runs **on** a rooted LG webOS TV. It serves a live
+dashboard to any browser on your network, and bridges the TV into Home
+Assistant over MQTT as a single auto-discovered device with 33 entities.
 
-A lightweight, zero-dependency on-TV telemetry server, standalone mobile-friendly web dashboard, and Home Assistant MQTT Auto-Discovery integration for rooted LG webOS Smart TVs.
-
-Runs natively in pure ES5 on the TV's embedded Node.js runtime, exposing **33 real-time entities** including OLED panel health, compensation cycle countdowns, Dolby Vision/HDR detection, audio routing, screen blanking for music, and local controls.
+Zero dependencies, zero install step: pure ES5 on the Node 0.12 runtime the TV
+already ships.
 
 ---
-
-## Web Dashboard & Home Assistant Integration
 
 ### Local Controls
 
@@ -31,7 +24,7 @@ with no cloud round-trip.
 Typography-led and monochrome, with colour reserved for meaning: headroom bars
 run green to amber to red, Dolby Vision is picked out where it appears, and the
 temperature stays white right through the normal operating band, taking colour
-only above 75&deg;C. Body text meets WCAG AA contrast (4.5:1) on black.
+only above 75&deg;C.
 
 <p align="center">
   <img src="docs/screenshots/dashboard.png" alt="Metrics: SoC temperature, resource readouts and OLED panel hours" width="900">
@@ -48,421 +41,176 @@ write.
 
 ---
 
-## Key Highlights
+## What it's for
 
-### 🔬 OLED Panel Health & Lifespan Intelligence
-- **Cumulative Panel Runtime (`sensor.lg_tv_oled_panel_hours`)**: Real-time cumulative panel operating hours reported directly by the display controller (`panelUsageTime`).
-- **Short Compensation Cycle Tracking (`sensor.lg_tv_oled_hours_since_compensation`, `sensor.lg_tv_oled_hours_until_compensation`)**: Monitors hours elapsed since the last 4-hour Off-RS compensation cycle and estimates when the next one will run on standby.
-- **Deep 1-Hour Pixel Refresher (`sensor.lg_tv_oled_hours_since_refresher`, `sensor.lg_tv_oled_hours_until_refresher`)**: Tracks cumulative hours since the factory 2,000-hour deep Pixel Refresher ("JB / Panel Wash") and estimates hours remaining until the next scheduled maintenance.
-- **Pixel Refresher Scheduling (`switch.lg_tv_pixel_refresher_schedule`, `sensor.lg_tv_oled_refresher_status`)**: View refresher status (`Idle` vs. `Scheduled`) and remotely schedule or cancel a 1-hour calibration for the next power-off directly from Home Assistant or the web UI.
-- **Burn-In Protection Status (`sensor.lg_tv_oled_screen_shift`, `sensor.lg_tv_oled_logo_dimming`)**: Live telemetry of Screen Shift (pixel orbiting) and Logo Luminance Adjustment.
+1. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
+   load, memory, swap, current draw, Wi-Fi signal and throughput &mdash; none of
+   which webOS surfaces anywhere in its own UI.
 
-### 🎵 Screen Blanking for Music Playback
-- **OLED Panel Blanking Switch (`switch.lg_tv_display_panel`)**: Turn off the OLED screen while audio/music continues playing (`turnOffScreen`). Perfect for listening to Spotify, Tidal, Apple Music, or AirPlay without risking OLED burn-in or wasting panel hours.
+2. **Watching OLED panel wear.** Cumulative panel hours, where you are in the
+   4-hour compensation cycle, and how far off the 2,000-hour Pixel Refresher is.
+   You can schedule or cancel a refresher for the next power-off.
 
-### 🎬 Deep Video & Audio Observability
-- **Dynamic Range (`sensor.lg_tv_dynamic_range`)**: Real-time detection of **Dolby Vision**, **HDR**, or **SDR**.
-- **Picture Profile (`sensor.lg_tv_picture_mode`)**: Current profile (e.g. *Dolby Vision Cinema*, *ISF Expert Dark Room*, *Game*).
-- **OLED Light (`sensor.lg_tv_oled_light`)**: Live panel backlight brightness level (`0–100%`).
-- **HDMI Video Signal (`sensor.lg_tv_video_signal`)**: Raw resolution and refresh rate directly from HDMI status (e.g. `3840x2160 @ 60Hz`).
-- **Audio Output Routing (`sensor.lg_tv_audio_output`)**: Active audio scenario (e.g. *Optical / Headphone*, *Internal TV Speaker*, *HDMI ARC*).
-- **Active App & Friendly CEC Names (`sensor.lg_tv_active_app`)**: Resolves HDMI ports to friendly labels (e.g. `Apple TV (HDMI2)`, `Xbox (HDMI1)`).
+3. **Controlling the TV without the cloud.** Volume, mute, input switching,
+   on-screen toast messages, power and reboot &mdash; all local Luna calls.
 
-### 🖥️ Hardware Diagnostics & Resource Monitoring
-- **SoC Temperature (`sensor.lg_tv_soc_temperature`)**: Processor temperature (`°C`) with native graph history.
-- **CPU & Core Load (`sensor.lg_tv_cpu_usage`)**: Overall CPU usage (`%`) and individual core breakdowns.
-- **Memory & Swap Utilization (`sensor.lg_tv_memory_usage`, `sensor.lg_tv_swap_usage`)**: System RAM and zram swap metrics.
-- **SoC Current Draw (`sensor.lg_tv_soc_current`)**: Total processor current draw (`mA`, CPU + Core AVS rails).
-- **Wi-Fi Signal Strength (`sensor.lg_tv_wifi_signal`)**: Live RSSI signal strength (`dBm`).
-- **Network Throughput (`sensor.lg_tv_download_rate`, `sensor.lg_tv_upload_rate`)**: Real-time bandwidth tracking (`kB/s`).
-- **Flash Storage Health & Wear (`sensor.lg_tv_flash_health`, `sensor.lg_tv_flash_wear`)**: eMMC lifespan tracking with JEDEC health translation.
+4. **Blanking the screen for music.** Turn the OLED panel off while audio keeps
+   playing, so Spotify or AirPlay costs you no panel hours.
 
-### 🎮 Bi-Directional Local Control
-- **Volume & Mute**: Slider (`number.lg_tv_volume`) and toggle (`switch.lg_tv_mute`).
-- **Input Switching**: Selector (`select.lg_tv_input_source`: HDMI 1–4, Live TV).
-- **On-Screen Notifications**: Text field (`text.lg_tv_screen_notification`) sends instant toast messages to the TV screen.
-- **System Power**: Soft restart and power-off buttons (`button.lg_tv_restart`, `button.lg_tv_power_off`).
+## Core features
 
----
+* **OLED panel health.** Panel hours, compensation cycle, Pixel Refresher
+  countdown and scheduling, screen shift and logo dimming state. Automatically
+  hidden on LCD/QNED sets, which have no such counters.
+* **Video and audio observability.** Dolby Vision / HDR / SDR detection, picture
+  mode, OLED light level, raw HDMI signal (`3840x2160 @ 60Hz`), audio output
+  routing, and active app with friendly input names (`Apple TV (HDMI2)`).
+* **Hardware diagnostics.** SoC temperature and current draw, CPU and per-core
+  load, memory and zram swap, Wi-Fi RSSI, network throughput, and eMMC flash
+  wear with JEDEC health translation.
+* **Bi-directional control.** Volume, mute, input select, screen blanking,
+  on-screen notifications, power and restart &mdash; from the dashboard or Home
+  Assistant.
+* **Self-contained dashboard.** Fonts and assets are served by the TV, so the
+  page works with no internet access.
 
-## Architecture & Stability
+## Requirements
 
-```
-                  ┌─────────────────────────────────────────┐
-                  │          LG webOS TV (Rooted)           │
-                  │              (Node 0.12)                │
-                  │  ┌───────────────────┐ ┌─────────────┐  │
-                  │  │ HTTP Dashboard UI │ │  MiniMQTT   │  │
-                  │  │ (Port 8080)       │ │  Client     │  │
-                  │  └─────────┬─────────┘ └──────┬──────┘  │
-                  │            │                  │         │
-                  │            ▼                  ▼         │
-                  │   In-Flight Concurrency Mutex & Caching │
-                  │            │                  │         │
-                  │            ▼                  ▼         │
-                  │   Direct execFile (luna-send -w 2000)   │
-                  │      webOS Luna Bus & /proc telemetry   │
-                  └───────────────────────────────┬─────────┘
-                                                  │
-                                    MQTT TCP 1883 │ (Telemetry + Controls)
-                                                  ▼
-                  ┌─────────────────────────────────────────┐
-                  │          MQTT Broker / Mosquitto        │
-                  └───────────────────────┬─────────────────┘
-                                          │
-                                          ▼
-                  ┌─────────────────────────────────────────┐
-                  │              Home Assistant             │
-                  │         (33 Auto-Discovered Entities)   │
-                  └─────────────────────────────────────────┘
-```
-
-### High-Stability Process Execution
-Older Linux kernels and Node 0.12 can encounter process deadlocks or child leaks when `child_process.exec()` is called frequently (spawning `/bin/sh` without timeout parameters). 
-
-`tvweb.js` solves this with:
-1. **Direct `execFile`**: Invokes `/usr/bin/luna-send` directly with zero shell overhead.
-2. **Internal Daemon Timeout**: Luna calls use `-w 2000` to prevent orphaned background processes if a system bus stalls.
-3. **In-Flight Concurrency Mutex**: If multiple HTTP pollers or MQTT intervals request stats simultaneously, they are coalesced into a single execution pipeline.
-4. **Memory Caching**: Telemetry is cached for 1.5 seconds, delivering sub-20ms HTTP responses with zero subprocess spawning during rapid UI updates.
-5. **Deterministic MQTT Client Session**: Uses a static client ID and periodic availability reaffirmation so TV reboots or network reconnects never leave entities trapped in an "Unavailable" state.
+* A rooted LG webOS TV with the
+  [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel).
+  Verified on a 2018 OLED65B8SLC running webOS 4.4.3 (firmware 05.50.70);
+  other versions are untested.
+* An MQTT broker reachable on your LAN, if you want the Home Assistant side.
+  The dashboard works without one.
 
 ---
 
-## Quick Start
+## 1. Set up access
 
-### 1. Prerequisites
-- Rooted LG webOS TV with [webosbrew (Homebrew Channel)](https://github.com/webosbrew/webos-homebrew-channel) installed.
-- Root Telnet enabled on port 23 (standard on rooted webOS devices).
-- (Optional) An MQTT broker (e.g. Mosquitto in Home Assistant) reachable on your LAN.
+A rooted TV exposes an **unauthenticated root shell on telnet port 23** &mdash;
+anyone on your network gets root with no password. Move to SSH first. The
+Homebrew Channel already ships dropbear, so nothing extra is needed.
 
-### 2. Configuration
-Copy `config.example.json` to `server/config.json` and configure your MQTT broker:
+The order matters. The Homebrew Channel sets a placeholder root password
+(`alpine`, a publicly known default) *unless* `/home/root/.ssh/authorized_keys`
+already exists, so enabling SSH without a key gets you password login as root
+with a password everybody knows.
+
+1. In the Homebrew Channel, turn **SSH** on.
+2. **Reboot** &mdash; the flag is only read at boot.
+3. Install your key. The placeholder password `alpine` gets you in this once:
+   ```bash
+   ssh-copy-id root@<tv-ip>
+   ```
+4. **Reboot again.** With a key present, the placeholder password is no longer
+   set and only key auth works.
+5. Confirm it: `ssh root@<tv-ip>`
+6. Now turn **telnet** off in the Homebrew Channel.
+
+**Do not turn telnet off before step 5.** If SSH does not come up you will have
+no root access, and recovery means re-rooting the TV.
+
+> Prefer not to touch the `alpine` password at all? Install your key over telnet
+> at step 3 instead &mdash; telnet is on by default on a freshly rooted set.
+> Either way, `deploy.sh` prefers SSH and falls back to telnet automatically, so
+> it works before and after the switch.
+
+## 2. Configure
 
 ```bash
 cp config.example.json server/config.json
 ```
 
-```json
-{
-  "port": 8080,
-  "host": "0.0.0.0",
-  "allowControl": true,
-  "allowPower": true,
-  "token": "",
-  "mqtt": {
-    "enabled": true,
-    "host": "192.168.1.125",
-    "port": 1883,
-    "username": "",
-    "password": "",
-    "topicPrefix": "lgtv",
-    "discoveryPrefix": "homeassistant",
-    "telemetryIntervalMs": 10000
-  },
-  "device": {
-    "id": "lg_tv",
-    "name": "",
-    "model": "",
-    "manufacturer": "LG"
-  }
-}
-```
+Set your broker under `mqtt` and turn it on. Leave `mqtt.enabled` false if you
+only want the dashboard. Leaving `device.name` and `device.model` empty makes
+the TV report its own model and firmware at runtime.
 
-> **Tip:** If `name` or `model` are left empty, `tvweb.js` automatically queries the TV's system property service to detect your exact model number (e.g. `OLED65B8SLC`, `OLED55C1PUB`, etc.) and firmware version at runtime!
+`allowPower` ships disabled, because there is no authentication unless you set
+`token` &mdash; a fresh install should not expose "turn the TV off" to the whole
+network. Enable it deliberately.
 
-### 3. Deploy to TV
-Deploy `tvweb.js` and install the persistent boot hook so it survives TV reboots:
+Before pointing this at a broker that also drives your lights, read
+[docs/SECURITY.md](docs/SECURITY.md): give the TV its own MQTT user with a
+restricted ACL, rather than reusing your main Home Assistant credentials.
+
+## 3. Install
 
 ```bash
 cd server
 ./deploy.sh <tv-ip> --persist
 ```
 
-The script will:
-1. Temporarily serve the files from your computer and download them onto the TV (`/var/lib/tvweb/`).
-2. Start `tvweb.js` under `setsid`.
-3. If `--persist` is specified, install `/var/lib/webosbrew/init.d/50-tvweb`.
-4. Clean up temporary transfer servers.
+`--persist` installs a boot hook so it survives reboots. The script copies over
+SSH where available, falling back to telnet; `--telnet` forces the old path.
 
-Open `http://<tv-ip>:8080/` in your browser to view the live dashboard.
+Then open **`http://<tv-ip>:8080/`**.
 
----
+If you configured MQTT, Home Assistant discovers the device automatically &mdash;
+no YAML. See [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) for the entity
+list and example automations.
 
-## Home Assistant Entities
-
-Once connected to your MQTT broker, Home Assistant automatically discovers **33 native entities** under a single unified device:
-
-| Domain | Entity ID | Name | Description |
-| :--- | :--- | :--- | :--- |
-| `switch` | `switch.lg_tv_display_panel` | OLED Display Panel | Blanks/turns off OLED panel while audio plays |
-| `switch` | `switch.lg_tv_mute` | Mute | Toggle audio mute |
-| `switch` | `switch.lg_tv_pixel_refresher_schedule` | Schedule Pixel Refresher | Schedule/cancel 1-hour calibration for next standby |
-| `number` | `number.lg_tv_volume` | Volume | Volume slider (0–100) |
-| `select` | `select.lg_tv_input_source` | Input Source | HDMI 1–4, Live TV |
-| `text` | `text.lg_tv_screen_notification` | Screen Notification | Send custom toast messages to TV screen |
-| `button` | `button.lg_tv_restart` | Restart TV | Reboots the TV (requires `allowPower: true`) |
-| `button` | `button.lg_tv_power_off` | Power Off TV | Powers off the TV (requires `allowPower: true`) |
-| `sensor` | `sensor.lg_tv_oled_panel_hours` | OLED Panel Hours | Total cumulative operating hours (`h`) |
-| `sensor` | `sensor.lg_tv_oled_hours_since_compensation` | OLED Hours Since Short Cycle | Hours elapsed since last 4h compensation (`h`) |
-| `sensor` | `sensor.lg_tv_oled_hours_until_compensation` | OLED Hours Until Short Cycle | Hours until next short compensation due (`h`) |
-| `sensor` | `sensor.lg_tv_oled_hours_since_refresher` | OLED Hours Since Pixel Refresher | Hours elapsed since last 2,000h deep refresher (`h`) |
-| `sensor` | `sensor.lg_tv_oled_hours_until_refresher` | OLED Hours Until Pixel Refresher | Hours until next 2,000h deep refresher due (`h`) |
-| `sensor` | `sensor.lg_tv_oled_refresher_status` | Pixel Refresher Status | `Idle` or `Scheduled` |
-| `sensor` | `sensor.lg_tv_oled_screen_shift` | OLED Screen Shift | Pixel orbiting state (`ON` / `OFF`) |
-| `sensor` | `sensor.lg_tv_oled_logo_dimming` | OLED Logo Dimming | Logo luminance reduction (`Low`, `Strong`, `Off`) |
-| `sensor` | `sensor.lg_tv_dynamic_range` | Dynamic Range | **Dolby Vision**, **HDR**, or **SDR** |
-| `sensor` | `sensor.lg_tv_picture_mode` | Picture Mode | Current profile (e.g. *Dolby Vision Cinema*) |
-| `sensor` | `sensor.lg_tv_oled_light` | OLED Light | OLED panel backlight level (`0–100%`) |
-| `sensor` | `sensor.lg_tv_video_signal` | Video Signal | HDMI resolution & refresh rate (e.g. `3840x2160 @ 60Hz`) |
-| `sensor` | `sensor.lg_tv_audio_output` | Audio Output | Audio scenario (e.g. *Optical / Headphone*, *Internal*) |
-| `sensor` | `sensor.lg_tv_active_app` | Active App | Current foreground app or friendly CEC device |
-| `sensor` | `sensor.lg_tv_soc_temperature` | SoC Temperature | TV processor temperature (`°C`) |
-| `sensor` | `sensor.lg_tv_soc_current` | SoC Current | Processor current draw (`mA`, CPU + Core AVS) |
-| `sensor` | `sensor.lg_tv_cpu_usage` | CPU Usage | Real-time CPU load (`%`) |
-| `sensor` | `sensor.lg_tv_memory_usage` | Memory Usage | System RAM usage (`%`) |
-| `sensor` | `sensor.lg_tv_swap_usage` | Swap Usage | zram Swap usage (`%`) |
-| `sensor` | `sensor.lg_tv_wifi_signal` | Wi-Fi Signal | Wi-Fi signal strength (`dBm`) |
-| `sensor` | `sensor.lg_tv_download_rate` | Download Rate | Live network throughput (`kB/s`) |
-| `sensor` | `sensor.lg_tv_upload_rate` | Upload Rate | Live network upload throughput (`kB/s`) |
-| `sensor` | `sensor.lg_tv_flash_health` | Flash Storage Health | eMMC remaining health estimate (`>90% (Healthy)`) |
-| `sensor` | `sensor.lg_tv_flash_wear` | Flash Wear Level | JEDEC write-cycle consumption (`0–10%`) |
-| `sensor` | `sensor.lg_tv_uptime` | Uptime | TV uptime in seconds |
-
----
-
-## Home Assistant Automations
-
-### 1. Automatically Blank Screen When Playing Music (Spotify / AirPlay)
-Save OLED panel hours and eliminate burn-in risk when streaming audio:
-
-```yaml
-alias: "TV: Turn Off Screen for Music"
-trigger:
-  - platform: state
-    entity_id: sensor.lg_tv_active_app
-    to: "spotify"
-    for:
-      seconds: 30
-condition:
-  - condition: state
-    entity_id: switch.lg_tv_display_panel
-    state: "on"
-action:
-  - service: switch.turn_off
-    target:
-      entity_id: switch.lg_tv_display_panel
-```
-
-### 2. Dim Cinema Lighting on Dolby Vision Playback
-Trigger an ambient lighting scene whenever 4K Dolby Vision playback begins:
-
-```yaml
-alias: "Cinema: Dim Lights on Dolby Vision"
-trigger:
-  - platform: state
-    entity_id: sensor.lg_tv_dynamic_range
-    to: "Dolby Vision"
-action:
-  - service: scene.turn_on
-    target:
-      entity_id: scene.movie_night
-```
-
-### 3. Display Doorbell / Security Toast on TV Screen
-Display a notification directly on the TV when a doorbell rings:
-
-```yaml
-alias: "Notify TV on Doorbell"
-trigger:
-  - platform: state
-    entity_id: binary_sensor.front_doorbell_motion
-    to: "on"
-action:
-  - service: text.set_value
-    target:
-      entity_id: text.lg_tv_screen_notification
-    data:
-      value: "Motion detected at front door"
-```
-
----
-
-## eMMC Flash Storage: Health vs. Wear
-
-Under the **JEDEC eMMC 5.0** specification, `/sys/block/mmcblk0/device/life_time` returns byte estimates for SLC and MLC partition write cycles:
-- `0x01` indicates **0% – 10% of rated device write cycles used**.
-- This means **>90% of drive life remains** (Healthy).
-- `pre_eol_info` returning `01` indicates normal endurance (<80% reserved blocks consumed).
-
-To prevent user confusion, `tvweb.js` translates this into both a human-friendly health state (`>90% (Healthy)`) and a wear estimate (`0-10% used · Normal EOL`).
-
----
-
-## Security
-
-This server has **no authentication by default**, and binds to `0.0.0.0` so it
-is reachable from anywhere on your network. Anyone who can reach the port can
-use every enabled control. On a home LAN that is usually the point; understand
-it before exposing it more widely.
-
-- **Set a token.** Put `"token": "something-long"` in `config.json` and every
-  `/api/` request must carry `?k=something-long`. Bookmark the dashboard with
-  the token in the URL. This gates the HTTP API only &mdash; **MQTT and the Home
-  Assistant integration are unaffected**, since they use a separate channel.
-- **`allowPower` ships disabled**, so a fresh install cannot be told to turn the
-  TV off by anything that finds the port. Enable it deliberately.
-- **Never port-forward this.** It is designed for a trusted LAN.
-- Bind to `127.0.0.1` instead of `0.0.0.0` if you only want the TV itself to
-  reach it.
-- No CORS headers are sent, so other websites cannot read your telemetry from
-  your browser. Cross-origin `POST`s are refused, and `/api/control` requires
-  `Content-Type: application/json`.
-- Remember the wider context: rooted webOS exposes an **unauthenticated root
-  telnet on port 23**. That is a far bigger exposure than this server, and it
-  is worth closing off if you have not already.
-
----
-
-### Use SSH, not telnet
-
-A rooted webOS TV exposes an **unauthenticated root shell on port 23**. Anyone
-on your network gets root with no credentials. The Homebrew Channel ships
-dropbear, so switching to key-based SSH is worth doing before anything else.
-
-**Order matters.** The Homebrew Channel sets a placeholder root password
-(`alpine`, a publicly known default) *unless* `/home/root/.ssh/authorized_keys`
-already exists. Enabling SSH without a key installed therefore gets you
-password login as root with a password everybody knows &mdash; no better than
-telnet. Install the key first:
+## Managing it
 
 ```bash
-# while telnet still works
-cat ~/.ssh/id_ed25519.pub | nc <tv-ip> 23   # or paste it into the shell:
-#   mkdir -p /home/root/.ssh
-#   echo 'ssh-ed25519 AAAA...' >> /home/root/.ssh/authorized_keys
-#   chmod 700 /home/root/.ssh && chmod 600 /home/root/.ssh/authorized_keys
+ssh root@<tv-ip> /var/lib/tvweb/tvwebctl status    # start | stop | restart | status
 ```
 
-Then, in order:
-
-1. Enable **SSH** in the Homebrew Channel settings.
-2. Reboot &mdash; startup.sh now sees the key, skips the `alpine` password and
-   starts dropbear.
-3. Verify `ssh root@<tv-ip>` works.
-4. **Only then** disable **telnet** in the Homebrew Channel.
-5. Reboot once more and confirm SSH still works.
-
-Do not disable telnet before step 3. If SSH does not come up you will have no
-root access, and recovery means re-rooting the TV.
-
-`deploy.sh` prefers SSH automatically and falls back to telnet, so it keeps
-working either way. Force the old path with `--telnet` if you need to.
-
----
-
-### Hardening the MQTT bridge
-
-Worth doing properly, because this is the part that reaches beyond the TV. The
-broker credentials live in `config.json` **on the TV**, and a rooted webOS set
-has an unauthenticated root shell on port 23 &mdash; so treat anything stored
-there as readable by anyone on your network. `tvweb` tightens the file to `0600`
-at startup, but that is mitigation, not a fix.
-
-The question that matters is not whether the bridge is authenticated (it is),
-but **what that credential is allowed to do**. Reuse your main Home Assistant
-MQTT user and a compromised TV can publish to any topic on the broker &mdash;
-including the ones driving your lights, locks or alarms.
-
-**1. Give the TV its own broker user with a restricted ACL.** With this in
-place, a compromised TV can only lie about its own telemetry:
-
-```conf
-# /etc/mosquitto/aclfile
-user lgtv
-topic write  lgtv/#
-topic read   lgtv/command/#
-topic write  homeassistant/+/lg_tv/#
-```
-
-The last line is deliberately narrow: unrestricted write access to
-`homeassistant/#` would let a compromised TV register arbitrary new entities
-via MQTT Discovery.
-
-**2. Encrypt the connection.** Without TLS the username and password cross your
-network in cleartext in every CONNECT packet, and a reconnect loop resends them
-every few seconds:
-
-```json
-"mqtt": { "tls": true, "port": 8883 }
-```
-
-Set `"tlsRejectUnauthorized": false` only if your broker uses a self-signed
-certificate &mdash; the traffic stays encrypted, but the broker is no longer
-authenticated, so only do it on a network you trust.
-
-**3. Consider network segmentation.** Putting the TV on its own VLAN that can
-reach only the broker is sound defence in depth. It does not replace the ACL:
-the TV must reach the broker by definition, so a stolen credential still works
-from inside the segment. The ACL is what limits the blast radius.
-
-**4. Close the root telnet.** While port 23 is an open root shell, nothing
-stored on the TV is secret and every measure above is mitigation around that
-fact. Installing openssh via the Homebrew Channel and disabling telnet is the
-single biggest improvement you can make.
-
----
-
-## ⚠️ Disclaimer & Safety
-
-**Use this software at your own risk.**
-
-- **Root Access & Hardware**: This project runs custom software with `root` privileges on an embedded Smart TV operating system. While designed to be lightweight, read-only to rootfs, and non-destructive, the authors and contributors assume **no responsibility or liability** for any damage, bootloops, bricked devices, voided warranties, data loss, OLED panel issues, or unexpected behavior resulting from the use or misuse of this software.
-- **Power & Control Commands**: Features such as rebooting, power off, screen blanking, and Pixel Refresher scheduling issue low-level commands directly to webOS system services (`luna-send`). Ensure you understand what each command does before executing it.
-- **Non-OLED sets**: Panel hours, the Off-RS compensation cycle and the Pixel
-  Refresher only exist on OLED. On an LCD/QNED/NanoCell set these are detected
-  as unavailable and omitted &mdash; both from the dashboard and from MQTT
-  discovery &mdash; rather than reported as zero. Everything else works
-  normally.
-- **Compatibility**: Verified on a 2018 OLED65B8SLC running webOS 4.4.3
-  (firmware 05.50.70). Other webOS versions are untested &mdash; the Luna calls
-  and `/proc/lg` paths this relies on may differ. Reports welcome.
-- **Trademark Notice**: This is an independent, unofficial open-source community project. It is not affiliated with, endorsed by, or associated with LG Electronics Inc. in any way. webOS is a trademark of LG Electronics.
-- **Fonts**: The dashboard bundles [Outfit](https://github.com/Outfitio/Outfit-Fonts)
-  and [Manrope](https://github.com/sharanda/manrope), both under the
-  [SIL Open Font License 1.1](https://openfontlicense.org/). Licence texts ship
-  in `server/assets/fonts/`. They are served by the TV, so the dashboard needs
-  no internet access.
-
----
-
-## Uninstallation
-
-To completely remove the service and boot hook from the TV:
+## Uninstalling
 
 ```bash
-# Connect (ssh preferred)
-ssh root@<tv-ip>        # or, if still on telnet:  nc <tv-ip> 23
-
-# Inside TV shell:
+ssh root@<tv-ip>
 /var/lib/tvweb/tvwebctl stop
 rm -rf /var/lib/tvweb
 rm -f /var/lib/webosbrew/init.d/50-tvweb*
-exit
 ```
 
 Nothing on the TV's read-only rootfs is ever modified.
 
 ---
 
-## Technical Notes
+## Security
 
-- **Node.js v0.12 (2015)**: webOS 4.x ships Node v0.12.2. All code in `tvweb.js` is written in strict ES5 (no `let`/`const`, no arrow functions, no template literals, no `async`/`await`).
-- **BusyBox `run-parts` Hook Naming**: The webosbrew startup system invokes user hooks with `run-parts /var/lib/webosbrew/init.d`. BusyBox `run-parts` strictly ignores any filename containing a dot (`.`), so the boot hook must be named `50-tvweb` without `.sh`.
-- **Luna Bus Introspection**: Control commands interact with webOS via native `luna-send` calls (`com.webos.audio`, `com.webos.service.tvpower`, `com.webos.applicationManager`, `com.webos.notification`, `com.webos.service.settings`, `com.webos.service.eim`).
+The server has **no authentication by default** and binds to `0.0.0.0`, so
+anyone who can reach the port can use every enabled control. On a home LAN that
+is usually the point &mdash; but set `"token": "something-long"` in
+`config.json` if you want it gated, and never port-forward it.
+
+Setting a token affects the dashboard only. **Home Assistant is unaffected**,
+since MQTT is a separate channel.
+
+Full detail, including the MQTT ACL guidance and optional TLS, is in
+[docs/SECURITY.md](docs/SECURITY.md).
+
+## Documentation
+
+* [docs/SECURITY.md](docs/SECURITY.md) &mdash; threat model, SSH migration, MQTT hardening
+* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; all 33 entities, example automations
+* [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) &mdash; architecture, `/proc/lg` reference, platform quirks
 
 ---
 
+## Disclaimer
+
+**Use this software at your own risk.**
+
+- **Root access and hardware.** This runs custom software with `root`
+  privileges on an embedded TV OS. It is designed to be lightweight and to
+  leave the read-only rootfs untouched, but the authors accept **no
+  responsibility** for damage, bootloops, bricked devices, voided warranties,
+  data loss or OLED panel issues.
+- **Power and control commands.** Reboot, power off, screen blanking and Pixel
+  Refresher scheduling issue low-level `luna-send` calls. Understand what each
+  does before using it.
+- **Non-OLED sets.** Panel hours, compensation and the Pixel Refresher exist
+  only on OLED. They are detected as unavailable and omitted rather than
+  reported as zero.
+- **Trademarks.** An independent, unofficial community project, not affiliated
+  with or endorsed by LG Electronics. webOS is a trademark of LG Electronics.
+- **Fonts.** Bundles [Outfit](https://github.com/Outfitio/Outfit-Fonts) and
+  [Manrope](https://github.com/sharanda/manrope) under the
+  [SIL Open Font License 1.1](https://openfontlicense.org/); licence texts ship
+  in `server/assets/fonts/`.
+
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT. See [LICENSE](LICENSE).
