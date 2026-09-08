@@ -8,6 +8,8 @@
     "enabled": false,
     "host": "",
     "port": 1883,
+    "tls": false,
+    "tlsRejectUnauthorized": true,
     "username": "",
     "password": "",
     "topicPrefix": "lgtv",
