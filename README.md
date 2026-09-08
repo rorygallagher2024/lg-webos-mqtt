@@ -2,43 +2,37 @@
 
 A telemetry server that runs **on** a rooted LG webOS TV. It serves a live
 dashboard to any browser on your network, and bridges the TV into Home
-Assistant over MQTT as a single auto-discovered device with 33 entities.
+Assistant over MQTT as a single auto-discovered device with 41 entities.
 
 There are no dependencies. This is pure ES5 on the Node 0.12 runtime that is on the TV.
 
 ---
 
-### Local Controls
+### Web Dashboard & Controls
 
-Volume, OLED panel blanking, source switching and power.
-
-<p align="center">
-  <img src="docs/screenshots/controls.png" alt="Local control panel: volume, screen blanking, source switching and power" width="760">
-</p>
-
-### Metrics
+Live telemetry and full local control in a unified two-column layout: volume, media playback, picture modes, audio output, app launcher, panel blanking, input switching, and power.
 
 <p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="Metrics: SoC temperature, resource readouts and OLED panel hours" width="900">
+  <img src="docs/screenshots/dashboard.png" alt="LG webOS TV live dashboard: metrics and interactive controls" width="900">
 </p>
 
 ### Home Assistant (Auto-Discovered Device via MQTT)
 
-All 33 entities arrive over MQTT Discovery as a single device
+All 41 entities arrive over MQTT Discovery as a single device
 <p align="center">
 <img width="1061" height="1042" alt="image" src="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235" />
 </p>
 
-### Privacy Panel
+### Privacy Panel & On-TV Ad Blocker
 
 Behind a toggle in the controls, or at `/?privacy=1`. Reports live state from
 the TV rather than repeating a settings menu: whether LG's content recognition
 engine is running and sampling frames, your advertising identifier, and every
-agreement recorded on the set. Off is shown as the private setting, so a green
-column means what you would hope.
+agreement recorded on the set. Includes an on-TV ad & telemetry sinkhole via
+bind-mounting over `/etc/hosts` that persists across reboots.
 
 <p align="center">
-  <img src="docs/screenshots/privacy.png" alt="Privacy panel showing content recognition status, advertising identifier and data collection agreements" width="800">
+  <img src="docs/screenshots/privacy.png" alt="Privacy panel showing content recognition status, advertising identifier, data collection agreements, and ad blocker" width="800">
 </p>
 
 ---
@@ -46,8 +40,7 @@ column means what you would hope.
 ## What it's for
 
 
-1. **Controlling the TV without the cloud.** Volume, mute, input switching,
-   on-screen toast messages, power and reboot.
+1. **Controlling the TV without the cloud.** Volume, mute, media playback keys (play, pause, stop, skip), app launcher, picture presets, sound output routing, power and reboot.
 
 2. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
    load, memory, swap, current draw, Wi-Fi signal and throughput.
@@ -56,9 +49,9 @@ column means what you would hope.
    4-hour compensation cycle, and how far off the 2,000-hour Pixel Refresher is.
    You can schedule or cancel a refresher for the next power-off.
 
-4. **Seeing what LG collects.** Whether the content-recognition engine is
-   actually running and sampling your screen, your advertising identifier, and
-   every data-collection agreement recorded on the set.
+4. **Seeing what LG collects & blocking telemetry.** Whether the content-recognition
+   engine is actually running and sampling your screen, your advertising identifier,
+   data agreements, and an on-TV `/etc/hosts` blackhole for LG ad and telemetry domains.
 
 ## Core features
 
@@ -71,18 +64,14 @@ column means what you would hope.
 * **Hardware diagnostics.** SoC temperature and current draw, CPU and per-core
   load, memory and zram swap, Wi-Fi RSSI, network throughput, and eMMC flash
   wear with JEDEC health translation.
-* **Bi-directional control.** Volume, mute, input select, screen blanking,
-  on-screen notifications, power and restart (From the dashboard or Home
-  Assistant)
+* **Bi-directional control.** Volume, mute, input select, media playback (play/pause/stop/skip via native remote key injection), app launching, picture presets, sound outputs, screen blanking, on-screen notifications, power and restart (from the dashboard or Home Assistant).
+* **On-TV ad & telemetry sinkhole.** Sinkholes 15 known LG tracking, ad, and ACR endpoints directly on the set by bind-mounting a local blackhole table over `/etc/hosts`. Automatically restored on boot.
 * **Privacy panel.** Behind a toggle in the controls: whether LG's screen
   content recognition is actually running and sampling frames, your advertising
   identifier and whether ad tracking is limited, every data-collection
   agreement recorded on the TV, and which of LG's collection
-  services are alive. Includes buttons to reset the advertising ID and clear ad
-  cookies.
-  This feature just reports because the agreements themselves have no API and are changed
-  on the TV, under Settings &rarr; General &rarr; About This TV &rarr; User
-  Agreements. Deep link: `/?privacy=1`.
+  services are alive. Includes buttons to reset the advertising ID, clear ad
+  cookies, and toggle the on-TV ad blocker. Deep link: `/?privacy=1`.
 * **Self-contained dashboard.** Fonts and assets are served by the TV, so the
   page works with no internet access.
 
@@ -209,7 +198,7 @@ Full detail, including the MQTT ACL guidance and optional TLS, is in
 ## Documentation
 
 * [docs/SECURITY.md](docs/SECURITY.md) &mdash; threat model, SSH migration, MQTT hardening
-* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; all 33 entities, example automations
+* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; all 41 entities, universal media player, example automations
 * [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) &mdash; architecture, `/proc/lg` reference, platform quirks
 
 ---

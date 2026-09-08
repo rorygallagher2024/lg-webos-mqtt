@@ -52,7 +52,7 @@ body{
   font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   font-weight:400;font-size:15px;line-height:1.5;
   padding:var(--gut) var(--gut) calc(var(--gut) * 2);
-  max-width:1080px;margin:0 auto;
+  max-width:1160px;margin:0 auto;
   -webkit-font-smoothing:antialiased;
 }
 /* Live numerals sit in tabular figures. A proportional digit set makes a
@@ -107,12 +107,28 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:26px;margin-top:26px}
 .cols .v{font-family:'Outfit';font-weight:300;font-size:24px;color:var(--w100);margin-top:6px}
 
+/* ---- layout grid (2-column on desktop, single on mobile) ---- */
+.grid-wrap{display:grid;grid-template-columns:1fr;gap:clamp(32px,5vw,56px);margin-top:clamp(28px,4vw,44px)}
+@media (min-width:960px){
+  .grid-wrap{grid-template-columns:minmax(380px,1.15fr) minmax(340px,1fr);gap:clamp(36px,5vw,60px);align-items:start}
+}
+.col-sec{font-family:'Manrope';font-weight:500;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--w50);padding-bottom:12px;border-bottom:1px solid var(--w10);margin-bottom:20px}
+
 /* ---- controls ---- */
-.controls{margin-top:clamp(30px,5vw,48px);padding-top:clamp(24px,4vw,36px);border-top:1px solid var(--w12)}
-.metrics{margin-top:clamp(34px,6vw,64px);padding-top:clamp(24px,4vw,36px);border-top:1px solid var(--w12)}
-.sec{font-family:'Manrope';font-weight:500;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--w50)}
 .set{margin-top:22px}
 .btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:11px}
+.playback-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:11px}
+.app-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(102px,1fr));gap:7px;margin-top:11px}
+.app-grid button{
+  padding:11px 8px;min-height:42px;font-size:11px;letter-spacing:.08em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;
+}
+.sub-btn{
+  font-family:'Manrope';font-weight:500;font-size:11px;letter-spacing:.10em;text-transform:uppercase;
+  color:var(--w60);background:transparent;border:1px dashed var(--w25);
+  padding:10px 12px;min-height:38px;width:100%;cursor:pointer;transition:.16s ease;
+}
+.sub-btn:hover{color:var(--w100);border-color:var(--w40)}
 button{
   font-family:'Manrope';font-weight:500;font-size:13px;letter-spacing:.10em;text-transform:uppercase;
   color:var(--w80);background:transparent;border:1px solid var(--w25);
@@ -165,41 +181,119 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
 
 
-<section class="controls">
-  <div class="lbl">Control</div>
-  <div id="err"></div>
+<main class="grid-wrap" id="main-grid">
+  <!-- Left Column: Telemetry & Metrics -->
+  <div class="col-telemetry">
+    <div class="col-sec">Metrics</div>
 
-  <div class="set"><div class="lbl">Volume &middot; <span id="vol" class="num">&mdash;</span></div>
-    <div class="btns">
-      <button onclick="c('volumeStep',-1)">Vol &minus;</button>
-      <button onclick="c('volumeStep',1)">Vol &plus;</button>
-      <button id="mute" onclick="toggleMute()">Mute</button>
+    <section class="hero" style="margin-top:0">
+      <div>
+        <div class="lbl" style="margin-bottom:14px">SoC temperature</div>
+        <div class="big num"><span id="temp">--</span><span class="deg">&deg;</span></div>
+      </div>
+      <div class="side">
+        <div class="trace" id="trace"></div>
+        <div class="meta num">
+          <span id="trange">&mdash;</span>
+          <span id="mhz">&mdash;</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="readouts" id="readouts"></section>
+
+    <div class="panel" id="panelblock" hidden>
+      <div class="lbl">OLED panel &middot; Lifespan</div>
+      <div class="n num" style="margin-top:12px"><span id="ph">&mdash;</span><em>hours</em></div>
+      <div class="cols">
+        <div><div class="lbl">Compensation in</div><div class="v num" id="comp">&mdash;</div></div>
+        <div><div class="lbl">Refresher in</div><div class="v num" id="refr">&mdash;</div></div>
+        <div><div class="lbl">Refresher state</div><div class="v" id="rstate">&mdash;</div></div>
+      </div>
+    </div>
+
+    <div class="panel" id="flashblock">
+      <div class="lbl">Flash storage</div>
+      <div class="cols" style="margin-top:14px">
+        <div><div class="lbl">Wear</div><div class="v num" id="flashval">&mdash;</div><div class="sub">eMMC lifetime estimated</div></div>
+        <div><div class="lbl">Health</div><div class="v" id="flasheol">&mdash;</div><div class="sub">Pre-EOL status</div></div>
+      </div>
     </div>
   </div>
 
-  <div class="set"><div class="lbl">Panel</div>
-    <div class="btns">
-      <button onclick="c('screenOff')">Screen off</button>
-      <button onclick="c('screenOn')">Screen on</button>
+  <!-- Right Column: Interactive Controls -->
+  <div class="col-controls">
+    <div class="col-sec">Control</div>
+    <div id="err"></div>
+
+    <div class="set" style="margin-top:0"><div class="lbl">Volume &middot; <span id="vol" class="num">&mdash;</span></div>
+      <div class="btns">
+        <button onclick="c('volumeStep',-1)">Vol &minus;</button>
+        <button onclick="c('volumeStep',1)">Vol &plus;</button>
+        <button id="mute" onclick="toggleMute()">Mute</button>
+      </div>
+    </div>
+
+    <div class="set"><div class="lbl">Playback</div>
+      <div class="playback-btns">
+        <button onclick="c('media','rewind')">Rewind</button>
+        <button onclick="c('media','playPause')">Play / Pause</button>
+        <button onclick="c('media','stop')">Stop</button>
+        <button onclick="c('media','fastForward')">Fast Fwd</button>
+      </div>
+    </div>
+
+    <div class="set"><div class="lbl">Panel</div>
+      <div class="btns">
+        <button onclick="c('screenOff')">Screen off</button>
+        <button onclick="c('screenOn')">Screen on</button>
+      </div>
+    </div>
+
+    <div class="set"><div class="lbl">Source</div>
+      <div class="btns" id="inputs"></div>
+    </div>
+
+    <div class="set"><div class="lbl">Picture mode &middot; <span id="picmode-lbl" class="num">&mdash;</span></div>
+      <div class="btns" id="picmodes">
+        <button id="pm_expert1" onclick="c('pictureMode','expert1')">ISF Bright</button>
+        <button id="pm_expert2" onclick="c('pictureMode','expert2')">ISF Dark</button>
+        <button id="pm_cinema" onclick="c('pictureMode','cinema')">Cinema</button>
+        <button id="pm_game" onclick="c('pictureMode','game')">Game</button>
+        <button id="pm_standard" onclick="c('pictureMode','standard')">Standard</button>
+      </div>
+    </div>
+
+    <div class="set"><div class="lbl">Sound output &middot; <span id="soundout-lbl" class="num">&mdash;</span></div>
+      <div class="btns" id="soundouts">
+        <button id="so_tv_speaker" onclick="c('soundOutput','tv_speaker')">TV Speaker</button>
+        <button id="so_external_arc" onclick="c('soundOutput','external_arc')">HDMI ARC</button>
+        <button id="so_optical" onclick="c('soundOutput','optical')">Optical</button>
+        <button id="so_headphone" onclick="c('soundOutput','headphone')">Headphone</button>
+        <button id="so_bt_soundbar" onclick="c('soundOutput','bt_soundbar')">Bluetooth</button>
+      </div>
+    </div>
+
+    <div class="set"><div class="lbl">App Launcher &middot; <span id="currapp-lbl" class="num">&mdash;</span></div>
+      <div class="app-grid" id="apps"></div>
+      <div id="app-toggle-wrap" style="margin-top:8px" hidden>
+        <button id="app-toggle-btn" class="sub-btn" onclick="toggleAllApps()">Show all apps</button>
+      </div>
+    </div>
+
+    <div class="set"><div class="lbl">Privacy &amp; data collection</div>
+      <div class="btns"><button id="privtoggle" onclick="togglePrivacy()">Show privacy panel</button></div>
+    </div>
+
+    <div class="set"><div class="lbl">Power</div>
+      <div class="btns">
+        <button id="poff" onclick="pw('powerOff')">Power off</button>
+        <button id="prb" onclick="pw('reboot')">Reboot</button>
+      </div>
+      <div class="sub" id="pwnote"></div>
     </div>
   </div>
-
-  <div class="set"><div class="lbl">Source</div>
-    <div class="btns" id="inputs"></div>
-  </div>
-
-  <div class="set"><div class="lbl">Privacy &amp; data collection</div>
-    <div class="btns"><button id="privtoggle" onclick="togglePrivacy()">Show privacy panel</button></div>
-  </div>
-
-  <div class="set"><div class="lbl">Power</div>
-    <div class="btns">
-      <button id="poff" onclick="pw('powerOff')">Power off</button>
-      <button id="prb" onclick="pw('reboot')">Reboot</button>
-    </div>
-    <div class="sub" id="pwnote"></div>
-  </div>
-</section>
+</main>
 
 <section class="priv" id="privpane" hidden>
   <div class="lbl">Privacy &amp; data collection</div>
@@ -232,43 +326,19 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     service can be running while its permission is switched off &mdash; it simply has
     nothing it is allowed to send.</div>
   <div id="pv-daemons"></div>
-</section>
 
-<section class="metrics">
-  <div class="sec">Metrics</div>
-<section class="hero">
-  <div>
-    <div class="lbl" style="margin-bottom:14px">SoC temperature</div>
-    <div class="big num"><span id="temp">--</span><span class="deg">&deg;</span></div>
-  </div>
-  <div class="side">
-    <div class="trace" id="trace"></div>
-    <div class="meta num">
-      <span id="trange">&mdash;</span>
-      <span id="mhz">&mdash;</span>
+  <div class="pv-h">On-TV ad &amp; telemetry sinkhole</div>
+  <div class="pv-sub">Sinkholes known LG telemetry, ad servers, and Automatic Content Recognition (ACR) tracking endpoints directly on the TV by bind-mounting a local blackhole table over /etc/hosts.</div>
+  <div class="pv-row">
+    <div>
+      <div class="n">LG Ad &amp; Analytics Blackhole</div>
+      <div class="d">Blocks ad.lgsmartad.com, ibis.lgappstv.com, rdx.lgtvcommon.com, and 12 other tracking endpoints.</div>
     </div>
+    <div><span class="pill idle" id="adblock-pill">Inactive</span></div>
   </div>
-</section>
-
-<section class="readouts" id="readouts"></section>
-
-<div class="panel" id="flashblock">
-    <div class="lbl">Flash storage</div>
-    <div class="cols" style="margin-top:14px">
-      <div><div class="lbl">Wear</div><div class="v num" id="flashval">&mdash;</div></div>
-      <div><div class="lbl">Health</div><div class="v" id="flasheol">&mdash;</div></div>
-    </div>
+  <div class="btns" style="margin-top:14px;max-width:320px">
+    <button id="adblock-toggle" onclick="toggleAdBlock()">Enable ad blocker</button>
   </div>
-
-  <section class="panel" id="panelblock" hidden>
-  <div class="lbl">OLED panel</div>
-  <div class="n num" style="margin-top:12px"><span id="ph">&mdash;</span><em>hours</em></div>
-  <div class="cols">
-    <div><div class="lbl">Compensation in</div><div class="v num" id="comp">&mdash;</div></div>
-    <div><div class="lbl">Refresher in</div><div class="v num" id="refr">&mdash;</div></div>
-    <div><div class="lbl">Refresher state</div><div class="v" id="rstate">&mdash;</div></div>
-  </div>
-</section>
 </section>
 
 <footer>
@@ -323,7 +393,73 @@ q('readouts').innerHTML = ROWS.map(r =>
      <div class="v num" id="val-${r.k}">—</div>
    </div>`).join('');
 
-let hist = [], lastOk = 0, muted = false;
+let hist = [], lastOk = 0, muted = false, showAllApps = false, installedApps = [], lastAppId = '';
+
+const POPULAR_APPS = [
+  'youtube.leanback.v4', 'netflix', 'amazon', 'com.apple.appletv',
+  'spotify-beehive', 'bbc.iplayer.3.0', 'com.fvp.itv', 'com.fvp.ch4',
+  'demand5', 'bbc.sounds.1.0', 'org.webosbrew.hbchannel',
+  'com.webos.app.browser', 'com.webos.app.igallery', 'lgchannels.uk'
+];
+
+function cleanAppTitle(title, id) {
+  if (id === 'demand5' || title === '5') return 'My5';
+  if (id === 'spotify-beehive') return 'Spotify';
+  if (id === 'amazon') return 'Prime Video';
+  if (id === 'org.webosbrew.hbchannel') return 'Homebrew';
+  if (id === 'com.webos.app.browser') return 'Browser';
+  if (id === 'com.webos.app.igallery') return 'Gallery';
+  if (id === 'com.webos.app.btspeakerapp') return 'BT Audio';
+  if (id === 'com.webos.app.amazon-echo') return 'Alexa';
+  if (id === 'com.webos.app.google-home') return 'Google';
+  if (id === 'com.webos.app.photovideo') return 'Photos';
+  if (id === 'com.webos.app.connectionwizard') return 'Connector';
+  if (id === 'com.webos.app.notificationcenter') return 'Alerts';
+  if (id === 'com.open.hidden.menu') return 'Service Menu';
+  if (id === 'com.webos.app.remoteservice') return 'LG Remote';
+  if (id === 'com.webos.app.accessibility') return 'Accessibility';
+  if (id === 'com.theadelab.amclient-lg') return 'Amazon Music';
+  return title;
+}
+
+function renderApps(currentAppId) {
+  const container = q('apps');
+  if (!container || !installedApps.length) return;
+  const toggleWrap = q('app-toggle-wrap');
+  const toggleBtn = q('app-toggle-btn');
+
+  if (installedApps.length > 10) {
+    if (toggleWrap) toggleWrap.hidden = false;
+    if (toggleBtn) toggleBtn.textContent = showAllApps ? 'Show fewer apps' : 'Show all apps (' + installedApps.length + ')';
+  }
+
+  const sorted = installedApps.slice().sort((a, b) => {
+    const aPop = POPULAR_APPS.indexOf(a.id);
+    const bPop = POPULAR_APPS.indexOf(b.id);
+    if (aPop !== -1 && bPop !== -1) return aPop - bPop;
+    if (aPop !== -1) return -1;
+    if (bPop !== -1) return 1;
+    return a.title.localeCompare(b.title);
+  });
+
+  const visible = showAllApps ? sorted : sorted.filter((a, idx) => {
+    const isPop = POPULAR_APPS.indexOf(a.id) !== -1;
+    const isCur = currentAppId && (a.id === currentAppId || a.id === ('com.webos.app.' + currentAppId));
+    return isPop || isCur || idx < 10;
+  });
+
+  container.innerHTML = visible.map(a => {
+    const clean = cleanAppTitle(a.title, a.id);
+    const btnId = 'app_' + a.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const isCur = currentAppId && (a.id === currentAppId || a.id === ('com.webos.app.' + currentAppId));
+    return `<button id="${btnId}" class="${isCur ? 'on' : ''}" title="${esc(a.title)}" onclick="c('launchApp','${esc(a.id)}')">${esc(clean)}</button>`;
+  }).join('');
+}
+
+function toggleAllApps() {
+  showAllApps = !showAllApps;
+  renderApps(lastAppId);
+}
 
 const SLOTS = 56;
 function trace(vals) {
@@ -429,9 +565,48 @@ async function tick() {
 
     if (d.inputs && !q('inputs').dataset.built) {
       q('inputs').innerHTML = Object.keys(d.inputs).map(k =>
-        `<button onclick="c('input','${k}')">${d.inputs[k]}</button>`).join('') +
-        `<button onclick="c('input','livetv')">Live TV</button>`;
+        `<button id="in_${k}" onclick="c('input','${k}')">${d.inputs[k]}</button>`).join('') +
+        `<button id="in_livetv" onclick="c('input','livetv')">Live TV</button>`;
       q('inputs').dataset.built = '1';
+    }
+
+    if (d.app) {
+      lastAppId = d.app;
+      if (q('currapp-lbl')) q('currapp-lbl').textContent = (d.app_name || d.display_title || d.app).toUpperCase();
+      const inBtns = q('inputs') ? q('inputs').querySelectorAll('button') : [];
+      for (let b of inBtns) {
+        b.classList.toggle('on', b.id === 'in_' + d.app);
+      }
+    }
+
+    if (d.apps && d.apps.length) {
+      if (!installedApps.length) {
+        installedApps = d.apps;
+        renderApps(d.app);
+      } else {
+        const appBtns = q('apps') ? q('apps').querySelectorAll('button') : [];
+        for (let b of appBtns) {
+          b.classList.toggle('on', b.id === 'app_' + d.app.replace(/[^a-zA-Z0-9_-]/g, '_') || b.id === 'app_com_webos_app_' + d.app);
+        }
+      }
+    }
+
+    if (d.picture) {
+      if (q('picmode-lbl')) q('picmode-lbl').textContent = (d.picture.mode || d.picture.mode_raw || '').toUpperCase();
+      const pmBtns = q('picmodes') ? q('picmodes').querySelectorAll('button') : [];
+      for (let b of pmBtns) {
+        const m = b.id.replace('pm_', '');
+        b.classList.toggle('on', d.picture.mode_raw === m || (m === 'expert1' && d.picture.mode_raw.indexOf('expert1') !== -1) || (m === 'expert2' && d.picture.mode_raw.indexOf('expert2') !== -1));
+      }
+    }
+
+    if (d.sound) {
+      if (q('soundout-lbl')) q('soundout-lbl').textContent = (d.sound.output || d.sound.output_raw || '').toUpperCase();
+      const soBtns = q('soundouts') ? q('soundouts').querySelectorAll('button') : [];
+      for (let b of soBtns) {
+        const so = b.id.replace('so_', '');
+        b.classList.toggle('on', d.sound.output_raw === so);
+      }
     }
 
     const up = d.uptime, dd = Math.floor(up / 86400), hh = Math.floor(up % 86400 / 3600), mm = Math.floor(up % 3600 / 60);
@@ -535,9 +710,28 @@ async function loadPrivacy() {
     q('pv-daemons').innerHTML = (d.daemons || []).map(x => pvRow(
       x.label, x.detail,
       `<span class="pill ${x.running ? 'idle' : 'good'}">${x.running ? 'Running' : 'Stopped'}</span>`)).join('');
+
+    // ad blocker
+    const ab = d.adblock || {};
+    const abActive = !!ab.enabled;
+    const pill = q('adblock-pill');
+    if (pill) {
+      pill.textContent = abActive ? 'Active' : 'Inactive';
+      pill.className = 'pill ' + (abActive ? 'good' : 'idle');
+    }
+    const abBtn = q('adblock-toggle');
+    if (abBtn) {
+      abBtn.textContent = abActive ? 'Disable ad blocker' : 'Enable ad blocker';
+      abBtn.classList.toggle('on', abActive);
+    }
   } catch (e) {
     q('pv-live').innerHTML = '<div class="d">Could not load privacy information &mdash; ' + e.message + '</div>';
   }
+}
+
+async function toggleAdBlock() {
+  await c('toggleAdBlock', 'toggle');
+  setTimeout(loadPrivacy, 600);
 }
 
 function togglePrivacy() {
@@ -570,7 +764,18 @@ async function privAction(action) {
 
 // Deep link straight to the privacy view: /?privacy=1 . Handy for a bookmark,
 // and it means the panel can be captured without a click.
-if (new URLSearchParams(location.search).get('privacy') === '1') togglePrivacy();
+if (new URLSearchParams(location.search).get('privacy') === '1') {
+  if (new URLSearchParams(location.search).get('only') === '1' && q('main-grid')) {
+    q('main-grid').hidden = true;
+  }
+  togglePrivacy();
+}
+
+if (new URLSearchParams(location.search).get('controls') === '1') {
+  const tel = document.querySelector('.col-telemetry');
+  if (tel) tel.hidden = true;
+  if (q('main-grid')) q('main-grid').style.gridTemplateColumns = '1fr';
+}
 
 tick();
 setInterval(tick, 2000);

@@ -331,6 +331,173 @@ function detectDeviceInfo(cb) {
   );
 }
 
+var SOUND_OUTPUT_MAP = {
+  tv_speaker: 'TV Speaker',
+  external_arc: 'HDMI ARC',
+  optical: 'Optical',
+  headphone: 'Headphone / AUX',
+  bt_soundbar: 'Bluetooth',
+  lineout: 'Line Out',
+  soundbar: 'LG Sound Sync'
+};
+
+function formatSoundOutput(so) {
+  if (!so) return 'TV Speaker';
+  return SOUND_OUTPUT_MAP[so] || so;
+}
+
+var installedApps = [];
+var lastAppsScan = 0;
+
+function refreshInstalledApps(cb) {
+  var now = Date.now();
+  if (installedApps.length > 0 && (now - lastAppsScan < 300000)) {
+    if (cb) cb(installedApps);
+    return;
+  }
+  luna('com.webos.applicationManager/listApps', {}, function (res) {
+    if (res && Array.isArray(res.apps)) {
+      var list = [];
+      for (var i = 0; i < res.apps.length; i++) {
+        var a = res.apps[i];
+        if (a && a.id && a.visible !== false && a.id.indexOf('com.webos.app.container') !== 0) {
+          list.push({
+            id: a.id,
+            title: a.title || a.id
+          });
+        }
+      }
+      list.sort(function (x, y) { return String(x.title || '').localeCompare(String(y.title || '')); });
+      installedApps = list;
+      lastAppsScan = Date.now();
+    }
+    if (cb) cb(installedApps);
+  });
+}
+
+var ADBLOCK_HOSTS_FILE = '/var/lib/tvweb/adblock_hosts';
+var ADBLOCK_FLAG_FILE = '/var/lib/tvweb/adblock_enabled';
+var ADBLOCK_DOMAINS = [
+  'ad.lgsmartad.com',
+  'ibis.lgappstv.com',
+  'ibs.lgappstv.com',
+  'lgsmartad.com',
+  'rdx.lgtvcommon.com',
+  'aic.lgtvcommon.com',
+  'aic-ngfts.lge.com',
+  'ngfts.lge.com',
+  'lgtvsdp.com',
+  'us.lgtvsdp.com',
+  'gb.lgtvsdp.com',
+  'eu.lgtvsdp.com',
+  'smartclip.com',
+  'smartclip-services.com',
+  'yumenetworks.com'
+];
+
+function isAdBlockActive() {
+  try {
+    var mounts = fs.readFileSync('/proc/mounts', 'utf8');
+    return mounts.indexOf(' /etc/hosts ') !== -1;
+  } catch (e) {
+    return false;
+  }
+}
+
+function setAdBlock(enable, cb) {
+  var active = isAdBlockActive();
+  if (enable && !active) {
+    var lines = [
+      '127.0.0.1\tlocalhost.localdomain\tlocalhost',
+      '::1\tlocalhost ip6-localhost ip6-loopback',
+      'fe00::0\tip6-localnet',
+      'ff00::0\tip6-mcastprefix',
+      'ff02::1\tip6-allnodes',
+      'ff02::2\tip6-allrouters',
+      '',
+      '# LG Ad & Telemetry Blackhole (lg-webos-mqtt)'
+    ];
+    for (var i = 0; i < ADBLOCK_DOMAINS.length; i++) {
+      lines.push('0.0.0.0\t' + ADBLOCK_DOMAINS[i]);
+    }
+    lines.push('');
+    try {
+      fs.writeFileSync(ADBLOCK_HOSTS_FILE, lines.join('\n'), 'utf8');
+      fs.writeFileSync(ADBLOCK_FLAG_FILE, '1', 'utf8');
+    } catch (e) {
+      if (cb) cb({ ok: false, error: 'could not write adblock hosts: ' + e.message });
+      return;
+    }
+    execFile('/bin/mount', ['--bind', ADBLOCK_HOSTS_FILE, '/etc/hosts'], { timeout: 3000 }, function (err) {
+      cachedPrivacy = null;
+      lastStats = null;
+      if (cb) cb({ ok: !err, enabled: isAdBlockActive() });
+    });
+  } else if (!enable && active) {
+    try {
+      if (fs.existsSync(ADBLOCK_FLAG_FILE)) fs.unlinkSync(ADBLOCK_FLAG_FILE);
+    } catch (e) {}
+    execFile('/bin/umount', ['/etc/hosts'], { timeout: 3000 }, function (err) {
+      cachedPrivacy = null;
+      lastStats = null;
+      if (cb) cb({ ok: !err, enabled: isAdBlockActive() });
+    });
+  } else {
+    if (cb) cb({ ok: true, enabled: active });
+  }
+}
+
+var RCU_KEY_CODES = {
+  play: 207,
+  pause: 201,
+  playPause: 164,
+  playpause: 164,
+  stop: 128,
+  fastForward: 208,
+  fastforward: 208,
+  rewind: 168
+};
+
+function sendMediaKey(cmd, cb) {
+  var code = RCU_KEY_CODES[cmd];
+  if (!code) {
+    if (cb) cb(false);
+    return;
+  }
+  var fd = null;
+  try {
+    fd = fs.openSync('/dev/input/event1', 'w');
+  } catch (e) {
+    if (cb) cb(false);
+    return;
+  }
+  function makeEv(type, c, val) {
+    var b = new Buffer(16);
+    b.fill(0);
+    b.writeUInt16LE(type, 8);
+    b.writeUInt16LE(c, 10);
+    b.writeInt32LE(val, 12);
+    return b;
+  }
+  try {
+    fs.writeSync(fd, makeEv(1, code, 1), 0, 16, null);
+    fs.writeSync(fd, makeEv(0, 0, 0), 0, 16, null);
+    setTimeout(function () {
+      try {
+        fs.writeSync(fd, makeEv(1, code, 0), 0, 16, null);
+        fs.writeSync(fd, makeEv(0, 0, 0), 0, 16, null);
+        fs.closeSync(fd);
+        if (cb) cb(true);
+      } catch (e2) {
+        if (cb) cb(false);
+      }
+    }, 50);
+  } catch (e) {
+    try { fs.closeSync(fd); } catch (e3) {}
+    if (cb) cb(false);
+  }
+}
+
 // ---------------------------------------------------------------- stats
 var cachedOled = null;
 var lastOledCheck = 0;
@@ -560,50 +727,70 @@ function collectStats(cb) {
   // Refresh input names if cache expired
   refreshInputNames();
 
-  // Chained Luna queries: sound -> foregroundApp -> picture settings
+  // Chained Luna queries: sound -> soundSettings -> foregroundApp -> picture settings -> apps
   luna('com.webos.audio/getSoundOut', {}, function (sound) {
     if (sound) {
       out.volume = sound.volume;
       out.muted = !!sound.muted;
       out.audio_output = sound.scenario || 'internal';
     }
-    luna('com.webos.applicationManager/getForegroundAppInfo', {}, function (app) {
-      if (app && app.appId) {
-        var shortApp = String(app.appId).replace('com.webos.app.', '');
-        out.app = shortApp;
-        out.app_name = inputNameMap[shortApp] || shortApp;
-        out.display_title = (inputNameMap[shortApp] && inputNameMap[shortApp] !== shortApp) ?
-          (inputNameMap[shortApp] + ' (' + shortApp.toUpperCase() + ')') : shortApp;
-      }
-      luna('com.webos.service.settings/getSystemSettings',
-        { category: 'picture', keys: ['backlight', 'pictureMode', 'energySaving', 'screenShift', 'logoLuminanceAdjust'] },
-        function (pic) {
-          if (pic && pic.settings) {
-            var rawDr = (pic.dimension && pic.dimension.dynamicRange) ? pic.dimension.dynamicRange : 'sdr';
-            out.picture = {
-              dynamicRange: formatDynamicRange(rawDr),
-              mode: formatPicMode(pic.settings.pictureMode),
-              mode_raw: pic.settings.pictureMode || 'standard',
-              backlight: num(pic.settings.backlight, 50),
-              energySaving: pic.settings.energySaving || 'off',
-              screenShift: pic.settings.screenShift || 'off',
-              logoLuminanceAdjust: pic.settings.logoLuminanceAdjust || 'off'
-            };
+    luna('com.webos.service.settings/getSystemSettings',
+      { category: 'sound', keys: ['soundOutput', 'soundMode'] },
+      function (snd) {
+        var rawSnd = (snd && snd.settings && snd.settings.soundOutput) ? snd.settings.soundOutput : (sound && sound.scenario ? sound.scenario : 'tv_speaker');
+        out.sound = {
+          output: formatSoundOutput(rawSnd),
+          output_raw: rawSnd,
+          mode: (snd && snd.settings && snd.settings.soundMode) || 'standard'
+        };
+        luna('com.webos.applicationManager/getForegroundAppInfo', {}, function (app) {
+          if (app && app.appId) {
+            var shortApp = String(app.appId).replace('com.webos.app.', '');
+            out.app = shortApp;
+            out.app_name = inputNameMap[shortApp] || shortApp;
+            out.display_title = (inputNameMap[shortApp] && inputNameMap[shortApp] !== shortApp) ?
+              (inputNameMap[shortApp] + ' (' + shortApp.toUpperCase() + ')') : shortApp;
           }
-          detectOled(function (oledPanel) {
-            out.capabilities = { oled: oledPanel };
-            if (!oledPanel) {
-              out.oled = null;
-              return flushStats(out);
+          luna('com.webos.service.settings/getSystemSettings',
+            { category: 'picture', keys: ['backlight', 'pictureMode', 'energySaving', 'screenShift', 'logoLuminanceAdjust'] },
+            function (pic) {
+              if (pic && pic.settings) {
+                var rawDr = (pic.dimension && pic.dimension.dynamicRange) ? pic.dimension.dynamicRange : 'sdr';
+                out.picture = {
+                  dynamicRange: formatDynamicRange(rawDr),
+                  mode: formatPicMode(pic.settings.pictureMode),
+                  mode_raw: pic.settings.pictureMode || 'standard',
+                  backlight: num(pic.settings.backlight, 50),
+                  energySaving: pic.settings.energySaving || 'off',
+                  screenShift: pic.settings.screenShift || 'off',
+                  logoLuminanceAdjust: pic.settings.logoLuminanceAdjust || 'off'
+                };
+              }
+              refreshInstalledApps(function (apps) {
+                out.apps = apps || [];
+                out.privacy = {
+                  adblock: {
+                    enabled: isAdBlockActive(),
+                    count: ADBLOCK_DOMAINS.length
+                  }
+                };
+                detectOled(function (oledPanel) {
+                  out.capabilities = { oled: oledPanel };
+                  if (!oledPanel) {
+                    out.oled = null;
+                    return flushStats(out);
+                  }
+                  refreshOledStats((pic && pic.settings) ? pic.settings : null, function (oled) {
+                    out.oled = oled;
+                    flushStats(out);
+                  });
+                });
+              });
             }
-            refreshOledStats((pic && pic.settings) ? pic.settings : null, function (oled) {
-              out.oled = oled;
-              flushStats(out);
-            });
-          });
-        }
-      );
-    });
+          );
+        });
+      }
+    );
   });
 }
 
@@ -717,6 +904,10 @@ function collectPrivacy(cb) {
         };
         runningDaemons(function (daemons) {
           out.daemons = daemons;
+          out.adblock = {
+            enabled: isAdBlockActive(),
+            count: ADBLOCK_DOMAINS.length
+          };
           cachedPrivacy = out;
           lastPrivacyCheck = Date.now();
           cb(out);
@@ -779,6 +970,61 @@ function doControl(action, value, cb) {
       return luna('com.webos.applicationManager/launch',
                   { id: 'com.webos.app.' + value },
                   function (r) { cb({ ok: !!(r && r.returnValue) }); });
+
+    case 'launch_app':
+    case 'launchApp':
+      var appId = String(value || '').trim();
+      if (!appId) return cb({ ok: false, error: 'missing app id' });
+      return luna('com.webos.applicationManager/launch', { id: appId }, function (r) {
+        cb({ ok: !!(r && r.returnValue) });
+      });
+
+    case 'close_app':
+    case 'closeApp':
+      var appIdToClose = String(value || '').trim();
+      if (!appIdToClose) return cb({ ok: false, error: 'missing app id' });
+      return luna('com.webos.applicationManager/closeByAppId', { id: appIdToClose }, function (r) {
+        cb({ ok: !!(r && r.returnValue) });
+      });
+
+    case 'picture_mode':
+    case 'pictureMode':
+      var pMode = String(value || '').trim();
+      if (!pMode) return cb({ ok: false, error: 'missing picture mode' });
+      return luna('com.webos.service.settings/getSystemSettings', { category: 'picture', keys: ['pictureMode'] }, function (cur) {
+        var pPayload = { category: 'picture', settings: { pictureMode: pMode } };
+        if (cur && cur.dimension) pPayload.dimension = cur.dimension;
+        luna('com.webos.service.settings/setSystemSettings', pPayload, function (r) {
+          cb({ ok: !!(r && r.returnValue) });
+        });
+      });
+
+    case 'sound_output':
+    case 'soundOutput':
+      var sOut = String(value || '').trim();
+      if (!sOut) return cb({ ok: false, error: 'missing sound output' });
+      return luna('com.webos.service.settings/setSystemSettings',
+                  { category: 'sound', settings: { soundOutput: sOut } },
+                  function (r) { cb({ ok: !!(r && r.returnValue) }); });
+
+    case 'playback':
+    case 'media':
+      return sendMediaKey(value, function (ok) {
+        cb({ ok: ok });
+      });
+
+    case 'adblock':
+    case 'setAdBlock':
+    case 'toggleAdBlock':
+      var enableBlock;
+      if (action === 'toggleAdBlock' || value === 'toggle') {
+        enableBlock = !isAdBlockActive();
+      } else {
+        enableBlock = (value === true || value === 'ON' || value === 'true' || value === 1);
+      }
+      return setAdBlock(enableBlock, function (res) {
+        cb(res);
+      });
 
     /*
      * Rotate the advertising identifier. A real Luna call, not a file edit -
@@ -1906,6 +2152,16 @@ if (!webEnabled && !mqttEnabled) {
   process.exit(1);
 }
 
+(function checkBootAdBlock() {
+  try {
+    if (fs.existsSync(ADBLOCK_FLAG_FILE) && !isAdBlockActive() && fs.existsSync(ADBLOCK_HOSTS_FILE)) {
+      execFile('/bin/mount', ['--bind', ADBLOCK_HOSTS_FILE, '/etc/hosts'], { timeout: 3000 }, function (err) {
+        if (!err) console.log('adblock: restored /etc/hosts bind-mount from previous boot');
+      });
+    }
+  } catch (e) {}
+})();
+
 if (webEnabled) {
   server.listen(CONFIG.port, CONFIG.host, function () {
     console.log('tvweb listening on ' + CONFIG.host + ':' + CONFIG.port +
@@ -2506,6 +2762,96 @@ function setupHomeAssistant() {
           payload_on: 'schedule',
           payload_off: 'cancel',
           icon: 'mdi:television-shimmer'
+        }
+      },
+      {
+        type: 'select', id: 'picture_mode',
+        payload: {
+          name: 'Picture Mode',
+          command_topic: pfx + '/command/picture_mode',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.picture.mode_raw if value_json.picture else "standard" }}',
+          options: ['expert1', 'expert2', 'cinema', 'game', 'standard', 'eco', 'sports'],
+          icon: 'mdi:image-filter-black-white'
+        }
+      },
+      {
+        type: 'select', id: 'sound_output',
+        payload: {
+          name: 'Sound Output',
+          command_topic: pfx + '/command/sound_output',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.sound.output_raw if value_json.sound else "tv_speaker" }}',
+          options: ['tv_speaker', 'external_arc', 'optical', 'headphone', 'bt_soundbar'],
+          icon: 'mdi:speaker'
+        }
+      },
+      {
+        type: 'select', id: 'app',
+        payload: {
+          name: 'Launch App',
+          command_topic: pfx + '/command/launch_app',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.app }}',
+          options: (function () {
+            var opts = ['livetv', 'youtube.leanback.v4', 'netflix', 'amazon', 'spotify-beehive', 'com.apple.appletv'];
+            if (installedApps && installedApps.length) {
+              var merged = {};
+              for (var o = 0; o < opts.length; o++) merged[opts[o]] = 1;
+              for (var a = 0; a < installedApps.length; a++) merged[installedApps[a].id] = 1;
+              return Object.keys(merged);
+            }
+            return opts;
+          })(),
+          icon: 'mdi:apps'
+        }
+      },
+      {
+        type: 'switch', id: 'ad_blocker',
+        payload: {
+          name: 'Ad & Telemetry Blocker',
+          command_topic: pfx + '/command/adblock',
+          state_topic: telemetryTopic,
+          value_template: '{{ "ON" if value_json.privacy and value_json.privacy.adblock and value_json.privacy.adblock.enabled else "OFF" }}',
+          payload_on: 'ON',
+          payload_off: 'OFF',
+          icon: 'mdi:shield-check'
+        }
+      },
+      {
+        type: 'button', id: 'play',
+        payload: {
+          name: 'Play',
+          command_topic: pfx + '/command/playback',
+          payload_press: 'play',
+          icon: 'mdi:play'
+        }
+      },
+      {
+        type: 'button', id: 'pause',
+        payload: {
+          name: 'Pause',
+          command_topic: pfx + '/command/playback',
+          payload_press: 'pause',
+          icon: 'mdi:pause'
+        }
+      },
+      {
+        type: 'button', id: 'play_pause',
+        payload: {
+          name: 'Play / Pause',
+          command_topic: pfx + '/command/playback',
+          payload_press: 'playPause',
+          icon: 'mdi:play-pause'
+        }
+      },
+      {
+        type: 'button', id: 'stop',
+        payload: {
+          name: 'Stop',
+          command_topic: pfx + '/command/playback',
+          payload_press: 'stop',
+          icon: 'mdi:stop'
         }
       }
     ];
