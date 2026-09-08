@@ -153,9 +153,8 @@ exits rather than idling.
 `token` &mdash; a fresh install should not expose "turn the TV off" to the whole
 network. Enable it deliberately.
 
-Before pointing this at a broker that also drives your lights, read
-[docs/SECURITY.md](docs/SECURITY.md): give the TV its own MQTT user with a
-restricted ACL, rather than reusing your main Home Assistant credentials.
+Recommended: Give the TV its own MQTT user with a
+restricted ACL, rather than reusing your main Home Assistant credentials. See [docs/SECURITY.md](docs/SECURITY.md)
 
 ## 3. Install
 
