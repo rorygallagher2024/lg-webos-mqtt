@@ -68,10 +68,25 @@ write.
 
 * A rooted LG webOS TV [Root tool here](https://github.com/throwaway96/dejavuln-autoroot/) with the
   [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel).
-  Verified on a 2018 OLED65B8SLC running webOS 4.4.3 (firmware 05.50.70);
-  other versions are untested.
 * An MQTT broker reachable on your LAN, if you want the Home Assistant side.
   The dashboard works without one.
+
+### Tested on
+
+Developed against a single set, so the compatibility picture is thin. The Luna
+service names and `/proc/lg` paths this relies on may differ across webOS
+versions and panel types.
+
+| Model | webOS | Firmware | Panel | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| OLED65B8SLC | 4.4.3 | 05.50.70 | OLED | Fully working |
+
+**If you run it on anything else, please open an issue either way** &mdash;
+working or not. Include your model, webOS version and
+`/var/lib/tvweb/tvweb.log` and I will add a row. Reports from LCD/QNED sets are
+especially useful: the panel-health features are meant to detect themselves as
+unavailable there rather than report zeros, and that path has only been tested
+with a simulated payload.
 
 ---
 
