@@ -53,6 +53,12 @@ echo "deploying to $TV ..."
 W=14 tvsh <<TVCMDS
 mkdir -p /var/lib/tvweb
 wget -q -O /var/lib/tvweb/tvweb.js http://$MYIP:$PORT/tvweb.js && echo "fetched tvweb.js (\$(wc -c < /var/lib/tvweb/tvweb.js) bytes)"
+mkdir -p /var/lib/tvweb/assets/fonts
+wget -q -O /var/lib/tvweb/assets/ui.html http://$MYIP:$PORT/assets/ui.html && echo "ui.html $(wc -c < /var/lib/tvweb/assets/ui.html) bytes"
+for f in clash_display_extralight clash_display_light satoshi_light satoshi_regular satoshi_medium; do
+  wget -q -O /var/lib/tvweb/assets/fonts/$f.otf http://$MYIP:$PORT/assets/fonts/$f.otf
+done
+echo "fonts: $(ls /var/lib/tvweb/assets/fonts | wc -l) files"
 $([ -f "$DIR/config.json" ] && echo "wget -q -O /var/lib/tvweb/config.json http://$MYIP:$PORT/config.json && echo 'fetched config.json'")
 pkill -9 -f tvweb.js 2>/dev/null || true
 sleep 1
