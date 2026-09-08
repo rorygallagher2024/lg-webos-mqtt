@@ -95,13 +95,14 @@ column means what you would hope.
 
 ### Tested on
 
-Tested on a single TV so far. The Luna
+Tested across the following sets so far. The Luna
 service names and `/proc/lg` paths this relies on may differ across webOS
 versions and panel types.
 
 | Model | webOS | Firmware | Panel | Status |
 | :--- | :--- | :--- | :--- | :--- |
 | OLED65B8SLC | 4.4.3 | 05.50.70 | OLED | Fully working |
+| OLED65C9AUA | 4.9.x (4.5+) | 05.50.00 | OLED | Fully working |
 
 **If you run it on anything else, please open an issue whether it's working or not**
 Include your model, webOS version and
