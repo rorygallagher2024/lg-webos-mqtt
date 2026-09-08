@@ -528,7 +528,12 @@ function collectStats(cb) {
      * not a measurement. Reporting it would put a false 0C spike into Home
      * Assistant's history on every reboot, so treat 0 as "not ready yet".
      */
-    temp: (function () { var t = num(rd('/proc/lg/pm/temperature'), null); return t ? t : null; })(),
+    temp: (function () {
+      var t = num(rd('/proc/lg/pm/temperature'), null);
+      // Anything <= 0 is the sensor not being ready, not a reading. Matches the
+      // guard in pushTemp, so the reported value and the history agree.
+      return (t !== null && t > 0) ? t : null;
+    })(),
     temps: null,   // filled in below from the ring buffer
     load: num(rd('/proc/lg/pm/current_load'), null),
     mhz: Math.round(num(rd('/proc/lg/pm/frequency'), 0) / 1000),
