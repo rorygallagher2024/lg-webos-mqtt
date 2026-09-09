@@ -99,12 +99,12 @@ Tested across the following sets so far. The Luna
 service names and `/proc/lg` paths this relies on may differ across webOS
 versions and panel types.
 
-| Model | webOS | Firmware | Panel | Status |
-| :--- | :--- | :--- | :--- | :--- |
-| OLED65B8SLC | 4.4.3 | 05.50.70 | OLED | Fully working |
-| OLED65C9AUA | 4.9.x (4.5+) | 05.50.00 | OLED | Fully working |
-| OLED55C1PUB | 6.x (6.3+) | 03.53.45 | OLED | Working (SSH install, MQTT bridge) |
-| 55UH6030-UC | 3.4.3 | &mdash; | LCD | Working (LCD, so no OLED panel metrics) |
+| Model | webOS | Firmware | Panel |
+| :--- | :--- | :--- | :--- |
+| OLED65B8SLC | 4.4.3 | 05.50.70 | OLED |
+| OLED65C9AUA | 4.9.x (4.5+) | 05.50.00 | OLED |
+| OLED55C1PUB | 6.x (6.3+) | 03.53.45 | OLED |
+| 55UH6030-UC | 3.4.3 | &mdash; | LCD |
 
 **If you run it on anything else, please open an issue whether it's working or not**
 Include your model, webOS version and
