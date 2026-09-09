@@ -1417,8 +1417,23 @@ function doControl(action, value, cb) {
                   function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
 
     case 'screensaver':
-      return luna('com.webos.service.tvpower/power/turnOnScreenSaver', {},
-                  function (r) { cb({ ok: !!(r && r.returnValue) }); });
+      /*
+       * turnOnScreenSaver does not draw anything itself. tvpower asks whatever
+       * has registered a screen saver request to show one - see its
+       * registerScreenSaverRequest / responseScreenSaverRequest pair - and
+       * returns true whether or not anything answers. An HDMI input or Live TV
+       * registers nothing, because the screen saver exists to protect the panel
+       * from a static image, not to interrupt video. So on those sources the
+       * call reports success and nothing happens; say so instead.
+       */
+      return luna('com.webos.applicationManager/getForegroundAppInfo', {}, function (fg) {
+        var fgId = (fg && fg.appId) ? String(fg.appId).replace('com.webos.app.', '') : '';
+        if (/^hdmi[1-4]$/.test(fgId) || fgId === 'livetv') {
+          return cb({ ok: false, error: 'the screen saver is only available from an app, not from ' + fgId });
+        }
+        luna('com.webos.service.tvpower/power/turnOnScreenSaver', {},
+             function (r) { cb({ ok: !!(r && r.returnValue) }); });
+      });
 
     case 'toast':
       /* Both the payload's sourceId and luna-send's -a have to name an app the

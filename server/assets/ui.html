@@ -75,7 +75,9 @@ body{
 /* ---- masthead ---- */
 header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;flex-wrap:wrap}
 .mark{font-family:'Outfit';font-weight:300;font-size:clamp(19px,2.4vw,26px);color:var(--w100);letter-spacing:.01em}
-.mark span{color:var(--w50)}
+/* The model number identifies the set; the name is what you are looking at.
+   Setting them at one size let the longer of the two dominate. */
+.mark span{color:var(--w50);font-size:.68em;letter-spacing:.02em;margin-left:2px}
 .src{text-align:right}
 .src .t{font-family:'Outfit';font-weight:300;font-size:clamp(15px,1.8vw,19px);color:var(--w80)}
 .src .m{font-size:13px;color:var(--w50);letter-spacing:.02em}
@@ -354,7 +356,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="btns">
         <button id="btn-screenoff" onclick="c('screenOff')">Screen off</button>
         <button id="btn-screenon" onclick="c('screenOn')">Screen on</button>
-        <button onclick="c('screensaver')">Screensaver</button>
+        <button id="btn_ss" onclick="c('screensaver')">Screensaver</button>
       </div>
     </div>
 
@@ -380,9 +382,9 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     </div>
 
     <details class="disc" id="disc-timers">
-      <summary>Timer &amp; lights <span class="cur" id="tl-cur"></span></summary>
+      <summary>Sleep timer <span class="cur" id="tl-cur"></span></summary>
 
-      <div class="set"><div class="lbl">Sleep timer</div>
+      <div class="set">
         <div class="btns" id="sleepbtns">
           <button id="sl_off" onclick="c('sleepTimer','off')">Off</button>
           <button id="sl_10"  onclick="c('sleepTimer','10')">10 min</button>
@@ -392,8 +394,11 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
           <button id="sl_120" onclick="c('sleepTimer','120')">120 min</button>
         </div>
       </div>
+    </details>
 
-      <div class="set"><div class="lbl">Front lights</div>
+    <details class="disc" id="disc-lights">
+      <summary>Front lights <span class="cur" id="lt-cur"></span></summary>
+      <div class="set">
         <div class="btns">
           <button id="lt_standby" onclick="toggleLight('standbyLight')">Standby LED</button>
           <button id="lt_logo" onclick="toggleLight('logoLight')" hidden>Logo light</button>
@@ -402,15 +407,20 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     </details>
 
     <details class="disc" id="disc-display">
-      <summary>Display &amp; sound <span class="cur" id="ds-cur"></span></summary>
+      <summary>Picture <span class="cur" id="ds-cur"></span></summary>
 
-      <div class="set"><div class="lbl">Picture mode &middot; <span id="picmode-lbl" class="num">&mdash;</span></div>
+      <div class="set"><div class="lbl">Mode &middot; <span id="picmode-lbl" class="num">&mdash;</span></div>
         <!-- Built from what the TV says it will accept: the settable modes
              change with the dynamic range of what is playing. -->
         <div class="btns" id="picmodes"></div>
       </div>
 
-      <div class="set"><div class="lbl">Sound output &middot; <span id="soundout-lbl" class="num">&mdash;</span></div>
+    </details>
+
+    <details class="disc" id="disc-sound">
+      <summary>Sound <span class="cur" id="snd-cur"></span></summary>
+
+      <div class="set"><div class="lbl">Output &middot; <span id="soundout-lbl" class="num">&mdash;</span></div>
         <div class="btns" id="soundouts">
           <button id="so_tv_speaker" onclick="c('soundOutput','tv_speaker')">TV Speaker</button>
           <button id="so_external_arc" onclick="c('soundOutput','external_arc')">HDMI ARC</button>
@@ -718,15 +728,16 @@ async function tick() {
         q('lt_logo').classList.toggle('on', !!lights.logo);
       }
       if (q('tl-cur')) {
-        const bits = [st === 'off' ? 'No sleep timer' : `Sleep in ${st} min`];
+        q('tl-cur').textContent = st === 'off' ? 'Off' : `${st} min`;
+      }
+      if (q('lt-cur')) {
         const lit = [lights.standby && 'standby LED',
                      lights.hasLogo && lights.logo && 'logo'].filter(Boolean);
-        bits.push(lit.length ? lit.join(' + ') + ' on' : 'lights off');
-        q('tl-cur').textContent = bits.join('  ·  ');
+        q('lt-cur').textContent = lit.length ? lit.join(' + ') + ' on' : 'Off';
       }
 
-      q('ds-cur').textContent = [pic.mode, audioLabel(d.audio_output)]
-        .filter(Boolean).join('  ·  ');
+      q('ds-cur').textContent = pic.mode || '';
+      if (q('snd-cur')) q('snd-cur').textContent = audioLabel(d.audio_output) || '';
     }
     const dr = pic.dynamicRange || '';
     const drCol = /dolby/i.test(dr) ? 'var(--purple-t)' : /hdr/i.test(dr) ? 'var(--cand)' : 'var(--w60)';
@@ -857,6 +868,15 @@ async function tick() {
           b.classList.toggle('on', b.id === 'app_' + d.app.replace(/[^a-zA-Z0-9_-]/g, '_') || b.id === 'app_com_webos_app_' + d.app);
         }
       }
+    }
+
+    /* The screen saver is drawn by whatever app registered for it, and an
+       input registers nothing - so it cannot run over HDMI or Live TV. Show
+       that rather than leaving a button that does nothing when pressed. */
+    if (q('btn_ss')) {
+      const onInput = /^hdmi[1-4]$/.test(d.app || '') || d.app === 'livetv';
+      q('btn_ss').disabled = onInput;
+      q('btn_ss').title = onInput ? 'Available from an app, not from ' + d.app : '';
     }
 
     if (d.picture) {
