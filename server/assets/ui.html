@@ -326,7 +326,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="grp">Storage</div>
       <div class="cols">
         <div id="flashwear-cell"><div class="lbl">Flash wear</div><div class="v num" id="flashval">&mdash;</div><div class="sub">eMMC lifetime estimated</div></div>
-        <div id="flashhealth-cell"><div class="lbl">Flash health</div><div class="v" id="flasheol">&mdash;</div><div class="sub">Pre-EOL status</div></div>
+        <div id="flashhealth-cell"><div class="lbl">Pre-EOL status</div><div class="v" id="flasheol">&mdash;</div><div class="sub">Drive's own assessment</div></div>
         <div id="appstore-cell" hidden><div class="lbl">App space</div><div class="v num" id="appstore">&mdash;</div><div class="sub" id="appstore-sub"></div></div>
       </div>
     </div>
@@ -826,7 +826,10 @@ async function tick() {
     q('flashhealth-cell').hidden = !wear_;
     if (wear_) {
       q('flashval').textContent = (d.emmc && d.emmc.wear) || '—';
-      q('flasheol').textContent = (d.emmc && d.emmc.health) || (d.emmc && d.emmc.eol) || '—';
+      /* emmc.health is the wear band inverted - the same register, arithmetic
+         the other way up - so showing both said one thing twice. pre_eol_info
+         is a separate register and the only one that can warn on its own. */
+      q('flasheol').textContent = (d.emmc && d.emmc.eol) || '—';
     }
     pruneEmptySections();
 
