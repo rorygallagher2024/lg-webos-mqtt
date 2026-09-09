@@ -121,7 +121,11 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 @media (min-width:960px){
   .grid-wrap{grid-template-columns:minmax(380px,1.15fr) minmax(340px,1fr);gap:clamp(36px,5vw,60px);align-items:start}
 }
-.col-sec{font-family:'Manrope';font-weight:500;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--w50);padding-bottom:12px;border-bottom:1px solid var(--w10);margin-bottom:20px}
+/* Column headings sit above the .lbl sub-headings, so they take the display
+   face at size rather than being another 12px uppercase line. */
+.col-sec{font-family:'Outfit';font-weight:300;font-size:clamp(20px,2.2vw,25px);
+  letter-spacing:.005em;text-transform:none;color:var(--w100);
+  padding-bottom:12px;border-bottom:1px solid var(--w25);margin-bottom:22px}
 
 /* ---- controls ---- */
 .set{margin-top:22px}
@@ -181,6 +185,10 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 .pill.bad{color:var(--red);border-color:var(--red)}
 .pill.idle{color:var(--w50);border-color:var(--w25)}
 .pv-note{font-size:13px;color:var(--w60);border-left:2px solid var(--w25);padding:10px 14px;margin:16px 0;max-width:64ch}
+.proc{display:grid;grid-template-columns:1fr auto;gap:14px;padding:9px 0;
+  border-bottom:1px solid var(--w06);font-size:14px}
+.proc .p-name{color:var(--w80);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.proc .p-mb{color:var(--w100);font-variant-numeric:tabular-nums}
 .pv-id{font-family:'Outfit';font-weight:300;font-size:22px;color:var(--w100);font-variant-numeric:tabular-nums}
 #err{margin-top:18px;font-size:14px;color:var(--red);border-left:2px solid var(--red);padding:9px 13px;background:var(--w06);display:none}
 @media (max-width:620px){.src{text-align:left}.hero{gap:22px}}
@@ -245,6 +253,13 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
         <div><div class="lbl">Health</div><div class="v" id="flasheol">&mdash;</div><div class="sub">Pre-EOL status</div></div>
       </div>
     </div>
+
+    <details class="disc" id="disc-proc">
+      <summary>Processes <span class="cur" id="proc-cur"></span></summary>
+      <div class="sub" style="margin:10px 0 6px">What is resident in memory. Read-only &mdash;
+        close an app from Source or the app itself rather than killing a process.</div>
+      <div id="proc-list"></div>
+    </details>
   </div>
 
   <!-- Right Column: Interactive Controls -->
@@ -258,6 +273,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="btns">
         <button id="btn-screenoff" onclick="c('screenOff')">Screen off</button>
         <button id="btn-screenon" onclick="c('screenOn')">Screen on</button>
+        <button onclick="c('screensaver')">Screensaver</button>
       </div>
     </div>
 
@@ -281,6 +297,30 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
         <button onclick="c('media','fastForward')">Fast Fwd</button>
       </div>
     </div>
+
+    <details class="disc" id="disc-timers">
+      <summary>Timer &amp; lights <span class="cur" id="tl-cur"></span></summary>
+
+      <div class="set"><div class="lbl">Sleep timer</div>
+        <div class="btns" id="sleepbtns">
+          <button id="sl_off" onclick="c('sleepTimer','off')">Off</button>
+          <button id="sl_10"  onclick="c('sleepTimer','10')">10 min</button>
+          <button id="sl_30"  onclick="c('sleepTimer','30')">30 min</button>
+          <button id="sl_60"  onclick="c('sleepTimer','60')">60 min</button>
+          <button id="sl_90"  onclick="c('sleepTimer','90')">90 min</button>
+          <button id="sl_120" onclick="c('sleepTimer','120')">120 min</button>
+        </div>
+      </div>
+
+      <div class="set"><div class="lbl">Front lights</div>
+        <div class="sub" style="margin-bottom:8px">The standby LED and the illuminated
+          logo on the front of the set.</div>
+        <div class="btns">
+          <button id="lt_standby" onclick="toggleLight('standbyLight')">Standby LED</button>
+          <button id="lt_logo" onclick="toggleLight('logoLight')">Logo light</button>
+        </div>
+      </div>
+    </details>
 
     <details class="disc" id="disc-display">
       <summary>Display &amp; sound <span class="cur" id="ds-cur"></span></summary>
@@ -574,6 +614,22 @@ async function tick() {
     // const before its declaration throws, and tick() swallows that silently
     // for the first six seconds, so the whole render just stops updating.
     if (q('ds-cur')) {
+      // sleep timer + front lights
+      const st = d.sleepTimer || 'off';
+      ['off','10','30','60','90','120'].forEach(v => {
+        const b = q('sl_' + v);
+        if (b) b.classList.toggle('on', st === v);
+      });
+      const lights = d.lights || {};
+      if (q('lt_standby')) q('lt_standby').classList.toggle('on', !!lights.standby);
+      if (q('lt_logo')) q('lt_logo').classList.toggle('on', !!lights.logo);
+      if (q('tl-cur')) {
+        const bits = [st === 'off' ? 'No sleep timer' : `Sleep in ${st} min`];
+        const lit = [lights.standby && 'standby LED', lights.logo && 'logo'].filter(Boolean);
+        bits.push(lit.length ? lit.join(' + ') + ' on' : 'lights off');
+        q('tl-cur').textContent = bits.join('  ·  ');
+      }
+
       q('ds-cur').textContent = [pic.mode, audioLabel(d.audio_output)]
         .filter(Boolean).join('  ·  ');
     }
@@ -705,6 +761,11 @@ async function c(action, value) {
     setTimeout(tick, 320);
   } catch (e) { showErr(e.message); }
 }
+function toggleLight(which) {
+  const el = q(which === 'standbyLight' ? 'lt_standby' : 'lt_logo');
+  c(which, el && el.classList.contains('on') ? 'off' : 'on');
+}
+
 function toggleMute() { c('mute', !muted); }
 function pw(a) {
   const msg = a === 'reboot'
@@ -807,6 +868,34 @@ async function toggleAdBlock() {
   await c('toggleAdBlock', 'toggle');
   setTimeout(loadPrivacy, 600);
 }
+
+async function loadProcesses() {
+  try {
+    const r = await fetch(api('/api/processes'), { cache: 'no-store' });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'failed');
+    q('proc-cur').textContent =
+      `${d.count} running · ${d.totalMb.toLocaleString()} MB resident`;
+    q('proc-list').innerHTML = d.top.map(p =>
+      `<div class="proc"><div class="p-name">${p.name}</div>` +
+      `<div class="p-mb">${p.mb.toFixed(1)} MB</div></div>`).join('');
+  } catch (e) {
+    q('proc-list').innerHTML =
+      `<div class="sub">Could not read the process list — ${e.message}</div>`;
+  }
+}
+
+// Only poll while the panel is open; it costs a ps on the TV each time.
+let procTimer = null;
+function onProcToggle(el) {
+  clearInterval(procTimer);
+  if (el.open) { loadProcesses(); procTimer = setInterval(loadProcesses, 5000); }
+}
+
+(function wireProcPanel() {
+  const el = document.getElementById('disc-proc');
+  if (el) el.addEventListener('toggle', function () { onProcToggle(el); });
+})();
 
 function togglePrivacy() {
   privOpen = !privOpen;

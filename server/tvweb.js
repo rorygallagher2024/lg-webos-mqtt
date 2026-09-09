@@ -740,6 +740,16 @@ function collectStats(cb) {
   // Chained Luna queries: power -> sound -> soundSettings -> foregroundApp -> picture settings -> apps
   luna('com.webos.service.tvpower/power/getPowerState', {}, function (pw) {
     out.powerState = mapPowerState(pw && pw.state);
+  luna('com.webos.service.settings/getSystemSettings',
+       { category: 'time', keys: ['sleepTimer'] }, function (tm) {
+    out.sleepTimer = (tm && tm.settings && tm.settings.sleepTimer) || 'off';
+  luna('com.webos.service.settings/getSystemSettings',
+       { category: 'option', keys: ['standByLight', 'logoLight'] }, function (op) {
+    var os = (op && op.settings) || {};
+    out.lights = {
+      standby: os.standByLight === 'on',
+      logo: os.logoLight === 'on'
+    };
   luna('com.webos.audio/getSoundOut', {}, function (sound) {
     if (sound) {
       out.volume = sound.volume;
@@ -804,7 +814,41 @@ function collectStats(cb) {
       }
     );
   });
+  });   // close option settings
+  });   // close time settings
   });   // close getPowerState
+}
+
+// ---------------------------------------------------------------- processes
+/*
+ * Read-only process list, loaded on demand rather than folded into the
+ * telemetry payload - it answers "what is using the memory" when someone
+ * looks, and there is no reason to publish it to MQTT every ten seconds.
+ *
+ * Deliberately no kill action. Closing a stuck app is what closeByAppId is
+ * for, which lets the app manager tear down cleanly; most of these respawn
+ * anyway, and surface-manager is the compositor.
+ */
+function collectProcesses(cb) {
+  execFile('/bin/ps', ['-eo', 'rss,comm'], { timeout: 4000 }, function (err, stdout) {
+    if (err) return cb({ ok: false, error: 'could not read process list' });
+    var lines = String(stdout || '').split('\n'), rows = [], total = 0, count = 0;
+    for (var i = 0; i < lines.length; i++) {
+      var m = lines[i].match(/^\s*(\d+)\s+(\S.*?)\s*$/);
+      if (!m) continue;
+      var rss = parseInt(m[1], 10);
+      count++;
+      total += rss;
+      rows.push({ name: m[2], mb: Math.round(rss / 1024 * 10) / 10 });
+    }
+    rows.sort(function (a, b) { return b.mb - a.mb; });
+    cb({
+      ok: true,
+      count: count,
+      totalMb: Math.round(total / 1024),
+      top: rows.slice(0, 10)
+    });
+  });
 }
 
 // ---------------------------------------------------------------- privacy
@@ -957,6 +1001,9 @@ function collectPrivacy(cb) {
 // ---------------------------------------------------------------- controls
 var INPUTS = { hdmi1: 1, hdmi2: 1, hdmi3: 1, hdmi4: 1, livetv: 1 };
 
+// Verified against the settings service: 15 is rejected, 10 and 90 are not.
+var SLEEP_TIMER_VALUES = ['off', '10', '30', '60', '90', '120'];
+
 function doControl(action, value, cb) {
   if (!CONFIG.allowControl) return cb({ ok: false, error: 'controls disabled in config' });
 
@@ -1089,6 +1136,33 @@ function doControl(action, value, cb) {
         cachedPrivacy = null;
         cb({ ok: !!(r && r.returnValue !== false) });
       });
+
+    /*
+     * Sleep timer. Accepted values are off, 10, 30, 60, 90, 120 - 15 is
+     * rejected by the settings service despite being an obvious guess.
+     */
+    case 'sleepTimer':
+      var st = String(value == null ? 'off' : value).trim();
+      if (SLEEP_TIMER_VALUES.indexOf(st) === -1) {
+        return cb({ ok: false, error: 'sleep timer must be one of ' + SLEEP_TIMER_VALUES.join(', ') });
+      }
+      return luna('com.webos.service.settings/setSystemSettings',
+                  { category: 'time', settings: { sleepTimer: st } },
+                  function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
+
+    // Front panel LEDs. Both live in the "option" category.
+    case 'standbyLight':
+    case 'logoLight':
+      var lightKey = (action === 'standbyLight') ? 'standByLight' : 'logoLight';
+      var lightOn = (value === true || value === 'on' || value === 'ON' || value === 'true');
+      var lightPayload = { category: 'option', settings: {} };
+      lightPayload.settings[lightKey] = lightOn ? 'on' : 'off';
+      return luna('com.webos.service.settings/setSystemSettings', lightPayload,
+                  function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
+
+    case 'screensaver':
+      return luna('com.webos.service.tvpower/power/turnOnScreenSaver', {},
+                  function (r) { cb({ ok: !!(r && r.returnValue) }); });
 
     case 'toast':
       return luna('com.webos.notification/createToast',
@@ -2128,6 +2202,10 @@ var server = http.createServer(function (req, res) {
     }));
   }
 
+  if (pathname === '/api/processes') {
+    return collectProcesses(function (r) { send(res, 200, JSON.stringify(r)); });
+  }
+
   if (pathname === '/api/privacy') {
     return collectPrivacy(function (pv) { send(res, 200, JSON.stringify(pv)); });
   }
@@ -2841,6 +2919,59 @@ function setupHomeAssistant() {
             return opts;
           })(),
           icon: 'mdi:apps'
+        }
+      },
+      {
+        /*
+         * Sleep timer. 15 is not an accepted value even though it looks like
+         * one - the settings service rejects it. Valid: off, 10, 30, 60, 90, 120.
+         */
+        type: 'select', id: 'sleep_timer',
+        payload: {
+          name: 'Sleep Timer',
+          command_topic: pfx + '/command/sleepTimer',
+          state_topic: telemetryTopic,
+          options: ['Off', '10 min', '30 min', '60 min', '90 min', '120 min'],
+          command_template: '{{ {"Off":"off","10 min":"10","30 min":"30","60 min":"60","90 min":"90","120 min":"120"}[value] }}',
+          value_template: '{{ {"off":"Off","10":"10 min","30":"30 min","60":"60 min","90":"90 min","120":"120 min"}.get(value_json.sleepTimer, "Off") }}',
+          icon: 'mdi:timer-outline'
+        }
+      },
+      {
+        type: 'switch', id: 'standby_light',
+        payload: {
+          name: 'Standby LED',
+          command_topic: pfx + '/command/standbyLight',
+          state_topic: telemetryTopic,
+          value_template: '{{ "ON" if value_json.lights and value_json.lights.standby else "OFF" }}',
+          payload_on: 'on',
+          payload_off: 'off',
+          state_on: 'ON',
+          state_off: 'OFF',
+          icon: 'mdi:led-on'
+        }
+      },
+      {
+        type: 'switch', id: 'logo_light',
+        payload: {
+          name: 'Logo Light',
+          command_topic: pfx + '/command/logoLight',
+          state_topic: telemetryTopic,
+          value_template: '{{ "ON" if value_json.lights and value_json.lights.logo else "OFF" }}',
+          payload_on: 'on',
+          payload_off: 'off',
+          state_on: 'ON',
+          state_off: 'OFF',
+          icon: 'mdi:television-ambient-light'
+        }
+      },
+      {
+        type: 'button', id: 'screensaver',
+        payload: {
+          name: 'Start Screensaver',
+          command_topic: pfx + '/command/screensaver',
+          payload_press: 'press',
+          icon: 'mdi:television-shimmer'
         }
       },
       {
