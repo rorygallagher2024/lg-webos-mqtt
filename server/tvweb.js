@@ -293,12 +293,18 @@ function refreshInputNames(cb) {
   });
 }
 
+var TOAST_SOURCE = 'com.webos.app.home';
+
 /* luna-send wrapper via execFile directly, avoiding /bin/sh and shell child leaks.
  * -w 2000 tells luna-send itself to time out after 2 seconds.
  * timeout: 3500 ensures Node kills the child process if it ever stalls.
+ * appId, where given, becomes -a: a few services check the caller's registered
+ * bus identity rather than anything in the payload, and reject everyone else
+ * with "Unknown Source".
  */
-function luna(uri, payload, cb) {
-  var args = ['-n', '1', '-w', '2000', '-f', 'luna://' + uri, JSON.stringify(payload || {})];
+function luna(uri, payload, cb, appId) {
+  var args = appId ? ['-a', appId] : [];
+  args = args.concat(['-n', '1', '-w', '2000', '-f', 'luna://' + uri, JSON.stringify(payload || {})]);
   execFile('/usr/bin/luna-send', args, { timeout: 3500 }, function (err, stdout) {
     var parsed = null;
     if (!err && stdout) {
@@ -1331,9 +1337,12 @@ function doControl(action, value, cb) {
                   function (r) { cb({ ok: !!(r && r.returnValue) }); });
 
     case 'toast':
+      /* Both the payload's sourceId and luna-send's -a have to name an app the
+         bus already knows; "tvweb" is rejected as an Unknown Source. */
       return luna('com.webos.notification/createToast',
-                  { sourceId: 'tvweb', message: String(value || 'hello').slice(0, 120) },
-                  function (r) { cb({ ok: !!(r && r.returnValue) }); });
+                  { sourceId: TOAST_SOURCE, message: String(value || 'hello').slice(0, 120) },
+                  function (r) { cb({ ok: !!(r && r.returnValue), error: r && r.errorText }); },
+                  TOAST_SOURCE);
 
     case 'powerOff':
       if (!CONFIG.allowPower) return cb({ ok: false, error: 'power actions disabled (set allowPower)' });
