@@ -40,8 +40,10 @@
      4.5:1 floor applies to anything that is not large. The steps below w50 are
      for rules, borders and fills. */
   /* Accents, taken from the Velo light-scene swatches (Nanoleaf/Hue/LIFX).
-     Used to carry meaning only - thermal state, headroom, signal format -
-     never as decoration. The chrome stays monochrome. */
+     Colour is only ever applied to something that CHANGES it: level, thermal
+     state, signal format, a privacy pill. If a thing would be the same colour
+     for the life of the install, it is not colour, it is decoration - and it
+     goes monochrome. The chrome stays monochrome. */
   --cool:#D4E3FF; --warm:#FFDEA1; --cand:#FFB04F;
   --red:#FF3030;  --blue:#3061FF; --green:#30DE61; --purple:#8F30FF;
   /* Lighter violet for TEXT: #8F30FF is only 4.03:1 on black, under the
@@ -120,7 +122,7 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 /* ---- panel block: the second thing worth looking at ---- */
 
 .n{font-family:'Outfit';font-weight:200;font-size:clamp(52px,9vw,90px);color:var(--w100);line-height:.9;letter-spacing:-.02em}
-.n em{font-style:normal;color:var(--purple-t);font-size:.26em;letter-spacing:.14em;margin-left:12px;font-family:'Manrope';font-weight:500}
+.n em{font-style:normal;color:var(--w50);font-size:.26em;letter-spacing:.14em;margin-left:12px;font-family:'Manrope';font-weight:500}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:26px;margin-top:26px}
 .cols .v{font-family:'Outfit';font-weight:300;font-size:24px;color:var(--w100);margin-top:6px}
 
@@ -519,10 +521,14 @@ const ROWS = [
   { k: 'cpu',   label: 'Processor',  warn: 85 },
   { k: 'mem',   label: 'Memory',     warn: 90 },
   { k: 'swap',  label: 'Swap',       warn: 70 },
-  { k: 'net',   label: 'Network',    warn: 101, tint: 'var(--blue)' },
-  { k: 'draw',  label: 'Current',    warn: 101, tint: 'var(--warm)' }
+  /* Throughput and draw have no threshold to cross - warn: 101 was the tell.
+     A level hue on them would be a lie, and the fixed blue and amber they used
+     to carry read as level anyway, sitting in a column where every other bar
+     meant exactly that. Their domain shows on the unit instead. */
+  { k: 'net',   label: 'Network',    warn: 101, flat: true },
+  { k: 'draw',  label: 'Current',    warn: 101, flat: true }
 ];
-const TINT = Object.fromEntries(ROWS.map(r => [r.k, r.tint || null]));
+const FLAT = Object.fromEntries(ROWS.map(r => [r.k, !!r.flat]));
 
 /*
  * The hero stays white through the whole normal operating band, and only takes
@@ -668,7 +674,7 @@ function row(k, val, pct, sub, warn) {
   q('val-' + k).innerHTML = val;
   const bar = q('bar-' + k);
   bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
-  bar.style.background = TINT[k] || headroom(pct, warn);
+  bar.style.background = FLAT[k] ? 'var(--w60)' : headroom(pct, warn);
   q('sub-' + k).textContent = sub || '';
   q('row-' + k).classList.toggle('hi', pct >= warn);
 }
