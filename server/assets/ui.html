@@ -346,8 +346,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       </div>
 
       <div class="set"><div class="lbl">Front lights</div>
-        <div class="sub" style="margin-bottom:8px">The indicator lights on the front of
-          the set. Only what this model actually has is shown.</div>
         <div class="btns">
           <button id="lt_standby" onclick="toggleLight('standbyLight')">Standby LED</button>
           <button id="lt_logo" onclick="toggleLight('logoLight')" hidden>Logo light</button>
@@ -383,9 +381,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <summary>Apps <span class="cur" id="currapp-lbl"></span></summary>
       <div class="set">
         <div class="app-grid" id="apps"></div>
-        <div id="app-toggle-wrap" style="margin-top:8px" hidden>
-          <button id="app-toggle-btn" class="sub-btn" onclick="toggleAllApps()">Show all apps</button>
-        </div>
       </div>
     </details>
 
@@ -505,7 +500,7 @@ q('readouts').innerHTML = ROWS.map(r =>
      <div class="v num" id="val-${r.k}">—</div>
    </div>`).join('');
 
-let hist = [], lastOk = 0, muted = false, showAllApps = false, installedApps = [], lastAppId = '';
+let hist = [], lastOk = 0, muted = false, installedApps = [], lastAppId = '';
 
 const POPULAR_APPS = [
   'youtube.leanback.v4', 'netflix', 'amazon', 'com.apple.appletv',
@@ -537,14 +532,9 @@ function cleanAppTitle(title, id) {
 function renderApps(currentAppId) {
   const container = q('apps');
   if (!container || !installedApps.length) return;
-  const toggleWrap = q('app-toggle-wrap');
-  const toggleBtn = q('app-toggle-btn');
 
-  if (installedApps.length > 10) {
-    if (toggleWrap) toggleWrap.hidden = false;
-    if (toggleBtn) toggleBtn.textContent = showAllApps ? 'Show fewer apps' : 'Show all apps (' + installedApps.length + ')';
-  }
-
+  // Opening the Apps panel is already the "show me the apps" step, so the
+  // whole list renders. Popular ones and whatever is running sort first.
   const sorted = installedApps.slice().sort((a, b) => {
     const aPop = POPULAR_APPS.indexOf(a.id);
     const bPop = POPULAR_APPS.indexOf(b.id);
@@ -554,23 +544,12 @@ function renderApps(currentAppId) {
     return a.title.localeCompare(b.title);
   });
 
-  const visible = showAllApps ? sorted : sorted.filter((a, idx) => {
-    const isPop = POPULAR_APPS.indexOf(a.id) !== -1;
-    const isCur = currentAppId && (a.id === currentAppId || a.id === ('com.webos.app.' + currentAppId));
-    return isPop || isCur || idx < 10;
-  });
-
-  container.innerHTML = visible.map(a => {
+  container.innerHTML = sorted.map(a => {
     const clean = cleanAppTitle(a.title, a.id);
     const btnId = 'app_' + a.id.replace(/[^a-zA-Z0-9_-]/g, '_');
     const isCur = currentAppId && (a.id === currentAppId || a.id === ('com.webos.app.' + currentAppId));
     return `<button id="${btnId}" class="${isCur ? 'on' : ''}" title="${esc(a.title)}" onclick="c('launchApp','${esc(a.id)}')">${esc(clean)}</button>`;
   }).join('');
-}
-
-function toggleAllApps() {
-  showAllApps = !showAllApps;
-  renderApps(lastAppId);
 }
 
 /* getSoundOut reports raw scenario names like "mastervolume_headphone".
