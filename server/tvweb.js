@@ -192,7 +192,18 @@ function emmcInfo() {
       if (rem < minHealth) minHealth = rem;
     }
   }
-  var wearStr = wearList.length ? wearList.join(' / ') : '0-10%';
+  /*
+   * The controller reports a band per region, and on a healthy drive they are
+   * all the same - "0-10% / 0-10%" is one fact stated twice, and it wrapped to
+   * two lines in the dashboard's cell. Collapse them when they agree; a drive
+   * whose regions have diverged still shows every band, which is the case
+   * where the detail earns its space.
+   */
+  var uniqWear = [];
+  for (var u = 0; u < wearList.length; u++) {
+    if (uniqWear.indexOf(wearList[u]) === -1) uniqWear.push(wearList[u]);
+  }
+  var wearStr = uniqWear.length ? uniqWear.join(' / ') : '0-10%';
   var healthStr = (minHealth >= 90) ? '>90% (Healthy)' : (minHealth + '% remaining');
   return {
     life: wearStr,    // backwards-compatible with old HA discovery template
