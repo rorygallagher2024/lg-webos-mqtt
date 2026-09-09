@@ -170,8 +170,13 @@ var EOL_MAP = { '01': 'Normal', '02': 'Warning', '03': 'Urgent' };
 function emmcInfo() {
   var raw = rd('/sys/block/mmcblk0/device/life_time');
   var eolRaw = rd('/sys/block/mmcblk0/device/pre_eol_info');
-  var eol = (eolRaw && EOL_MAP[eolRaw.trim()]) ? EOL_MAP[eolRaw.trim()] : 'Normal';
-  if (!raw) return { life: 'unknown', wear: 'unknown', health: '>90% (Healthy)', eol: eol };
+  /*
+   * Both nodes are absent on webOS 3.x. Reporting a healthy drive because the
+   * wear counter could not be read is the same mistake as rendering 0 C for a
+   * missing thermal sensor: it states as fact something never measured.
+   */
+  var eol = (eolRaw && EOL_MAP[eolRaw.trim()]) || 'unknown';   // 0x00 is "not defined", not Normal
+  if (!raw) return { life: 'unknown', wear: 'unknown', health: 'unknown', eol: eol };
 
   var parts = raw.split(/\s+/), wearList = [], minHealth = 100;
   for (var i = 0; i < parts.length; i++) {
@@ -2279,8 +2284,8 @@ var PAGE = [
   '    q("swapmeta").textContent = "zram Swap: " + formatMb(swapUsed) + " of " + formatMb(swapTotal) + " (" + swapPct + "%)";',
   '',
   '    // Storage & Network',
-  '    q("emmc").textContent = (d.emmc && d.emmc.health) || ">90%";',
-  '    q("emmcmeta").textContent = "Wear: " + ((d.emmc && d.emmc.wear) || "0-10%") + " · EOL Status: " + ((d.emmc && d.emmc.eol) || "Normal");',
+  '    q("emmc").textContent = (d.emmc && d.emmc.health) || "unknown";',
+  '    q("emmcmeta").textContent = "Wear: " + ((d.emmc && d.emmc.wear) || "unknown") + " · EOL Status: " + ((d.emmc && d.emmc.eol) || "unknown");',
   '    const wifiText = d.wifi ? "Wi-Fi: " + d.wifi.level + " dBm (Signal " + d.wifi.link + "%)" : "Ethernet Wired";',
   '    const netText = d.net ? " · ↓ " + (d.net.rx / 1024).toFixed(1) + " KB/s · ↑ " + (d.net.tx / 1024).toFixed(1) + " KB/s" : "";',
   '    q("netmeta").textContent = wifiText + netText;',
@@ -3323,6 +3328,22 @@ function setupHomeAssistant() {
         } else { keptLogo.push(entities[g]); }
       }
       entities = keptLogo;
+    }
+
+    /*
+     * Same reasoning on platforms with no thermal sensor at all (webOS 3.x):
+     * publishing the entity would leave a temperature in Home Assistant that
+     * is permanently unknown, which reads as a broken sensor rather than an
+     * absent one.
+     */
+    if (!THERMAL_PRESENT) {
+      var keptTemp = [];
+      for (var t = 0; t < entities.length; t++) {
+        if (entities[t].id === 'soc_temperature') {
+          mqttClient.publish(discPfx + '/sensor/' + devId + '/soc_temperature/config', '', true);
+        } else { keptTemp.push(entities[t]); }
+      }
+      entities = keptTemp;
     }
 
     if (!hasLightSensor) {
