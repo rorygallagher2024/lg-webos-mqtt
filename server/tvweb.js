@@ -508,35 +508,41 @@ var lastOledCheck = 0;
  * Pixel Refresher. Detect once and omit the whole block rather than reporting
  * a confident 0 hours, which reads as a real measurement.
  *
- * Panel type detection.
- * Three independent signals, any is sufficient:
- *   - /var/luna/preferences/paneltype_oled, written by webOS 4/5 platform
- *   - model name containing "OLED" (from systemproperty or config.json)
- *   - a panelUsageTime that actually comes back from systemproperty
+ * The model name decides it: every LG OLED is named "OLED...". panelUsageTime
+ * is not proof - some LCD firmware answers it anyway (seen on a 2016
+ * 55UH6030), which is what used to turn those sets into false OLEDs - so it
+ * only gets a say when the model name is unreadable. A "panel" in config.json
+ * overrides the lot.
  */
 var isOled = null;   // null = not yet determined
 
 function detectOled(cb) {
   if (isOled !== null) return cb(isOled);
+
+  var forced = CONFIG.panel || (CONFIG.device && CONFIG.device.panel);
+  if (forced) {
+    isOled = /oled/i.test(forced);
+    console.log('panel: ' + (isOled ? 'OLED' : 'not OLED') + ' (from config)');
+    return cb(isOled);
+  }
   if (fs.existsSync('/var/luna/preferences/paneltype_oled')) {
     isOled = true;
     console.log('panel: OLED (paneltype_oled present)');
-    return cb(true);
-  }
-  if (CONFIG.device && CONFIG.device.model && /oled/i.test(CONFIG.device.model)) {
-    isOled = true;
-    console.log('panel: OLED (model ' + CONFIG.device.model + ')');
     return cb(true);
   }
   luna('com.webos.service.tv.systemproperty/getSystemProperties',
     { keys: ['panelUsageTime', 'modelName'] },
     function (res) {
       var model = (res && res.modelName) || (CONFIG.device && CONFIG.device.model) || '';
-      var hasUsage = !!(res && res.panelUsageTime);
-      var modelOled = /oled/i.test(model);
-      isOled = hasUsage || modelOled;
-      console.log('panel: ' + (isOled ? ('OLED (' + (hasUsage ? 'panelUsageTime reported' : 'model ' + model) + ')')
-                                      : 'not OLED - panel features disabled'));
+      if (model) {
+        isOled = /oled/i.test(model);
+        console.log('panel: ' + (isOled ? 'OLED' : 'not OLED - panel features disabled') +
+                    ' (model ' + model + ')');
+      } else {
+        isOled = !!(res && res.panelUsageTime);
+        console.log('panel: no model name; falling back to panelUsageTime -> ' +
+                    (isOled ? 'OLED' : 'not OLED - panel features disabled'));
+      }
       cb(isOled);
     });
 }

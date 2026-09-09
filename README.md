@@ -132,6 +132,8 @@ cp config.example.json server/config.json
 
 Set your broker under `mqtt` and turn it on. Leaving `device.name` and
 `device.model` empty makes the TV report its own model and firmware at runtime.
+Panel hours, Pixel Refresher and Screen Shift appear on OLED sets only; add
+`"panel": "lcd"` or `"panel": "oled"` if a set is read the wrong way.
 
 Both halves are independent, so run whichever you want:
 
