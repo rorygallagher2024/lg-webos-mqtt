@@ -92,6 +92,7 @@ versions and panel types.
 | :--- | :--- | :--- | :--- | :--- |
 | OLED65B8SLC | 4.4.3 | 05.50.70 | OLED | Fully working |
 | OLED65C9AUA | 4.9.x (4.5+) | 05.50.00 | OLED | Fully working |
+| OLED55C1PUB | 6.x (6.3+) | 03.53.45 | OLED | Working (SSH install, MQTT bridge) |
 
 **If you run it on anything else, please open an issue whether it's working or not**
 Include your model, webOS version and
