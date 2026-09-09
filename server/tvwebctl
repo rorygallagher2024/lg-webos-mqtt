@@ -1,29 +1,42 @@
 #!/bin/sh
-# tvwebctl - start/stop/restart the tvweb server on the TV.
+# tvwebctl - start/stop/restart the tvweb server on the TV, and the watchdog
+# that restarts it if its event loop stops turning.
 #
 # Exists as a script rather than an inline ssh command on purpose: `pkill -f
 # tvweb.js` typed into an ssh command matches the remote shell running that
 # very command (its argv contains the path), so the shell kills itself before
 # starting anything. Inside a script, the shell's argv is just this file.
 #
-# Usage: tvwebctl {start|stop|restart|status}
+# Usage: tvwebctl {start|stop|restart|status|watch}
 
 APP=/var/lib/tvweb/tvweb.js
 LOG=/var/lib/tvweb/tvweb.log
 PIDFILE=/var/run/tvweb.pid
+WATCHPID=/var/run/tvwebwatch.pid
+BEAT=/var/run/tvweb.beat
+# Restarts are recorded here rather than in $LOG, which start_app truncates -
+# a watchdog whose evidence is erased by its own restart is no use.
+RESTARTS=/var/lib/tvweb/tvweb.restarts
 NODE=/usr/bin/node
+SELF=$(readlink -f "$0" 2>/dev/null || echo /var/lib/tvweb/tvwebctl)
 
-stop() {
+# How long the heartbeat may go unwritten before the server is considered
+# wedged. The server writes it every 20s, so this is five missed beats - long
+# enough that a busy TV delaying a timer is never mistaken for a hang.
+STALE=90
+CHECK=30
+
+stop_app() {
   start-stop-daemon -K -q -p "$PIDFILE" 2>/dev/null
   # Catch instances started before this script existed.
   for p in $(ps -eo pid,args 2>/dev/null | grep "$APP" | grep -v grep | awk '{print $1}'); do
     [ "$p" = "$$" ] && continue
     kill -9 "$p" 2>/dev/null
   done
-  rm -f "$PIDFILE"
+  rm -f "$PIDFILE" "$BEAT"
 }
 
-start() {
+start_app() {
   [ -x "$NODE" ] || { echo "node not found at $NODE"; exit 1; }
   [ -f "$APP" ]  || { echo "not installed: $APP"; exit 1; }
   chmod 600 /var/lib/tvweb/config.json 2>/dev/null
@@ -32,15 +45,61 @@ start() {
   start-stop-daemon -S -b -m -p "$PIDFILE" -x /bin/sh -- -c "exec $NODE $APP >$LOG 2>&1"
 }
 
+stop_watch() {
+  start-stop-daemon -K -q -p "$WATCHPID" 2>/dev/null
+  rm -f "$WATCHPID"
+}
+
+start_watch() {
+  start-stop-daemon -S -b -m -p "$WATCHPID" -x /bin/sh -- -c "exec $SELF watch"
+}
+
+# The watchdog loop. Runs as its own detached process; restarts only the app,
+# never itself, so a restart cannot orphan the watchdog.
+#
+# A wedged server still holds its port open and still looks alive to `kill -0`,
+# so liveness is judged by the heartbeat file the server rewrites every 20s.
+# An absent heartbeat is deliberately NOT a fault: a server predating the
+# heartbeat, or one still starting up, would otherwise be restarted forever.
+watch_loop() {
+  while true; do
+    sleep "$CHECK"
+    [ -f "$PIDFILE" ] || continue                     # stopped on purpose
+    if ! kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+      echo "$(date): process gone - starting" >> "$RESTARTS"
+      start_app
+      continue
+    fi
+    beat=$(cat "$BEAT" 2>/dev/null)
+    case "$beat" in ''|*[!0-9]*) continue ;; esac     # no usable heartbeat yet
+    age=$(( $(date +%s) - beat ))
+    if [ "$age" -gt "$STALE" ]; then
+      echo "$(date): heartbeat ${age}s old - event loop wedged, restarting" >> "$RESTARTS"
+      stop_app; sleep 1; start_app
+    fi
+  done
+}
+
 case "$1" in
-  start)   start ;;
-  stop)    stop ;;
-  restart) stop; sleep 1; start ;;
+  start)   start_app; start_watch ;;
+  stop)    stop_watch; stop_app ;;
+  restart) stop_watch; stop_app; sleep 1; start_app; start_watch ;;
+  watch)   watch_loop ;;
   status)
     if [ -f "$PIDFILE" ] && kill -0 "$(cat $PIDFILE)" 2>/dev/null; then
       echo "running (pid $(cat $PIDFILE))"
     else
       echo "not running"
-    fi ;;
-  *) echo "usage: $0 {start|stop|restart|status}"; exit 2 ;;
+    fi
+    if [ -f "$WATCHPID" ] && kill -0 "$(cat $WATCHPID)" 2>/dev/null; then
+      beat=$(cat "$BEAT" 2>/dev/null)
+      case "$beat" in
+        ''|*[!0-9]*) echo "watchdog running (pid $(cat $WATCHPID)), no heartbeat yet" ;;
+        *) echo "watchdog running (pid $(cat $WATCHPID)), heartbeat $(( $(date +%s) - beat ))s old" ;;
+      esac
+    else
+      echo "watchdog not running"
+    fi
+    [ -s "$RESTARTS" ] && echo "last restart: $(tail -1 "$RESTARTS")" ;;
+  *) echo "usage: $0 {start|stop|restart|status|watch}"; exit 2 ;;
 esac

@@ -20,12 +20,18 @@ if [ -f /var/lib/tvweb/adblock_enabled ] && [ -f /var/lib/tvweb/adblock_hosts ];
 fi
 
 # Detach fully so upstart/webosbrew startup is never held up by this.
+# Prefer tvwebctl: it starts the watchdog alongside the server. The direct
+# line stays as a fallback for installs that predate that script.
 (
   sleep 20   # let the TV finish booting before adding load
   /usr/bin/pkill -9 -f tvweb.js 2>/dev/null || true
   sleep 1
-  setsid /usr/bin/node /var/lib/tvweb/tvweb.js \
-    > /var/lib/tvweb/tvweb.log 2>&1 &
+  if [ -x /var/lib/tvweb/tvwebctl ]; then
+    /var/lib/tvweb/tvwebctl start
+  else
+    setsid /usr/bin/node /var/lib/tvweb/tvweb.js \
+      > /var/lib/tvweb/tvweb.log 2>&1 &
+  fi
 ) &
 
 exit 0
