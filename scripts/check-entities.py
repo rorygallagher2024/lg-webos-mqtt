@@ -50,10 +50,18 @@ for typ, eid, body in blocks:
               else 'own topic' if 'Topic' in body else 'none')
     tmpl = re.search(r"value_template:\s*'(.*?)'", body, re.S)
     paths = sorted(set(re.findall(r'value_json\.([A-Za-z0-9_.]+)', tmpl.group(1)))) if tmpl else []
-    bad = [p for p in paths if not resolve(p)]
+    # A template that guards its own path (`... if value_json.x else none`) is
+    # allowed to reference something absent: that is how optional hardware is
+    # handled. Only an unguarded missing path is a real failure.
+    body = tmpl.group(1) if tmpl else ''
+    guarded = 'else none' in body or 'else "' in body
+    missing = [p for p in paths if not resolve(p)]
+    bad = [] if guarded else missing
+    optional = missing if guarded else []
     checked += len(paths)
     status = ', '.join(paths) if paths else '(no template)'
-    print(f'{eid:30} {source:14} {"FAIL " if bad else ""}{status}')
+    note = 'FAIL ' if bad else ('optional, absent: ' if optional else '')
+    print(f'{eid:30} {source:14} {note}{status}')
     for p in bad:
         print(f'{"":46} MISSING: {p}')
         failures.append(f'{eid}: {p}')

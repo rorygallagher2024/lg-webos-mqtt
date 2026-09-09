@@ -251,8 +251,19 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="cols" style="margin-top:14px">
         <div><div class="lbl">Wear</div><div class="v num" id="flashval">&mdash;</div><div class="sub">eMMC lifetime estimated</div></div>
         <div><div class="lbl">Health</div><div class="v" id="flasheol">&mdash;</div><div class="sub">Pre-EOL status</div></div>
+        <div id="appstore-cell" hidden><div class="lbl">App space</div><div class="v num" id="appstore">&mdash;</div><div class="sub" id="appstore-sub"></div></div>
+        <div><div class="lbl">GPU</div><div class="v num" id="gpuclk">&mdash;</div><div class="sub">Graphics clock</div></div>
+        <div id="dimming-cell" hidden><div class="lbl">Panel dimming</div><div class="v" id="dimming">&mdash;</div><div class="sub">ABL / logo protection</div></div>
+        <div id="lux-cell" hidden><div class="lbl">Room light</div><div class="v num" id="lux">&mdash;</div><div class="sub">Ambient sensor</div></div>
       </div>
     </div>
+
+    <details class="disc" id="disc-hdmi">
+      <summary>Advanced &middot; HDMI <span class="cur" id="hdmi-cur"></span></summary>
+      <div class="sub" style="margin:10px 0 6px">Link state straight off the HDMI
+        receiver &mdash; what each port is actually negotiating.</div>
+      <div id="hdmi-list"></div>
+    </details>
 
     <details class="disc" id="disc-proc">
       <summary>Processes <span class="cur" id="proc-cur"></span></summary>
@@ -685,6 +696,24 @@ async function tick() {
     q('comp').textContent = hrs(o.hours_until_comp) + ' h';
     q('refr').textContent = hrs(o.hours_until_refresher) + ' h';
     q('rstate').textContent = o.refresher_status || '—';
+    // GPU clock, panel dimming, app storage and the ambient sensor. Each is
+    // hidden when the set does not report it rather than showing a dash.
+    q('gpuclk').textContent = d.gpuMhz ? d.gpuMhz + ' MHz' : '—';
+    const dim = d.dimming;
+    q('dimming-cell').hidden = !dim;
+    if (dim) q('dimming').textContent = dim.charAt(0).toUpperCase() + dim.slice(1);
+    const st_ = d.appStorage;
+    q('appstore-cell').hidden = !st_;
+    if (st_) {
+      q('appstore').textContent = (st_.freeMb / 1024).toFixed(1) + ' GB free';
+      q('appstore-sub').textContent = `${st_.pct}% of ${(st_.totalMb/1024).toFixed(1)} GB used`;
+    }
+    // Sets without an ambient sensor still answer, reporting 65535; the server
+    // turns that into null, so this row simply does not appear.
+    const ls_ = d.lightSensor;
+    q('lux-cell').hidden = !ls_;
+    if (ls_) q('lux').textContent = ls_.lux;
+
     // Flash storage is independent of panel type, so it always renders.
     q('flashval').textContent = (d.emmc && d.emmc.wear) || '—';
     q('flasheol').textContent = (d.emmc && d.emmc.health) || (d.emmc && d.emmc.eol) || '—';
@@ -868,6 +897,39 @@ async function toggleAdBlock() {
   await c('toggleAdBlock', 'toggle');
   setTimeout(loadPrivacy, 600);
 }
+
+async function loadHdmi() {
+  try {
+    const r = await fetch(api('/api/hdmi'), { cache: 'no-store' });
+    const d = await r.json();
+    const live = d.ports.filter(p => p.connected);
+    q('hdmi-cur').textContent = live.length
+      ? live.map(p => p.label.replace('HDMI ', 'HDMI')).join(', ') + ' active'
+      : 'nothing connected';
+    q('hdmi-list').innerHTML = d.ports.map(p => {
+      const detail = p.connected
+        ? [p.resolution, p.refreshHz ? p.refreshHz + ' Hz' : null, p.colorDepth,
+           p.pixelClockMhz ? p.pixelClockMhz + ' MHz pixel clock' : null,
+           p.interlaced ? 'interlaced' : null].filter(Boolean).join(' · ')
+        : 'No source detected';
+      return `<div class="proc"><div class="p-name">${p.label}<div class="sub">${detail}</div></div>` +
+             `<div class="p-mb">${p.connected ? 'Linked' : '—'}</div></div>`;
+    }).join('');
+  } catch (e) {
+    q('hdmi-list').innerHTML = `<div class="sub">Could not read HDMI state — ${e.message}</div>`;
+  }
+}
+
+let hdmiTimer = null;
+function onHdmiToggle(el) {
+  clearInterval(hdmiTimer);
+  if (el.open) { loadHdmi(); hdmiTimer = setInterval(loadHdmi, 5000); }
+}
+
+(function wireHdmiPanel() {
+  const el = document.getElementById('disc-hdmi');
+  if (el) el.addEventListener('toggle', function () { onHdmiToggle(el); });
+})();
 
 async function loadProcesses() {
   try {

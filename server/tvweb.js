@@ -750,6 +750,27 @@ function collectStats(cb) {
       standby: os.standByLight === 'on',
       logo: os.logoLight === 'on'
     };
+    out.gpuMhz = gpuClockMhz();
+  luna('com.webos.service.tv.display/getDimmingStatus', {}, function (dim) {
+    // ABL / logo dimming activity. OLED only in practice.
+    out.dimming = (dim && dim.status) || null;
+  luna('com.webos.service.tv.display/getLightSensorData', {}, function (ls) {
+    /*
+     * Ambient light sensor. Not every set has one: a model without it still
+     * answers, reporting 65535 (0xFFFF) for every channel. Treat that as
+     * absent rather than publishing a nonsense lux figure.
+     */
+    var lux = null, sd = (ls && ls.sensorData) || [];
+    for (var li = 0; li < sd.length; li++) {
+      if (sd[li].property === 'visibleLuminance' || sd[li].property === 'luminance') {
+        if (sd[li].value !== 65535 && sd[li].value !== null) lux = sd[li].value;
+      }
+    }
+    out.lightSensor = (lux === null) ? null : { lux: lux };
+    if (out.lightSensor) hasLightSensor = true;
+    out.backlight = (ls && typeof ls.backlightValue === 'number') ? ls.backlightValue : null;
+  appStorage(function (st) {
+    out.appStorage = st;
   luna('com.webos.audio/getSoundOut', {}, function (sound) {
     if (sound) {
       out.volume = sound.volume;
@@ -814,6 +835,9 @@ function collectStats(cb) {
       }
     );
   });
+  });   // close appStorage
+  });   // close light sensor
+  });   // close dimming
   });   // close option settings
   });   // close time settings
   });   // close getPowerState
@@ -849,6 +873,72 @@ function collectProcesses(cb) {
       top: rows.slice(0, 10)
     });
   });
+}
+
+// ---------------------------------------------------------------- hdmi / misc
+/*
+ * GPU clock. /proc/lg/sys/status carries the PLL outputs in Hz.
+ */
+function gpuClockMhz() {
+  var raw = rd('/proc/lg/sys/status');
+  if (!raw) return null;
+  var m = raw.match(/gpu pll out\s*:\s*(\d+)/i);
+  return m ? Math.round(parseInt(m[1], 10) / 1000000) : null;
+}
+
+/*
+ * App storage. Separate partition from cmn_data, and the one that actually
+ * fills up and makes installs fail.
+ */
+function appStorage(cb) {
+  execFile('/bin/df', ['-k', '/mnt/lg/appstore'], { timeout: 4000 }, function (err, stdout) {
+    if (err) return cb(null);
+    var lines = String(stdout || '').trim().split('\n');
+    var f = (lines[lines.length - 1] || '').split(/\s+/);
+    if (f.length < 4) return cb(null);
+    var total = parseInt(f[1], 10), used = parseInt(f[2], 10), avail = parseInt(f[3], 10);
+    if (!total) return cb(null);
+    cb({ totalMb: Math.round(total / 1024), usedMb: Math.round(used / 1024),
+         freeMb: Math.round(avail / 1024), pct: Math.round(used / total * 100) });
+  });
+}
+
+/*
+ * HDMI PHY state, straight off the receiver. Loaded on demand rather than in
+ * telemetry: four ports of timing detail is a lot to publish every ten seconds
+ * and it only matters when someone is looking at it.
+ */
+function hdmiPorts() {
+  var ports = [];
+  for (var i = 0; i < 4; i++) {
+    var raw = rd('/proc/lg/hdmi20/port' + i + '/status');
+    if (!raw) continue;
+    function f(re) { var m = raw.match(re); return m ? m[1].trim() : null; }
+    var hact = parseInt(f(/horizontal-active:\s*(\d+)/) || '0', 10);
+    var vact = parseInt(f(/vertical-active:\s*(\d+)/) || '0', 10);
+    /*
+     * Use pixel-clock-V, not the field labelled refresh-rate. The latter
+     * reports 793 "(0.01Hz)" on a 4K60 source, i.e. 7.9Hz, which is wrong.
+     * pixel-clock-V reads 60 and checks out against the timings:
+     * 4400 x 2250 x 60 = 594 MHz against a reported 595.1 MHz pixel clock.
+     */
+    var rate = parseInt(f(/pixel-clock-V:\s*(\d+)/) || '0', 10);
+    var pclk = parseInt(f(/pixel-clock:\s*(\d+)/) || '0', 10);
+    ports.push({
+      port: i,
+      label: 'HDMI ' + (i + 1),
+      connected: /connected:\s*on/i.test(raw),
+      resolution: (hact && vact) ? (hact + 'x' + vact) : null,
+      // refresh-rate is reported in hundredths of a Hz
+      refreshHz: rate || null,
+      pixelClockMhz: pclk ? Math.round(pclk / 1000 * 10) / 10 : null,
+      colorDepth: f(/deep-color-mode:\s*(\S+ \S+)/),
+      interlaced: /interlaced:\s*yes/i.test(raw),
+      audioChannelCount: f(/AIF-CC2-0:\s*(0x[0-9a-f]+)/i),
+      audioSampleFreq: f(/AIF-SF2-0:\s*(0x[0-9a-f]+)/i)
+    });
+  }
+  return ports;
 }
 
 // ---------------------------------------------------------------- privacy
@@ -1002,6 +1092,9 @@ function collectPrivacy(cb) {
 var INPUTS = { hdmi1: 1, hdmi2: 1, hdmi3: 1, hdmi4: 1, livetv: 1 };
 
 // Verified against the settings service: 15 is rejected, 10 and 90 are not.
+// Set from collectStats: sets without the hardware report 65535 and get null.
+var hasLightSensor = false;
+
 var SLEEP_TIMER_VALUES = ['off', '10', '30', '60', '90', '120'];
 
 function doControl(action, value, cb) {
@@ -2202,6 +2295,10 @@ var server = http.createServer(function (req, res) {
     }));
   }
 
+  if (pathname === '/api/hdmi') {
+    return send(res, 200, JSON.stringify({ ok: true, ports: hdmiPorts() }));
+  }
+
   if (pathname === '/api/processes') {
     return collectProcesses(function (r) { send(res, 200, JSON.stringify(r)); });
   }
@@ -2926,6 +3023,37 @@ function setupHomeAssistant() {
          * Sleep timer. 15 is not an accepted value even though it looks like
          * one - the settings service rejects it. Valid: off, 10, 30, 60, 90, 120.
          */
+        type: 'sensor', id: 'gpu_clock',
+        payload: {
+          name: 'GPU Clock', state_topic: telemetryTopic,
+          value_template: '{{ value_json.gpuMhz }}',
+          unit_of_measurement: 'MHz', state_class: 'measurement', icon: 'mdi:expansion-card'
+        }
+      },
+      {
+        type: 'sensor', id: 'panel_dimming',
+        payload: {
+          name: 'Panel Dimming', state_topic: telemetryTopic,
+          value_template: '{{ value_json.dimming }}', icon: 'mdi:brightness-auto'
+        }
+      },
+      {
+        type: 'sensor', id: 'app_storage_free',
+        payload: {
+          name: 'App Storage Free', state_topic: telemetryTopic,
+          value_template: '{{ (value_json.appStorage.freeMb / 1024) | round(1) if value_json.appStorage else none }}',
+          unit_of_measurement: 'GB', state_class: 'measurement', icon: 'mdi:harddisk'
+        }
+      },
+      {
+        type: 'sensor', id: 'ambient_light',
+        payload: {
+          name: 'Ambient Light', state_topic: telemetryTopic,
+          value_template: '{{ value_json.lightSensor.lux if value_json.lightSensor else none }}',
+          device_class: 'illuminance', state_class: 'measurement', icon: 'mdi:brightness-5'
+        }
+      },
+      {
         type: 'select', id: 'sleep_timer',
         payload: {
           name: 'Sleep Timer',
@@ -3058,6 +3186,21 @@ function setupHomeAssistant() {
       oled_screen_shift: 1, oled_logo_dimming: 1,
       pixel_refresher_schedule: 1
     };
+    /*
+     * Withhold the ambient light entity on sets without the sensor. They still
+     * answer getLightSensorData, reporting 65535, so the entity would sit at
+     * "unknown" forever instead of simply not existing.
+     */
+    if (!hasLightSensor) {
+      var keptAmb = [];
+      for (var a = 0; a < entities.length; a++) {
+        if (entities[a].id === 'ambient_light') {
+          mqttClient.publish(discPfx + '/sensor/' + devId + '/ambient_light/config', '', true);
+        } else { keptAmb.push(entities[a]); }
+      }
+      entities = keptAmb;
+    }
+
     if (isOled === false) {
       var kept = [];
       for (var d = 0; d < entities.length; d++) {
