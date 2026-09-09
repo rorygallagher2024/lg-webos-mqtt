@@ -126,6 +126,19 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 /* ---- controls ---- */
 .set{margin-top:22px}
 .btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:11px}
+/* Collapsed groups. Picture mode, sound output and the app list are
+   set-and-forget: they were taking the majority of the column's height for
+   the things you would least often reach for from a phone. */
+.disc{border-top:1px solid var(--w06);margin-top:20px}
+.disc>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;
+  align-items:center;font-family:'Manrope';font-weight:500;font-size:12px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--w50);padding:14px 0 4px;min-height:44px;box-sizing:border-box}
+.disc>summary::-webkit-details-marker{display:none}
+.disc>summary::after{content:'+';font-size:17px;line-height:1;color:var(--w50)}
+.disc[open]>summary::after{content:'\2212'}
+.disc>summary:hover{color:var(--w80)}
+.disc>summary .cur{font-weight:400;letter-spacing:.02em;text-transform:none;color:var(--w60);margin-left:auto;margin-right:12px}
+.disc .set{margin-top:12px}
 .playback-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:11px}
 .app-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(102px,1fr));gap:7px;margin-top:11px}
 .app-grid button{
@@ -145,7 +158,10 @@ button{
 }
 button:hover{color:var(--w100);border-color:var(--w35)}
 button:active{background:var(--w10)}
-button.on{color:#000;background:var(--green);border-color:var(--green)}
+/* Selected, not "good". Green means healthy headroom elsewhere in this UI, so
+   selection is shown by inversion instead of by borrowing that meaning. */
+button.on{color:#000;background:var(--w100);border-color:var(--w100);font-weight:500}
+button.on:hover{color:#000;border-color:var(--w100)}
 button[disabled]{opacity:.28;cursor:not-allowed}
 button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 
@@ -236,7 +252,20 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     <div class="col-sec">Control</div>
     <div id="err"></div>
 
-    <div class="set" style="margin-top:0"><div class="lbl">Volume &middot; <span id="vol" class="num">&mdash;</span></div>
+    <!-- Panel first: it is the control the remote cannot do easily, and the
+         reason a lot of people install this at all. -->
+    <div class="set" style="margin-top:0"><div class="lbl">Panel</div>
+      <div class="btns">
+        <button id="btn-screenoff" onclick="c('screenOff')">Screen off</button>
+        <button id="btn-screenon" onclick="c('screenOn')">Screen on</button>
+      </div>
+    </div>
+
+    <div class="set"><div class="lbl">Source</div>
+      <div class="btns" id="inputs"></div>
+    </div>
+
+    <div class="set"><div class="lbl">Volume &middot; <span id="vol" class="num">&mdash;</span></div>
       <div class="btns">
         <button onclick="c('volumeStep',-1)">Vol &minus;</button>
         <button onclick="c('volumeStep',1)">Vol &plus;</button>
@@ -253,43 +282,39 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       </div>
     </div>
 
-    <div class="set"><div class="lbl">Panel</div>
-      <div class="btns">
-        <button onclick="c('screenOff')">Screen off</button>
-        <button onclick="c('screenOn')">Screen on</button>
-      </div>
-    </div>
+    <details class="disc" id="disc-display">
+      <summary>Display &amp; sound <span class="cur" id="ds-cur"></span></summary>
 
-    <div class="set"><div class="lbl">Source</div>
-      <div class="btns" id="inputs"></div>
-    </div>
-
-    <div class="set"><div class="lbl">Picture mode &middot; <span id="picmode-lbl" class="num">&mdash;</span></div>
-      <div class="btns" id="picmodes">
-        <button id="pm_expert1" onclick="c('pictureMode','expert1')">ISF Bright</button>
-        <button id="pm_expert2" onclick="c('pictureMode','expert2')">ISF Dark</button>
-        <button id="pm_cinema" onclick="c('pictureMode','cinema')">Cinema</button>
-        <button id="pm_game" onclick="c('pictureMode','game')">Game</button>
-        <button id="pm_standard" onclick="c('pictureMode','standard')">Standard</button>
+      <div class="set"><div class="lbl">Picture mode &middot; <span id="picmode-lbl" class="num">&mdash;</span></div>
+        <div class="btns" id="picmodes">
+          <button id="pm_expert1" onclick="c('pictureMode','expert1')">ISF Bright</button>
+          <button id="pm_expert2" onclick="c('pictureMode','expert2')">ISF Dark</button>
+          <button id="pm_cinema" onclick="c('pictureMode','cinema')">Cinema</button>
+          <button id="pm_game" onclick="c('pictureMode','game')">Game</button>
+          <button id="pm_standard" onclick="c('pictureMode','standard')">Standard</button>
+        </div>
       </div>
-    </div>
 
-    <div class="set"><div class="lbl">Sound output &middot; <span id="soundout-lbl" class="num">&mdash;</span></div>
-      <div class="btns" id="soundouts">
-        <button id="so_tv_speaker" onclick="c('soundOutput','tv_speaker')">TV Speaker</button>
-        <button id="so_external_arc" onclick="c('soundOutput','external_arc')">HDMI ARC</button>
-        <button id="so_optical" onclick="c('soundOutput','optical')">Optical</button>
-        <button id="so_headphone" onclick="c('soundOutput','headphone')">Headphone</button>
-        <button id="so_bt_soundbar" onclick="c('soundOutput','bt_soundbar')">Bluetooth</button>
+      <div class="set"><div class="lbl">Sound output &middot; <span id="soundout-lbl" class="num">&mdash;</span></div>
+        <div class="btns" id="soundouts">
+          <button id="so_tv_speaker" onclick="c('soundOutput','tv_speaker')">TV Speaker</button>
+          <button id="so_external_arc" onclick="c('soundOutput','external_arc')">HDMI ARC</button>
+          <button id="so_optical" onclick="c('soundOutput','optical')">Optical</button>
+          <button id="so_headphone" onclick="c('soundOutput','headphone')">Headphone</button>
+          <button id="so_bt_soundbar" onclick="c('soundOutput','bt_soundbar')">Bluetooth</button>
+        </div>
       </div>
-    </div>
+    </details>
 
-    <div class="set"><div class="lbl">App Launcher &middot; <span id="currapp-lbl" class="num">&mdash;</span></div>
-      <div class="app-grid" id="apps"></div>
-      <div id="app-toggle-wrap" style="margin-top:8px" hidden>
-        <button id="app-toggle-btn" class="sub-btn" onclick="toggleAllApps()">Show all apps</button>
+    <details class="disc" id="disc-apps">
+      <summary>Apps <span class="cur" id="currapp-lbl"></span></summary>
+      <div class="set">
+        <div class="app-grid" id="apps"></div>
+        <div id="app-toggle-wrap" style="margin-top:8px" hidden>
+          <button id="app-toggle-btn" class="sub-btn" onclick="toggleAllApps()">Show all apps</button>
+        </div>
       </div>
-    </div>
+    </details>
 
     <div class="set"><div class="lbl">Privacy &amp; data collection</div>
       <div class="btns"><button id="privtoggle" onclick="togglePrivacy()">Show privacy panel</button></div>
@@ -475,6 +500,24 @@ function toggleAllApps() {
   renderApps(lastAppId);
 }
 
+/* getSoundOut reports raw scenario names like "mastervolume_headphone".
+   Nothing outside LG's codebase should have to read those. */
+const AUDIO_LABELS = {
+  mastervolume_tv_speaker: 'TV speaker',
+  mastervolume_headphone: 'Headphone',
+  mastervolume_external_arc: 'HDMI ARC',
+  mastervolume_external_optical: 'Optical',
+  mastervolume_bt_soundbar: 'Bluetooth',
+  mastervolume_external_speaker: 'External speaker',
+  mastervolume_lineout: 'Line out',
+  tv_speaker_headphone: 'TV speaker + headphone',
+  internal: 'TV speaker'
+};
+const audioLabel = raw => AUDIO_LABELS[raw] ||
+  // Unknown scenario: strip the prefix and tidy it rather than show it raw.
+  (raw ? String(raw).replace(/^mastervolume_/, '').replace(/_/g, ' ')
+           .replace(/^./, ch => ch.toUpperCase()) : '');
+
 const SLOTS = 56;
 function trace(vals) {
   if (!vals.length) return;
@@ -525,6 +568,15 @@ async function tick() {
 
     q('source').textContent = d.display_title || d.app_name || d.app || '—';
     const pic = d.picture || {};
+
+    // Summarise the collapsed groups so their current values are readable
+    // without opening them. Must sit after `pic` is declared - referencing a
+    // const before its declaration throws, and tick() swallows that silently
+    // for the first six seconds, so the whole render just stops updating.
+    if (q('ds-cur')) {
+      q('ds-cur').textContent = [pic.mode, audioLabel(d.audio_output)]
+        .filter(Boolean).join('  ·  ');
+    }
     const dr = pic.dynamicRange || '';
     const drCol = /dolby/i.test(dr) ? 'var(--purple-t)' : /hdr/i.test(dr) ? 'var(--cand)' : 'var(--w60)';
     q('signal').innerHTML = [
