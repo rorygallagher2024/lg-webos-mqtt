@@ -2,7 +2,7 @@
 
 A telemetry server that runs **on** a rooted LG webOS TV. It serves a live
 dashboard to any browser on your network, and bridges the TV into Home
-Assistant over MQTT as a single auto-discovered device with 41 entities.
+Assistant over MQTT as a single auto-discovered device with 47 entities.
 
 There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the TV.
 
@@ -69,7 +69,7 @@ bind-mounting over `/etc/hosts` that persists across reboots.
 * **Advanced panels.** HDMI link state per port straight off the receiver
   (resolution, refresh rate, colour depth, pixel clock) and a read-only list of
   what is resident in memory. Both load on demand.
-* **Bi-directional control.** Volume, mute, input select, media playback (play/pause/stop/skip via native remote key injection), app launching, picture presets, sound outputs, screen blanking, on-screen notifications, power and restart (from the dashboard or Home Assistant).
+* **Bi-directional control.** Volume, mute, input select, media playback (play/pause/stop/skip via native remote key injection), app launching, picture presets, sound outputs, screen blanking, sleep timer, standby LED, on-screen notifications, power and restart (from the dashboard or Home Assistant). The picture presets on offer are the ones the TV will accept for whatever is playing &mdash; a Dolby Vision source has its own set.
 * **On-TV ad & telemetry sinkhole.** Sinkholes 15 known LG tracking, ad and ACR
   endpoints directly on the set by bind-mounting a local blackhole table over
   `/etc/hosts`. Automatically restored on boot. **Note that two of those domains
@@ -217,7 +217,7 @@ Full detail, including the MQTT ACL guidance and optional TLS, is in
 ## Documentation
 
 * [docs/SECURITY.md](docs/SECURITY.md) &mdash; threat model, SSH migration, MQTT hardening
-* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; all 41 entities, universal media player, example automations
+* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; all 47 entities, universal media player, example automations
 * [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) &mdash; architecture, `/proc/lg` reference, platform quirks
 
 ---
