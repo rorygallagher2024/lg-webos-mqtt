@@ -13,6 +13,7 @@
 var http = require('http');
 var fs = require('fs');
 var THERMAL_PRESENT = fs.existsSync('/proc/lg/pm/temperature');
+var EMMC_WEAR_PRESENT = fs.existsSync('/sys/block/mmcblk0/device/life_time');
 var url = require('url');
 var net = require('net');
 var tls = require('tls');
@@ -872,7 +873,8 @@ function collectStats(cb) {
                      hwmon. That is different from the ~80s post-boot window where
                      the file exists but reads 0, so report it as a capability and
                      let the UI say "none" rather than imply a pending reading. */
-                  out.capabilities = { oled: oledPanel, thermal: THERMAL_PRESENT };
+                  out.capabilities = { oled: oledPanel, thermal: THERMAL_PRESENT,
+                                       emmcWear: EMMC_WEAR_PRESENT };
                   if (!oledPanel) {
                     out.oled = null;
                     return flushStats(out);
@@ -3344,6 +3346,21 @@ function setupHomeAssistant() {
         } else { keptTemp.push(entities[t]); }
       }
       entities = keptTemp;
+    }
+
+    /*
+     * Same again for the eMMC wear counters, absent on webOS 3.x. An entity
+     * reading "unknown" for the life of the install is indistinguishable from
+     * a sensor that has broken.
+     */
+    if (!EMMC_WEAR_PRESENT) {
+      var keptFlash = [];
+      for (var f = 0; f < entities.length; f++) {
+        if (entities[f].id === 'flash_health' || entities[f].id === 'flash_wear') {
+          mqttClient.publish(discPfx + '/sensor/' + devId + '/' + entities[f].id + '/config', '', true);
+        } else { keptFlash.push(entities[f]); }
+      }
+      entities = keptFlash;
     }
 
     if (!hasLightSensor) {
