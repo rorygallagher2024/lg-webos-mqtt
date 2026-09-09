@@ -294,12 +294,18 @@ function refreshInputNames(cb) {
   });
 }
 
+var TOAST_SOURCE = 'com.webos.app.home';
+
 /* luna-send wrapper via execFile directly, avoiding /bin/sh and shell child leaks.
  * -w 2000 tells luna-send itself to time out after 2 seconds.
  * timeout: 3500 ensures Node kills the child process if it ever stalls.
+ * appId, where given, becomes -a: a few services check the caller's registered
+ * bus identity rather than anything in the payload, and reject everyone else
+ * with "Unknown Source".
  */
-function luna(uri, payload, cb) {
-  var args = ['-n', '1', '-w', '2000', '-f', 'luna://' + uri, JSON.stringify(payload || {})];
+function luna(uri, payload, cb, appId) {
+  var args = appId ? ['-a', appId] : [];
+  args = args.concat(['-n', '1', '-w', '2000', '-f', 'luna://' + uri, JSON.stringify(payload || {})]);
   execFile('/usr/bin/luna-send', args, { timeout: 3500 }, function (err, stdout) {
     var parsed = null;
     if (!err && stdout) {
@@ -308,6 +314,31 @@ function luna(uri, payload, cb) {
     if (cb) cb(parsed, String(stdout || ''));
   });
 }
+
+/*
+ * Cache for luna reads whose answers do not change between dashboard ticks.
+ * Every luna() call is a fork+exec, and collectStats made ten of them per
+ * collection at a 2s tick - roughly five forks a second with the dashboard
+ * open. Node 0.12's spawn path can deadlock under that (see the watchdog note
+ * in tvwebctl), so set-and-forget settings are now read once per TTL.
+ *
+ * Any successful control clears the lot, so a setting the user just changed is
+ * never served from cache.
+ */
+var lunaCache = {};
+
+function lunaCached(uri, payload, ttlMs, cb) {
+  var key = uri + '|' + JSON.stringify(payload || {});
+  var hit = lunaCache[key];
+  if (hit && (Date.now() - hit.t < ttlMs)) return cb(hit.v, hit.raw);
+  luna(uri, payload, function (parsed, raw) {
+    // Only a real answer is worth pinning; a failed read should be retried.
+    if (parsed) lunaCache[key] = { t: Date.now(), v: parsed, raw: raw };
+    cb(parsed, raw);
+  });
+}
+
+function clearLunaCache() { lunaCache = {}; }
 
 function detectDeviceInfo(cb) {
   luna('com.webos.service.tv.systemproperty/getSystemProperties',
@@ -509,35 +540,41 @@ var lastOledCheck = 0;
  * Pixel Refresher. Detect once and omit the whole block rather than reporting
  * a confident 0 hours, which reads as a real measurement.
  *
- * Panel type detection.
- * Three independent signals, any is sufficient:
- *   - /var/luna/preferences/paneltype_oled, written by webOS 4/5 platform
- *   - model name containing "OLED" (from systemproperty or config.json)
- *   - a panelUsageTime that actually comes back from systemproperty
+ * The model name decides it: every LG OLED is named "OLED...". panelUsageTime
+ * is not proof - some LCD firmware answers it anyway (seen on a 2016
+ * 55UH6030), which is what used to turn those sets into false OLEDs - so it
+ * only gets a say when the model name is unreadable. A "panel" in config.json
+ * overrides the lot.
  */
 var isOled = null;   // null = not yet determined
 
 function detectOled(cb) {
   if (isOled !== null) return cb(isOled);
+
+  var forced = CONFIG.panel || (CONFIG.device && CONFIG.device.panel);
+  if (forced) {
+    isOled = /oled/i.test(forced);
+    console.log('panel: ' + (isOled ? 'OLED' : 'not OLED') + ' (from config)');
+    return cb(isOled);
+  }
   if (fs.existsSync('/var/luna/preferences/paneltype_oled')) {
     isOled = true;
     console.log('panel: OLED (paneltype_oled present)');
-    return cb(true);
-  }
-  if (CONFIG.device && CONFIG.device.model && /oled/i.test(CONFIG.device.model)) {
-    isOled = true;
-    console.log('panel: OLED (model ' + CONFIG.device.model + ')');
     return cb(true);
   }
   luna('com.webos.service.tv.systemproperty/getSystemProperties',
     { keys: ['panelUsageTime', 'modelName'] },
     function (res) {
       var model = (res && res.modelName) || (CONFIG.device && CONFIG.device.model) || '';
-      var hasUsage = !!(res && res.panelUsageTime);
-      var modelOled = /oled/i.test(model);
-      isOled = hasUsage || modelOled;
-      console.log('panel: ' + (isOled ? ('OLED (' + (hasUsage ? 'panelUsageTime reported' : 'model ' + model) + ')')
-                                      : 'not OLED - panel features disabled'));
+      if (model) {
+        isOled = /oled/i.test(model);
+        console.log('panel: ' + (isOled ? 'OLED' : 'not OLED - panel features disabled') +
+                    ' (model ' + model + ')');
+      } else {
+        isOled = !!(res && res.panelUsageTime);
+        console.log('panel: no model name; falling back to panelUsageTime -> ' +
+                    (isOled ? 'OLED' : 'not OLED - panel features disabled'));
+      }
       cb(isOled);
     });
 }
@@ -741,11 +778,11 @@ function collectStats(cb) {
   // Chained Luna queries: power -> sound -> soundSettings -> foregroundApp -> picture settings -> apps
   luna('com.webos.service.tvpower/power/getPowerState', {}, function (pw) {
     out.powerState = mapPowerState(pw && pw.state);
-  luna('com.webos.service.settings/getSystemSettings',
-       { category: 'time', keys: ['sleepTimer'] }, function (tm) {
+  lunaCached('com.webos.service.settings/getSystemSettings',
+       { category: 'time', keys: ['sleepTimer'] }, 30000, function (tm) {
     out.sleepTimer = (tm && tm.settings && tm.settings.sleepTimer) || 'off';
-  luna('com.webos.service.settings/getSystemSettings',
-       { category: 'option', keys: ['standByLight', 'logoLight', 'powerOnLight'] }, function (op) {
+  lunaCached('com.webos.service.settings/getSystemSettings',
+       { category: 'option', keys: ['standByLight', 'logoLight', 'powerOnLight'] }, 60000, function (op) {
     var os = (op && op.settings) || {};
     out.lights = {
       standby: os.standByLight === 'on',
@@ -754,14 +791,14 @@ function collectStats(cb) {
       hasLogo: hasLogoLight === true
     };
     out.gpuMhz = gpuClockMhz();
-  luna('com.palm.connectionmanager/getStatus', {}, function (cm) {
+  lunaCached('com.palm.connectionmanager/getStatus', {}, 60000, function (cm) {
     // Network name, so the Wi-Fi figures say which network they refer to.
     var w = cm && cm.wifi;
     out.ssid = (w && w.ssid) ? w.ssid : null;
-  luna('com.webos.service.tv.display/getDimmingStatus', {}, function (dim) {
+  lunaCached('com.webos.service.tv.display/getDimmingStatus', {}, 15000, function (dim) {
     // ABL / logo dimming activity. OLED only in practice.
     out.dimming = (dim && dim.status) || null;
-  luna('com.webos.service.tv.display/getLightSensorData', {}, function (ls) {
+  lunaCached('com.webos.service.tv.display/getLightSensorData', {}, 30000, function (ls) {
     /*
      * Ambient light sensor. Not every set has one: a model without it still
      * answers, reporting 65535 (0xFFFF) for every channel. Treat that as
@@ -778,14 +815,14 @@ function collectStats(cb) {
     out.backlight = (ls && typeof ls.backlightValue === 'number') ? ls.backlightValue : null;
   appStorage(function (st) {
     out.appStorage = st;
-  luna('com.webos.audio/getSoundOut', {}, function (sound) {
+  lunaCached('com.webos.audio/getSoundOut', {}, 10000, function (sound) {
     if (sound) {
       out.volume = sound.volume;
       out.muted = !!sound.muted;
       out.audio_output = sound.scenario || 'internal';
     }
-    luna('com.webos.service.settings/getSystemSettings',
-      { category: 'sound', keys: ['soundOutput', 'soundMode'] },
+    lunaCached('com.webos.service.settings/getSystemSettings',
+      { category: 'sound', keys: ['soundOutput', 'soundMode'] }, 15000,
       function (snd) {
         var rawSnd = (snd && snd.settings && snd.settings.soundOutput) ? snd.settings.soundOutput : (sound && sound.scenario ? sound.scenario : 'tv_speaker');
         out.sound = {
@@ -793,7 +830,7 @@ function collectStats(cb) {
           output_raw: rawSnd,
           mode: (snd && snd.settings && snd.settings.soundMode) || 'standard'
         };
-        luna('com.webos.applicationManager/getForegroundAppInfo', {}, function (app) {
+        lunaCached('com.webos.applicationManager/getForegroundAppInfo', {}, 4000, function (app) {
           if (app && app.appId) {
             var shortApp = String(app.appId).replace('com.webos.app.', '');
             out.app = shortApp;
@@ -801,9 +838,9 @@ function collectStats(cb) {
             out.display_title = (inputNameMap[shortApp] && inputNameMap[shortApp] !== shortApp) ?
               (inputNameMap[shortApp] + ' (' + shortApp.toUpperCase() + ')') : shortApp;
           }
-          luna('com.webos.service.settings/getSystemSettings',
+          lunaCached('com.webos.service.settings/getSystemSettings',
             { category: 'picture', keys: ['backlight', 'pictureMode', 'energySaving', 'screenShift', 'logoLuminanceAdjust'] },
-            function (pic) {
+            10000, function (pic) {
               if (pic && pic.settings) {
                 var rawDr = (pic.dimension && pic.dimension.dynamicRange) ? pic.dimension.dynamicRange : 'sdr';
                 out.picture = {
@@ -1175,7 +1212,7 @@ function doControl(action, value, cb) {
 
   var origCb = cb;
   cb = function (r) {
-    if (r && r.ok) lastStats = null;
+    if (r && r.ok) { lastStats = null; clearLunaCache(); }
     origCb(r);
   };
 
@@ -1331,9 +1368,12 @@ function doControl(action, value, cb) {
                   function (r) { cb({ ok: !!(r && r.returnValue) }); });
 
     case 'toast':
+      /* Both the payload's sourceId and luna-send's -a have to name an app the
+         bus already knows; "tvweb" is rejected as an Unknown Source. */
       return luna('com.webos.notification/createToast',
-                  { sourceId: 'tvweb', message: String(value || 'hello').slice(0, 120) },
-                  function (r) { cb({ ok: !!(r && r.returnValue) }); });
+                  { sourceId: TOAST_SOURCE, message: String(value || 'hello').slice(0, 120) },
+                  function (r) { cb({ ok: !!(r && r.returnValue), error: r && r.errorText }); },
+                  TOAST_SOURCE);
 
     case 'powerOff':
       if (!CONFIG.allowPower) return cb({ ok: false, error: 'power actions disabled (set allowPower)' });
@@ -3455,6 +3495,28 @@ function setupHomeAssistant() {
 
   mqttClient.connect();
 }
+
+/*
+ * Liveness marker for the watchdog in tvwebctl.
+ *
+ * A wedged server keeps its port open and its process alive, so "is it
+ * listening" proves nothing: on 2026-09-09 the loop froze inside libuv's
+ * spawn path - a forked child deadlocked on a futex before reaching exec, so
+ * the parent blocked forever reading the 4-byte exec-error pipe - and the
+ * dashboard, MQTT and everything else stopped while the process looked fine.
+ * A timer that stops firing is the signal that catches it. /var/run is tmpfs,
+ * so this costs no flash writes.
+ */
+var BEAT_FILE = '/var/run/tvweb.beat';
+
+/* Seconds, not milliseconds: the watchdog is busybox ash, whose arithmetic is
+   32-bit, and a 13-digit millisecond stamp overflows it into nonsense. */
+function heartbeat() {
+  fs.writeFile(BEAT_FILE, String(Math.floor(Date.now() / 1000)), function () {});
+}
+
+heartbeat();
+setInterval(heartbeat, 20000);
 
 detectDeviceInfo(function() {
   setupHomeAssistant();

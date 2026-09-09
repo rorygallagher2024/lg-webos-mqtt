@@ -99,12 +99,14 @@ Tested across the following sets so far. The Luna
 service names and `/proc/lg` paths this relies on may differ across webOS
 versions and panel types.
 
-| Model | webOS | Firmware | Panel | Status |
+| Model | webOS | Firmware | Panel | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| OLED65B8SLC | 4.4.3 | 05.50.70 | OLED | Fully working |
-| OLED65C9AUA | 4.9.x (4.5+) | 05.50.00 | OLED | Fully working |
-| OLED55C1PUB | 6.x (6.3+) | 03.53.45 | OLED | Working (SSH install, MQTT bridge) |
-| OLED65B7V-Z | 3.9.3 | 06.10.65 | OLED | Working, no SoC temperature or eMMC wear |
+| OLED65B8SLC | 4.4.3 | 05.50.70 | OLED | Development set |
+| OLED65C9AUA | 4.9.x (4.5+) | 05.50.00 | OLED | |
+| OLED55C1PUB | 6.x (6.3+) | 03.53.45 | OLED | SSH install and MQTT bridge confirmed |
+| 55UH6030-UC | 3.4.3 | &mdash; | LCD | |
+| OLED55G42LW | 24 | 33.31.68 | OLED | Rooted with slopbro, not the Homebrew Channel |
+| OLED65B7V-Z | 3.9.3 | 06.10.65 | OLED | No SoC temperature or eMMC wear readings |
 
 **If you run it on anything else, please open an issue whether it's working or not**
 Include your model, webOS version and
@@ -138,6 +140,8 @@ cp config.example.json server/config.json
 
 Set your broker under `mqtt` and turn it on. Leaving `device.name` and
 `device.model` empty makes the TV report its own model and firmware at runtime.
+Panel hours, Pixel Refresher and Screen Shift appear on OLED sets only; add
+`"panel": "lcd"` or `"panel": "oled"` if a set is read the wrong way.
 
 Both halves are independent, so run whichever you want:
 
@@ -167,7 +171,9 @@ cd server
 ```
 
 `--persist` installs a boot hook so it survives reboots. The script copies over
-SSH where available, falling back to telnet; `--telnet` forces the old path.
+SSH where available, falling back to telnet; `--telnet` forces the old path. The
+telnet path has to find this machine's LAN address to serve the files from; if
+it cannot, pass it as `MYIP=192.168.x.y ./deploy.sh <tv-ip>`.
 
 Then open **`http://<tv-ip>:8080/`**.
 
