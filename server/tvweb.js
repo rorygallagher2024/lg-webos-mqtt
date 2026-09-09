@@ -508,8 +508,10 @@ var lastOledCheck = 0;
  * Pixel Refresher. Detect once and omit the whole block rather than reporting
  * a confident 0 hours, which reads as a real measurement.
  *
- * Two independent signals, either is sufficient:
- *   - /var/luna/preferences/paneltype_oled, written by the platform
+ * Panel type detection.
+ * Three independent signals, any is sufficient:
+ *   - /var/luna/preferences/paneltype_oled, written by webOS 4/5 platform
+ *   - model name containing "OLED" (from systemproperty or config.json)
  *   - a panelUsageTime that actually comes back from systemproperty
  */
 var isOled = null;   // null = not yet determined
@@ -521,11 +523,19 @@ function detectOled(cb) {
     console.log('panel: OLED (paneltype_oled present)');
     return cb(true);
   }
+  if (CONFIG.device && CONFIG.device.model && /oled/i.test(CONFIG.device.model)) {
+    isOled = true;
+    console.log('panel: OLED (model ' + CONFIG.device.model + ')');
+    return cb(true);
+  }
   luna('com.webos.service.tv.systemproperty/getSystemProperties',
-    { keys: ['panelUsageTime'] },
+    { keys: ['panelUsageTime', 'modelName'] },
     function (res) {
-      isOled = !!(res && res.panelUsageTime);
-      console.log('panel: ' + (isOled ? 'OLED (panelUsageTime reported)'
+      var model = (res && res.modelName) || (CONFIG.device && CONFIG.device.model) || '';
+      var hasUsage = !!(res && res.panelUsageTime);
+      var modelOled = /oled/i.test(model);
+      isOled = hasUsage || modelOled;
+      console.log('panel: ' + (isOled ? ('OLED (' + (hasUsage ? 'panelUsageTime reported' : 'model ' + model) + ')')
                                       : 'not OLED - panel features disabled'));
       cb(isOled);
     });
