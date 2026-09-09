@@ -753,6 +753,10 @@ function collectStats(cb) {
       hasLogo: hasLogoLight === true
     };
     out.gpuMhz = gpuClockMhz();
+  luna('com.palm.connectionmanager/getStatus', {}, function (cm) {
+    // Network name, so the Wi-Fi figures say which network they refer to.
+    var w = cm && cm.wifi;
+    out.ssid = (w && w.ssid) ? w.ssid : null;
   luna('com.webos.service.tv.display/getDimmingStatus', {}, function (dim) {
     // ABL / logo dimming activity. OLED only in practice.
     out.dimming = (dim && dim.status) || null;
@@ -838,6 +842,7 @@ function collectStats(cb) {
     );
   });
   });   // close appStorage
+  });   // close connectionmanager
   });   // close light sensor
   });   // close dimming
   });   // close option settings
@@ -909,6 +914,14 @@ function appStorage(cb) {
  * HDMI PHY state, straight off the receiver. Loaded on demand rather than in
  * telemetry: four ports of timing detail is a lot to publish every ten seconds
  * and it only matters when someone is looking at it.
+ *
+ * The PHY nodes are port0..port3 while the TV numbers its inputs HDMI 1..4,
+ * and the obvious port+1 mapping is wrong: on a set whose only live input is
+ * HDMI 2 (eim reports activate/chosen true, a CEC device present, everything
+ * else empty) the port carrying signal is port2, not port1. There is no
+ * hotplug or EDID field to pin the rest of the mapping down, so this does not
+ * guess. Ports are reported as-is, and the input the TV says is active is
+ * matched to the one port carrying signal when exactly one of each exists.
  */
 function hdmiPorts() {
   var ports = [];
@@ -919,28 +932,59 @@ function hdmiPorts() {
     var hact = parseInt(f(/horizontal-active:\s*(\d+)/) || '0', 10);
     var vact = parseInt(f(/vertical-active:\s*(\d+)/) || '0', 10);
     /*
-     * Use pixel-clock-V, not the field labelled refresh-rate. The latter
-     * reports 793 "(0.01Hz)" on a 4K60 source, i.e. 7.9Hz, which is wrong.
-     * pixel-clock-V reads 60 and checks out against the timings:
-     * 4400 x 2250 x 60 = 594 MHz against a reported 595.1 MHz pixel clock.
+     * Refresh rate comes from pixel-clock-V, not the field labelled
+     * refresh-rate: that reports 793 "(0.01Hz)" on a 4K60 source. pixel-clock-V
+     * reads 60 and checks out against the timings.
      */
     var rate = parseInt(f(/pixel-clock-V:\s*(\d+)/) || '0', 10);
     var pclk = parseInt(f(/pixel-clock:\s*(\d+)/) || '0', 10);
     ports.push({
       port: i,
-      label: 'HDMI ' + (i + 1),
       connected: /connected:\s*on/i.test(raw),
       resolution: (hact && vact) ? (hact + 'x' + vact) : null,
-      // refresh-rate is reported in hundredths of a Hz
       refreshHz: rate || null,
       pixelClockMhz: pclk ? Math.round(pclk / 1000 * 10) / 10 : null,
       colorDepth: f(/deep-color-mode:\s*(\S+ \S+)/),
-      interlaced: /interlaced:\s*yes/i.test(raw),
-      audioChannelCount: f(/AIF-CC2-0:\s*(0x[0-9a-f]+)/i),
-      audioSampleFreq: f(/AIF-SF2-0:\s*(0x[0-9a-f]+)/i)
+      interlaced: /interlaced:\s*yes/i.test(raw)
     });
   }
   return ports;
+}
+
+/*
+ * Inputs as the TV describes them, with the live PHY figures attached to the
+ * active one. The labels are the TV's own, so a renamed input reads "Apple TV"
+ * rather than a port number this code guessed at.
+ */
+function hdmiInputs(cb) {
+  luna('com.webos.service.eim/getAllInputStatus', {}, function (res) {
+    var devs = (res && res.devices) || [];
+    var ports = hdmiPorts();
+    var signalling = [];
+    for (var p = 0; p < ports.length; p++) if (ports[p].connected) signalling.push(ports[p]);
+
+    var inputs = [];
+    var activeIdx = -1;
+    for (var d = 0; d < devs.length; d++) {
+      if (!devs[d].id || String(devs[d].id).indexOf('HDMI') !== 0) continue;
+      if (devs[d].activate) activeIdx = inputs.length;
+      inputs.push({
+        id: devs[d].id,
+        port: devs[d].port,
+        label: devs[d].label || devs[d].id,
+        appId: devs[d].appId,
+        active: !!devs[d].activate,
+        // lastUniqueId 255 means nothing has ever identified itself over CEC
+        deviceSeen: devs[d].lastUniqueId !== undefined && devs[d].lastUniqueId !== 255,
+        signal: null
+      });
+    }
+    // Only claim a pairing when it is unambiguous.
+    if (activeIdx !== -1 && signalling.length === 1) {
+      inputs[activeIdx].signal = signalling[0];
+    }
+    cb({ ok: true, inputs: inputs, ports: ports, pairedUnambiguously: (activeIdx !== -1 && signalling.length === 1) });
+  });
 }
 
 // ---------------------------------------------------------------- privacy
@@ -2319,7 +2363,7 @@ var server = http.createServer(function (req, res) {
   }
 
   if (pathname === '/api/hdmi') {
-    return send(res, 200, JSON.stringify({ ok: true, ports: hdmiPorts() }));
+    return hdmiInputs(function (r) { send(res, 200, JSON.stringify(r)); });
   }
 
   if (pathname === '/api/processes') {
