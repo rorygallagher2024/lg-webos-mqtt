@@ -958,17 +958,52 @@ function collectStats(cb) {
  * for, which lets the app manager tear down cleanly; most of these respawn
  * anyway, and surface-manager is the compositor.
  */
+/*
+ * A readable name for a process, from its argv.
+ *
+ * comm is not enough: the kernel caps it at 15 characters, so every LG app
+ * arrived as "com.webos.app.i" whatever it really was.
+ *
+ * WebAppMgr needs more than a basename. It is webOS's Chromium, and Chromium
+ * runs one process per role from a single binary - so a TV with four web apps
+ * warm shows five identical rows called WebAppMgr, which reads as something
+ * gone wrong rather than as the browser doing its job. The role is in --type,
+ * absent for the browser process itself, and a renderer that loads an app's
+ * V8 snapshot names the app in the path.
+ */
+function procName(comm, args) {
+  var bin = String(args).split(/\s+/)[0].replace(/^.*\//, '');
+
+  if (bin === 'WebAppMgr') {
+    var app = args.match(/\/usr\/palm\/applications\/([^\/\s]+)/);
+    if (app) return 'WebAppMgr (' + app[1].replace(/^com\.webos\.app\./, '') + ')';
+    var type = args.match(/--type=(\w+)/);
+    return 'WebAppMgr (' + (type ? type[1] : 'browser') + ')';
+  }
+
+  /*
+   * Neither field is reliable on its own. comm is the name the process chose,
+   * but the kernel caps it at 15 characters. argv[0] is complete but is
+   * sometimes not a name at all - the broadcast service runs
+   * /mnt/lg/lgapp/RELEASE and calls itself tvservice.
+   *
+   * So: comm unless it is exactly at the cap, which is what a clipped name
+   * looks like, and then argv[0] to recover the rest of it.
+   */
+  return (comm && comm.length < 15) ? comm : (bin || comm);
+}
+
 function collectProcesses(cb) {
-  execFile('/bin/ps', ['-eo', 'rss,comm'], { timeout: 4000 }, function (err, stdout) {
+  execFile('/bin/ps', ['-eo', 'rss,comm,args'], { timeout: 4000, maxBuffer: 1024 * 1024 }, function (err, stdout) {
     if (err) return cb({ ok: false, error: 'could not read process list' });
     var lines = String(stdout || '').split('\n'), rows = [], total = 0, count = 0;
     for (var i = 0; i < lines.length; i++) {
-      var m = lines[i].match(/^\s*(\d+)\s+(\S.*?)\s*$/);
+      var m = lines[i].match(/^\s*(\d+)\s+(\S+)\s+(\S.*?)\s*$/);
       if (!m) continue;
       var rss = parseInt(m[1], 10);
       count++;
       total += rss;
-      rows.push({ name: m[2], mb: Math.round(rss / 1024 * 10) / 10 });
+      rows.push({ name: procName(m[2], m[3]), mb: Math.round(rss / 1024 * 10) / 10 });
     }
     rows.sort(function (a, b) { return b.mb - a.mb; });
     cb({
