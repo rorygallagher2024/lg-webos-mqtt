@@ -82,10 +82,33 @@ deploy_ssh() {
 }
 
 # ---------------------------------------------------------------- telnet path
+
+# The telnet path has no file transfer, so the TV pulls the files back over HTTP
+# and we need the LAN address it can reach us on. Every way of asking is
+# platform-specific and one of them lies: under Git Bash, `ipconfig getifaddr`
+# runs Windows' ipconfig.exe, which ignores the arguments and prints its help
+# text to stdout - so candidates are checked for the shape of an address rather
+# than merely being non-empty. Set MYIP to skip all of this.
+local_ip() {
+  tmp=$(mktemp)
+  { for i in en0 en1 en2 en3; do ipconfig getifaddr "$i"; done      # macOS
+    hostname -I | tr ' ' '\n'                                       # Linux
+    ip -4 -o addr show scope global | awk '{split($4,a,"/"); print a[1]}'
+    ipconfig | sed -n 's/.*IPv4 Address[^:]*: *\([0-9.]*\).*/\1/p'  # Windows
+  } 2>/dev/null | grep -Ex '([0-9]{1,3}\.){3}[0-9]{1,3}' | grep -v '^127\.' > "$tmp"
+
+  # Prefer an address on the TV's own subnet: Windows machines routinely carry
+  # WSL, Hyper-V and VPN adapters the TV cannot route back to.
+  awk -v p="${TV%.*}." 'index($0, p) == 1 { print; hit = 1; exit }
+                        END { if (!hit) exit 1 }' "$tmp" || head -1 "$tmp"
+  rm -f "$tmp"
+}
+
 deploy_telnet() {
-  MYIP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null \
-         || hostname -I 2>/dev/null | awk '{print $1}')
-  [ -z "$MYIP" ] && { echo "could not determine this machine's LAN IP" >&2; exit 1; }
+  MYIP="${MYIP:-$(local_ip)}"
+  [ -z "$MYIP" ] && {
+    echo "could not work out this machine's LAN IP - rerun as MYIP=192.168.x.y $0 $TV" >&2
+    exit 1; }
   echo "deploying to $TV over telnet (no ssh); serving from $MYIP:$PORT ..."
   start_http
   trap stop_http EXIT

@@ -163,7 +163,9 @@ cd server
 ```
 
 `--persist` installs a boot hook so it survives reboots. The script copies over
-SSH where available, falling back to telnet; `--telnet` forces the old path.
+SSH where available, falling back to telnet; `--telnet` forces the old path. The
+telnet path has to find this machine's LAN address to serve the files from; if
+it cannot, pass it as `MYIP=192.168.x.y ./deploy.sh <tv-ip>`.
 
 Then open **`http://<tv-ip>:8080/`**.
 
