@@ -73,6 +73,15 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 .src{text-align:right}
 .src .t{font-family:'Outfit';font-weight:300;font-size:clamp(15px,1.8vw,19px);color:var(--w80)}
 .src .m{font-size:13px;color:var(--w50);letter-spacing:.02em}
+/* Panel state. A blanked screen is a normal state, not a fault, so it is
+   carried by weight rather than by an alarm colour. */
+.st{font-size:12px;letter-spacing:.10em;text-transform:uppercase;color:var(--w60);
+    display:flex;align-items:center;gap:7px;justify-content:flex-end;margin-bottom:5px}
+.st i{width:7px;height:7px;border-radius:50%;background:var(--w100);flex:none}
+.st.off i{background:transparent;box-shadow:inset 0 0 0 1px var(--w50)}
+.st.off{color:var(--w50)}
+.src.dim .t,.src.dim .m{opacity:.55}
+@media (max-width:620px){.st{justify-content:flex-start}}
 .src .m b{font-weight:400}
 
 /* ---- the spectacle ---- */
@@ -168,6 +177,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 <header>
   <div class="mark">LG OLED TV <span id="model">&mdash;</span></div>
   <div class="src">
+    <div class="st" id="state"><i></i><span>&mdash;</span></div>
     <div class="t" id="source">&mdash;</div>
     <div class="m num" id="signal">&mdash;</div>
   </div>
@@ -329,6 +339,10 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
   <div class="pv-h">On-TV ad &amp; telemetry sinkhole</div>
   <div class="pv-sub">Sinkholes known LG telemetry, ad servers, and Automatic Content Recognition (ACR) tracking endpoints directly on the TV by bind-mounting a local blackhole table over /etc/hosts.</div>
+  <div class="pv-note">Two of the blocked domains are LG infrastructure rather than pure ad hosts:
+    <b>ngfts.lge.com</b> (content and firmware delivery) and <b>lgtvsdp.com</b> (the service
+    platform behind the LG Content Store). With this on, <b>firmware updates and the app store
+    may stop working</b>. That is the trade &mdash; turn it off if you need either.</div>
   <div class="pv-row">
     <div>
       <div class="n">LG Ad &amp; Analytics Blackhole</div>
@@ -501,6 +515,14 @@ async function tick() {
     q('model').textContent = model;
     const want = model ? 'LG OLED TV · ' + model : 'LG OLED TV';
     if (document.title !== want) document.title = want;
+    // Panel state first: without it, a blanked screen still reads as though
+    // something were being displayed.
+    const ps = d.powerState || {};
+    const stEl = q('state');
+    stEl.querySelector('span').textContent = ps.label || '—';
+    stEl.classList.toggle('off', ps.screenOn === false);
+    q('source').parentElement.classList.toggle('dim', ps.screenOn === false);
+
     q('source').textContent = d.display_title || d.app_name || d.app || '—';
     const pic = d.picture || {};
     const dr = pic.dynamicRange || '';

@@ -65,7 +65,13 @@ bind-mounting over `/etc/hosts` that persists across reboots.
   load, memory and zram swap, Wi-Fi RSSI, network throughput, and eMMC flash
   wear with JEDEC health translation.
 * **Bi-directional control.** Volume, mute, input select, media playback (play/pause/stop/skip via native remote key injection), app launching, picture presets, sound outputs, screen blanking, on-screen notifications, power and restart (from the dashboard or Home Assistant).
-* **On-TV ad & telemetry sinkhole.** Sinkholes 15 known LG tracking, ad, and ACR endpoints directly on the set by bind-mounting a local blackhole table over `/etc/hosts`. Automatically restored on boot.
+* **On-TV ad & telemetry sinkhole.** Sinkholes 15 known LG tracking, ad and ACR
+  endpoints directly on the set by bind-mounting a local blackhole table over
+  `/etc/hosts`. Automatically restored on boot. **Note that two of those domains
+  are LG infrastructure, not pure ad hosts** &mdash; `ngfts.lge.com` (content and
+  firmware delivery) and `lgtvsdp.com` (the service platform behind the LG Content
+  Store) &mdash; so with the sinkhole on, firmware updates and the app store may
+  stop working. That is the trade; turn it off if you need either.
 * **Privacy panel.** Behind a toggle in the controls: whether LG's screen
   content recognition is actually running and sampling frames, your advertising
   identifier and whether ad tracking is limited, every data-collection

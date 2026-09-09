@@ -727,7 +727,9 @@ function collectStats(cb) {
   // Refresh input names if cache expired
   refreshInputNames();
 
-  // Chained Luna queries: sound -> soundSettings -> foregroundApp -> picture settings -> apps
+  // Chained Luna queries: power -> sound -> soundSettings -> foregroundApp -> picture settings -> apps
+  luna('com.webos.service.tvpower/power/getPowerState', {}, function (pw) {
+    out.powerState = mapPowerState(pw && pw.state);
   luna('com.webos.audio/getSoundOut', {}, function (sound) {
     if (sound) {
       out.volume = sound.volume;
@@ -792,6 +794,7 @@ function collectStats(cb) {
       }
     );
   });
+  });   // close getPowerState
 }
 
 // ---------------------------------------------------------------- privacy
@@ -834,6 +837,30 @@ var PRIVACY_DAEMONS = {
   uploadd:    ['Diagnostics uploader', 'Sends diagnostic data to LG'],
   rdxd:       ['Diagnostics collector', 'Gathers crash and diagnostic reports']
 };
+
+/*
+ * Power state. tvpower reports the panel separately from the system: a set can
+ * be "Active" with the screen lit, or "ScreenOff" with the system running and
+ * the panel blanked - which is exactly what the Screen Off control does. The
+ * dashboard previously showed neither, so blanking the panel changed nothing
+ * on screen and the source kept reading as though something were displayed.
+ */
+var POWER_STATES = {
+  'active':        ['On', true,  true],
+  'screenoff':     ['Screen off', true,  false],
+  'activestandby': ['Standby', false, false],
+  'suspend':       ['Standby', false, false],
+  'poweroff':      ['Off', false, false],
+  'prepared':      ['Starting up', true, false]
+};
+
+function mapPowerState(raw) {
+  var key = String(raw || '').toLowerCase().replace(/[\s_-]/g, '');
+  var m = POWER_STATES[key];
+  if (m) return { raw: raw, label: m[0], systemOn: m[1], screenOn: m[2] };
+  // Unknown state: report it verbatim rather than guessing at a friendly name.
+  return { raw: raw || null, label: raw || 'Unknown', systemOn: true, screenOn: true };
+}
 
 var cachedPrivacy = null, lastPrivacyCheck = 0;
 

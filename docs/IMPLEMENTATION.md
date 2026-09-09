@@ -202,3 +202,27 @@ after a restart - valid at 83s uptime on the test set, still `0` at 73s. That
 is not a measurement, so it is reported as `null`, kept out of the history ring
 buffer, and shown as a dash. Publishing it would put a false 0&deg;C spike into
 Home Assistant's history on every reboot.
+
+---
+
+## The ad sinkhole blocks more than ads
+
+The blocklist is applied by bind-mounting a generated hosts file over
+`/etc/hosts`, which is the only way to change it on a read-only rootfs - the
+same technique webosbrew uses for `/etc/shadow` and `/etc/motd`. Verified
+working: `getent hosts ad.lgsmartad.com` returns `0.0.0.0`.
+
+Two of the fifteen domains are **LG infrastructure rather than advertising**:
+
+| Domain | What it actually serves |
+| :--- | :--- |
+| `ngfts.lge.com` | Content and firmware delivery CDN |
+| `lgtvsdp.com` (and `us.`/`gb.`/`eu.`) | Service Delivery Platform behind the LG Content Store |
+
+Blocking them is a defensible choice, but it means **firmware updates and the
+app store may stop working** while the sinkhole is enabled. Anyone who turns
+this on and later finds the Content Store broken will not connect the two
+events unless told, so it is stated at the toggle in the UI as well as here.
+
+Removing those two entries from `ADBLOCK_DOMAINS` gives a conservative list
+that only targets advertising and telemetry.
