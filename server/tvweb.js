@@ -13,6 +13,7 @@
 var http = require('http');
 var fs = require('fs');
 var THERMAL_PRESENT = fs.existsSync('/proc/lg/pm/temperature');
+var EMMC_WEAR_PRESENT = fs.existsSync('/sys/block/mmcblk0/device/life_time');
 var url = require('url');
 var net = require('net');
 var tls = require('tls');
@@ -170,8 +171,13 @@ var EOL_MAP = { '01': 'Normal', '02': 'Warning', '03': 'Urgent' };
 function emmcInfo() {
   var raw = rd('/sys/block/mmcblk0/device/life_time');
   var eolRaw = rd('/sys/block/mmcblk0/device/pre_eol_info');
-  var eol = (eolRaw && EOL_MAP[eolRaw.trim()]) ? EOL_MAP[eolRaw.trim()] : 'Normal';
-  if (!raw) return { life: 'unknown', wear: 'unknown', health: '>90% (Healthy)', eol: eol };
+  /*
+   * Both nodes are absent on webOS 3.x. Reporting a healthy drive because the
+   * wear counter could not be read is the same mistake as rendering 0 C for a
+   * missing thermal sensor: it states as fact something never measured.
+   */
+  var eol = (eolRaw && EOL_MAP[eolRaw.trim()]) || 'unknown';   // 0x00 is "not defined", not Normal
+  if (!raw) return { life: 'unknown', wear: 'unknown', health: 'unknown', eol: eol };
 
   var parts = raw.split(/\s+/), wearList = [], minHealth = 100;
   for (var i = 0; i < parts.length; i++) {
@@ -867,7 +873,8 @@ function collectStats(cb) {
                      hwmon. That is different from the ~80s post-boot window where
                      the file exists but reads 0, so report it as a capability and
                      let the UI say "none" rather than imply a pending reading. */
-                  out.capabilities = { oled: oledPanel, thermal: THERMAL_PRESENT };
+                  out.capabilities = { oled: oledPanel, thermal: THERMAL_PRESENT,
+                                       emmcWear: EMMC_WEAR_PRESENT };
                   if (!oledPanel) {
                     out.oled = null;
                     return flushStats(out);
@@ -2279,8 +2286,8 @@ var PAGE = [
   '    q("swapmeta").textContent = "zram Swap: " + formatMb(swapUsed) + " of " + formatMb(swapTotal) + " (" + swapPct + "%)";',
   '',
   '    // Storage & Network',
-  '    q("emmc").textContent = (d.emmc && d.emmc.health) || ">90%";',
-  '    q("emmcmeta").textContent = "Wear: " + ((d.emmc && d.emmc.wear) || "0-10%") + " · EOL Status: " + ((d.emmc && d.emmc.eol) || "Normal");',
+  '    q("emmc").textContent = (d.emmc && d.emmc.health) || "unknown";',
+  '    q("emmcmeta").textContent = "Wear: " + ((d.emmc && d.emmc.wear) || "unknown") + " · EOL Status: " + ((d.emmc && d.emmc.eol) || "unknown");',
   '    const wifiText = d.wifi ? "Wi-Fi: " + d.wifi.level + " dBm (Signal " + d.wifi.link + "%)" : "Ethernet Wired";',
   '    const netText = d.net ? " · ↓ " + (d.net.rx / 1024).toFixed(1) + " KB/s · ↑ " + (d.net.tx / 1024).toFixed(1) + " KB/s" : "";',
   '    q("netmeta").textContent = wifiText + netText;',
@@ -3323,6 +3330,37 @@ function setupHomeAssistant() {
         } else { keptLogo.push(entities[g]); }
       }
       entities = keptLogo;
+    }
+
+    /*
+     * Same reasoning on platforms with no thermal sensor at all (webOS 3.x):
+     * publishing the entity would leave a temperature in Home Assistant that
+     * is permanently unknown, which reads as a broken sensor rather than an
+     * absent one.
+     */
+    if (!THERMAL_PRESENT) {
+      var keptTemp = [];
+      for (var t = 0; t < entities.length; t++) {
+        if (entities[t].id === 'soc_temperature') {
+          mqttClient.publish(discPfx + '/sensor/' + devId + '/soc_temperature/config', '', true);
+        } else { keptTemp.push(entities[t]); }
+      }
+      entities = keptTemp;
+    }
+
+    /*
+     * Same again for the eMMC wear counters, absent on webOS 3.x. An entity
+     * reading "unknown" for the life of the install is indistinguishable from
+     * a sensor that has broken.
+     */
+    if (!EMMC_WEAR_PRESENT) {
+      var keptFlash = [];
+      for (var f = 0; f < entities.length; f++) {
+        if (entities[f].id === 'flash_health' || entities[f].id === 'flash_wear') {
+          mqttClient.publish(discPfx + '/sensor/' + devId + '/' + entities[f].id + '/config', '', true);
+        } else { keptFlash.push(entities[f]); }
+      }
+      entities = keptFlash;
     }
 
     if (!hasLightSensor) {

@@ -89,6 +89,10 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 .hero .big{font-family:'Outfit';font-weight:200;color:var(--hot,#fff);transition:color .8s ease;
   font-size:clamp(96px,20vw,208px);line-height:.82;letter-spacing:-.025em}
 .hero .deg{font-size:.34em;color:var(--w35);vertical-align:super;letter-spacing:0}
+/* Nothing to show. The spectacle is the number, so at 208px an em dash reads
+   as a broken readout rather than an absent one - drop it to the size of an
+   ordinary figure and let the caption say why. */
+.hero .big.none{font-size:clamp(38px,6vw,58px);color:var(--w25)}
 .hero .side{flex:1;min-width:210px;padding-bottom:10px}
 .trace{display:flex;align-items:flex-end;gap:2px;height:46px;margin-bottom:9px}
 .trace i{flex:1;background:var(--w25);min-height:1px;display:block;transition:background .8s ease}
@@ -235,7 +239,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <section class="hero" style="margin-top:0">
         <div>
           <div class="lbl" style="margin-bottom:14px">SoC</div>
-          <div class="big num"><span id="temp">--</span><span class="deg" id="degsym">&deg;</span></div>
+          <div class="big num none" id="tempbig"><span id="temp">&mdash;</span><span class="deg" id="degsym">&deg;</span></div>
         </div>
         <div class="side">
           <div class="trace" id="trace"></div>
@@ -272,8 +276,8 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     <div class="grp-sec">
       <div class="grp">Storage</div>
       <div class="cols">
-        <div><div class="lbl">Flash wear</div><div class="v num" id="flashval">&mdash;</div><div class="sub">eMMC lifetime estimated</div></div>
-        <div><div class="lbl">Flash health</div><div class="v" id="flasheol">&mdash;</div><div class="sub">Pre-EOL status</div></div>
+        <div id="flashwear-cell"><div class="lbl">Flash wear</div><div class="v num" id="flashval">&mdash;</div><div class="sub">eMMC lifetime estimated</div></div>
+        <div id="flashhealth-cell"><div class="lbl">Flash health</div><div class="v" id="flasheol">&mdash;</div><div class="sub">Pre-EOL status</div></div>
         <div id="appstore-cell" hidden><div class="lbl">App space</div><div class="v num" id="appstore">&mdash;</div><div class="sub" id="appstore-sub"></div></div>
       </div>
     </div>
@@ -568,8 +572,32 @@ const audioLabel = raw => AUDIO_LABELS[raw] ||
            .replace(/^./, ch => ch.toUpperCase()) : '');
 
 const SLOTS = 56;
+/*
+ * A section whose every cell has been hidden - Storage on a set with no wear
+ * counters and no app storage figure - would otherwise render as a heading
+ * over empty space, which reads as a failure rather than an absence.
+ */
+function pruneEmptySections() {
+  document.querySelectorAll('.grp-sec').forEach(function (sec) {
+    const grid = sec.querySelector('.cols');
+    if (!grid) return;
+    const cells = Array.from(grid.children);
+    // Only ever manage sections this function itself hid. #panelblock is
+    // hidden wholesale on a non-OLED set while its cells stay visible, so a
+    // plain assignment here would put it back on screen.
+    if (cells.length > 0 && cells.every(function (c) { return c.hidden; })) {
+      sec.hidden = true;
+      sec.dataset.pruned = '1';
+    } else if (sec.dataset.pruned) {
+      sec.hidden = false;
+      delete sec.dataset.pruned;
+    }
+  });
+}
+
 function trace(vals) {
-  if (!vals.length) return;
+  // Empty means there is nothing to draw, not "leave the last drawing up".
+  if (!vals.length) { q('trace').innerHTML = ''; return; }
   const lo = Math.min(...vals), hi = Math.max(...vals), span = (hi - lo) || 1;
   const recent = vals.slice(-SLOTS);
   // Always lay out SLOTS columns, right-aligned, padding the left with empty
@@ -663,8 +691,9 @@ async function tick() {
     // the old "MIN 0 MAX 0" came from on sensorless sets.
     const noThermal = !!(d.capabilities && d.capabilities.thermal === false);
     const hasTemp = !(d.temp === null || d.temp === undefined);
-    q('temp').textContent = hasTemp ? d.temp : '--';
+    q('temp').textContent = hasTemp ? d.temp : '\u2014';
     q('degsym').hidden = !hasTemp;
+    q('tempbig').classList.toggle('none', !hasTemp);
     if (hasTemp) {
       document.documentElement.style.setProperty('--hot', thermal(d.temp));
       // Seed from the server's ring buffer on first paint so the trace says
@@ -731,9 +760,16 @@ async function tick() {
     q('lux-cell').hidden = !ls_;
     if (ls_) q('lux').textContent = ls_.lux;
 
-    // Flash storage is independent of panel type, so it always renders.
-    q('flashval').textContent = (d.emmc && d.emmc.wear) || '—';
-    q('flasheol').textContent = (d.emmc && d.emmc.health) || (d.emmc && d.emmc.eol) || '—';
+    /* Flash wear is independent of panel type, but the counters do not exist
+       on webOS 3.x - drop the cells rather than print "unknown" twice. */
+    const wear_ = !(d.capabilities && d.capabilities.emmcWear === false);
+    q('flashwear-cell').hidden = !wear_;
+    q('flashhealth-cell').hidden = !wear_;
+    if (wear_) {
+      q('flashval').textContent = (d.emmc && d.emmc.wear) || '—';
+      q('flasheol').textContent = (d.emmc && d.emmc.health) || (d.emmc && d.emmc.eol) || '—';
+    }
+    pruneEmptySections();
 
     muted = !!d.muted;
     q('vol').textContent = muted ? 'MUTED' : d.volume;
