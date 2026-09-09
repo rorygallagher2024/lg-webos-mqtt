@@ -293,12 +293,18 @@ function refreshInputNames(cb) {
   });
 }
 
+var TOAST_SOURCE = 'com.webos.app.home';
+
 /* luna-send wrapper via execFile directly, avoiding /bin/sh and shell child leaks.
  * -w 2000 tells luna-send itself to time out after 2 seconds.
  * timeout: 3500 ensures Node kills the child process if it ever stalls.
+ * appId, where given, becomes -a: a few services check the caller's registered
+ * bus identity rather than anything in the payload, and reject everyone else
+ * with "Unknown Source".
  */
-function luna(uri, payload, cb) {
-  var args = ['-n', '1', '-w', '2000', '-f', 'luna://' + uri, JSON.stringify(payload || {})];
+function luna(uri, payload, cb, appId) {
+  var args = appId ? ['-a', appId] : [];
+  args = args.concat(['-n', '1', '-w', '2000', '-f', 'luna://' + uri, JSON.stringify(payload || {})]);
   execFile('/usr/bin/luna-send', args, { timeout: 3500 }, function (err, stdout) {
     var parsed = null;
     if (!err && stdout) {
@@ -508,35 +514,41 @@ var lastOledCheck = 0;
  * Pixel Refresher. Detect once and omit the whole block rather than reporting
  * a confident 0 hours, which reads as a real measurement.
  *
- * Panel type detection.
- * Three independent signals, any is sufficient:
- *   - /var/luna/preferences/paneltype_oled, written by webOS 4/5 platform
- *   - model name containing "OLED" (from systemproperty or config.json)
- *   - a panelUsageTime that actually comes back from systemproperty
+ * The model name decides it: every LG OLED is named "OLED...". panelUsageTime
+ * is not proof - some LCD firmware answers it anyway (seen on a 2016
+ * 55UH6030), which is what used to turn those sets into false OLEDs - so it
+ * only gets a say when the model name is unreadable. A "panel" in config.json
+ * overrides the lot.
  */
 var isOled = null;   // null = not yet determined
 
 function detectOled(cb) {
   if (isOled !== null) return cb(isOled);
+
+  var forced = CONFIG.panel || (CONFIG.device && CONFIG.device.panel);
+  if (forced) {
+    isOled = /oled/i.test(forced);
+    console.log('panel: ' + (isOled ? 'OLED' : 'not OLED') + ' (from config)');
+    return cb(isOled);
+  }
   if (fs.existsSync('/var/luna/preferences/paneltype_oled')) {
     isOled = true;
     console.log('panel: OLED (paneltype_oled present)');
-    return cb(true);
-  }
-  if (CONFIG.device && CONFIG.device.model && /oled/i.test(CONFIG.device.model)) {
-    isOled = true;
-    console.log('panel: OLED (model ' + CONFIG.device.model + ')');
     return cb(true);
   }
   luna('com.webos.service.tv.systemproperty/getSystemProperties',
     { keys: ['panelUsageTime', 'modelName'] },
     function (res) {
       var model = (res && res.modelName) || (CONFIG.device && CONFIG.device.model) || '';
-      var hasUsage = !!(res && res.panelUsageTime);
-      var modelOled = /oled/i.test(model);
-      isOled = hasUsage || modelOled;
-      console.log('panel: ' + (isOled ? ('OLED (' + (hasUsage ? 'panelUsageTime reported' : 'model ' + model) + ')')
-                                      : 'not OLED - panel features disabled'));
+      if (model) {
+        isOled = /oled/i.test(model);
+        console.log('panel: ' + (isOled ? 'OLED' : 'not OLED - panel features disabled') +
+                    ' (model ' + model + ')');
+      } else {
+        isOled = !!(res && res.panelUsageTime);
+        console.log('panel: no model name; falling back to panelUsageTime -> ' +
+                    (isOled ? 'OLED' : 'not OLED - panel features disabled'));
+      }
       cb(isOled);
     });
 }
@@ -1325,9 +1337,12 @@ function doControl(action, value, cb) {
                   function (r) { cb({ ok: !!(r && r.returnValue) }); });
 
     case 'toast':
+      /* Both the payload's sourceId and luna-send's -a have to name an app the
+         bus already knows; "tvweb" is rejected as an Unknown Source. */
       return luna('com.webos.notification/createToast',
-                  { sourceId: 'tvweb', message: String(value || 'hello').slice(0, 120) },
-                  function (r) { cb({ ok: !!(r && r.returnValue) }); });
+                  { sourceId: TOAST_SOURCE, message: String(value || 'hello').slice(0, 120) },
+                  function (r) { cb({ ok: !!(r && r.returnValue), error: r && r.errorText }); },
+                  TOAST_SOURCE);
 
     case 'powerOff':
       if (!CONFIG.allowPower) return cb({ ok: false, error: 'power actions disabled (set allowPower)' });
