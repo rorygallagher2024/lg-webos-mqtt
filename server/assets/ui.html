@@ -235,7 +235,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <section class="hero" style="margin-top:0">
         <div>
           <div class="lbl" style="margin-bottom:14px">SoC</div>
-          <div class="big num"><span id="temp">--</span><span class="deg">&deg;</span></div>
+          <div class="big num"><span id="temp">--</span><span class="deg" id="degsym">&deg;</span></div>
         </div>
         <div class="side">
           <div class="trace" id="trace"></div>
@@ -655,15 +655,27 @@ async function tick() {
       pic.mode ? esc(pic.mode) : ''
     ].filter(Boolean).join('  ·  ');
 
-    // null while the sensor warms up after a reboot - show a dash, not a zero
-    q('temp').textContent = (d.temp === null || d.temp === undefined) ? '--' : d.temp;
-    if (d.temp) document.documentElement.style.setProperty('--hot', thermal(d.temp));
-    // Seed from the server's ring buffer on first paint so the trace says
-    // something immediately, then track locally at the UI's own cadence.
-    if (!hist.length && Array.isArray(d.temps) && d.temps.length) hist = d.temps.slice(-240);
-    else { hist.push(d.temp); if (hist.length > 240) hist.shift(); }
+    // temp is null in two different situations: the sensor is warming up
+    // (~80s after boot, file exists but reads 0), or the platform has no
+    // thermal sensor at all (webOS 3.x - no /proc/lg/pm/temperature, empty
+    // /sys/class/thermal, no hwmon). capabilities.thermal separates them.
+    // Never push null into hist: Math.min/max coerce it to 0, which is where
+    // the old "MIN 0 MAX 0" came from on sensorless sets.
+    const noThermal = !!(d.capabilities && d.capabilities.thermal === false);
+    const hasTemp = !(d.temp === null || d.temp === undefined);
+    q('temp').textContent = hasTemp ? d.temp : '--';
+    q('degsym').hidden = !hasTemp;
+    if (hasTemp) {
+      document.documentElement.style.setProperty('--hot', thermal(d.temp));
+      // Seed from the server's ring buffer on first paint so the trace says
+      // something immediately, then track locally at the UI's own cadence.
+      if (!hist.length && Array.isArray(d.temps) && d.temps.length) hist = d.temps.slice(-240);
+      else { hist.push(d.temp); if (hist.length > 240) hist.shift(); }
+    }
     trace(hist);
-    q('trange').textContent = 'MIN ' + Math.min(...hist) + '   MAX ' + Math.max(...hist);
+    q('trange').textContent = noThermal ? 'NO THERMAL SENSOR'
+      : hist.length ? ('MIN ' + Math.min(...hist) + '   MAX ' + Math.max(...hist))
+      : 'WARMING UP';
     q('mhz').textContent = d.mhz + ' MHZ';
 
     const cores = (d.cores || []).map((c, i) => 'c' + i + ' ' + c).join('   ');
