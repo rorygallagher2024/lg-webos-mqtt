@@ -92,6 +92,12 @@ instead:
 
 **Do not read `/proc/lg/pm/ts_enable`** — it segfaults the reading process.
 
+webOS 3.9 has no temperature source at all: `/proc/lg/pm/temperature` is absent,
+nothing under `/proc/lg` or `/sys` is named for temperature, `/sys/class/thermal` is
+empty, there is no `hwmon`, and `systemproperty` rejects every temperature key. The
+server reports this as `capabilities.thermal: false` so the dashboard can distinguish
+it from the ~80s post-boot window where the file exists but reads 0.
+
 ### /proc/stat is not monotonic
 
 LG hot-plugs CPU cores (`/proc/lg/pm/mp_enable`), so the aggregate counters in

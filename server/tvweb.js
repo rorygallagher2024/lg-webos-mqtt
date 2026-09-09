@@ -12,6 +12,7 @@
 
 var http = require('http');
 var fs = require('fs');
+var THERMAL_PRESENT = fs.existsSync('/proc/lg/pm/temperature');
 var url = require('url');
 var net = require('net');
 var tls = require('tls');
@@ -824,7 +825,12 @@ function collectStats(cb) {
                   }
                 };
                 detectOled(function (oledPanel) {
-                  out.capabilities = { oled: oledPanel };
+                  /* webOS 3.x exposes no thermal sensor at all: the file simply
+                     does not exist, /sys/class/thermal is empty and there is no
+                     hwmon. That is different from the ~80s post-boot window where
+                     the file exists but reads 0, so report it as a capability and
+                     let the UI say "none" rather than imply a pending reading. */
+                  out.capabilities = { oled: oledPanel, thermal: THERMAL_PRESENT };
                   if (!oledPanel) {
                     out.oled = null;
                     return flushStats(out);
@@ -1904,7 +1910,7 @@ var PAGE = [
   '        SoC Temperature',
   '      </div>',
   '    </div>',
-  '    <div class="val"><span id="temp">-</span> <span class="val-unit">&deg;C</span></div>',
+  '    <div class="val"><span id="temp">-</span> <span class="val-unit" id="tempunit">&deg;C</span></div>',
   '    <div class="progress-bar"><div class="progress-fill" id="tempbar"></div></div>',
   '    <div class="meta-text" id="tempmeta">-</div>',
   '  </div>',
@@ -2182,16 +2188,26 @@ var PAGE = [
   '    q("audiometa").textContent = d.muted ? "Muted (press Unmute to restore)" : "Volume level: " + d.volume + "%";',
   '    q("btn_mute").textContent = d.muted ? "Unmute" : "Mute";',
   '',
-  '    // Temperature',
-  '    const temp = d.temp || 0;',
-  '    q("temp").textContent = temp;',
-  '    tempHistory.push(temp);',
-  '    if (tempHistory.length > 100) tempHistory.shift();',
-  '    const minT = Math.min(...tempHistory);',
-  '    const maxT = Math.max(...tempHistory);',
-  '    const tempCol = temp >= 75 ? "var(--rose)" : temp >= 65 ? "var(--amber)" : "var(--emerald)";',
-  '    setProgress("tempbar", temp, tempCol);',
-  '    q("tempmeta").textContent = "Range: " + minT + "°C – " + maxT + "°C (Healthy < 75°C)";',
+  '    // Never push a null temp into the ring: Math.min/max coerce it to 0,',
+  '    // which renders a plausible 0 C on a set that has no sensor at all.',
+  '    const noThermal = !!(d.capabilities && d.capabilities.thermal === false);',
+  '    const hasTemp = !(d.temp === null || d.temp === undefined);',
+  '    const tu = q("tempunit"); if (tu) tu.hidden = !hasTemp;',
+  '    if (hasTemp) {',
+  '      const temp = Number(d.temp);',
+  '      q("temp").textContent = temp;',
+  '      tempHistory.push(temp);',
+  '      if (tempHistory.length > 100) tempHistory.shift();',
+  '      const minT = Math.min(...tempHistory);',
+  '      const maxT = Math.max(...tempHistory);',
+  '      const tempCol = temp >= 75 ? "var(--rose)" : temp >= 65 ? "var(--amber)" : "var(--emerald)";',
+  '      setProgress("tempbar", temp, tempCol);',
+  '      q("tempmeta").textContent = "Range: " + minT + "°C – " + maxT + "°C (Healthy < 75°C)";',
+  '    } else {',
+  '      q("temp").textContent = "n/a";',
+  '      setProgress("tempbar", 0, "var(--muted)");',
+  '      q("tempmeta").textContent = noThermal ? "No thermal sensor on this platform" : "Sensor warming up";',
+  '    }',
   '',
   '    // CPU & Power',
   '    const cpuLoad = d.load || 0;',
