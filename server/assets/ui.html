@@ -396,16 +396,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       </div>
     </details>
 
-    <details class="disc" id="disc-lights">
-      <summary>Front lights <span class="cur" id="lt-cur"></span></summary>
-      <div class="set">
-        <div class="btns">
-          <button id="lt_standby" onclick="toggleLight('standbyLight')">Standby LED</button>
-          <button id="lt_logo" onclick="toggleLight('logoLight')" hidden>Logo light</button>
-        </div>
-      </div>
-    </details>
-
     <details class="disc" id="disc-display">
       <summary>Picture <span class="cur" id="ds-cur"></span></summary>
 
@@ -437,6 +427,13 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
         <div class="app-grid" id="apps"></div>
       </div>
     </details>
+
+    <div class="set"><div class="lbl">Front lights</div>
+      <div class="btns">
+        <button id="lt_standby" onclick="toggleLight('standbyLight')">Standby LED</button>
+        <button id="lt_logo" onclick="toggleLight('logoLight')" hidden>Logo light</button>
+      </div>
+    </div>
 
     <div class="set"><div class="lbl">Privacy &amp; data collection</div>
       <div class="btns"><button id="privtoggle" onclick="togglePrivacy()">Show privacy panel</button></div>
@@ -729,11 +726,6 @@ async function tick() {
       }
       if (q('tl-cur')) {
         q('tl-cur').textContent = st === 'off' ? 'Off' : `${st} min`;
-      }
-      if (q('lt-cur')) {
-        const lit = [lights.standby && 'standby LED',
-                     lights.hasLogo && lights.logo && 'logo'].filter(Boolean);
-        q('lt-cur').textContent = lit.length ? lit.join(' + ') + ' on' : 'Off';
       }
 
       q('ds-cur').textContent = pic.mode || '';
