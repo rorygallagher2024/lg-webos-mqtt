@@ -40,8 +40,10 @@
      4.5:1 floor applies to anything that is not large. The steps below w50 are
      for rules, borders and fills. */
   /* Accents, taken from the Velo light-scene swatches (Nanoleaf/Hue/LIFX).
-     Used to carry meaning only - thermal state, headroom, signal format -
-     never as decoration. The chrome stays monochrome. */
+     Colour is only ever applied to something that CHANGES it: level, thermal
+     state, signal format, a privacy pill. If a thing would be the same colour
+     for the life of the install, it is not colour, it is decoration - and it
+     goes monochrome. The chrome stays monochrome. */
   --cool:#D4E3FF; --warm:#FFDEA1; --cand:#FFB04F;
   --red:#FF3030;  --blue:#3061FF; --green:#30DE61; --purple:#8F30FF;
   /* Lighter violet for TEXT: #8F30FF is only 4.03:1 on black, under the
@@ -73,7 +75,9 @@ body{
 /* ---- masthead ---- */
 header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;flex-wrap:wrap}
 .mark{font-family:'Outfit';font-weight:300;font-size:clamp(19px,2.4vw,26px);color:var(--w100);letter-spacing:.01em}
-.mark span{color:var(--w50)}
+/* The model number identifies the set; the name is what you are looking at.
+   Setting them at one size let the longer of the two dominate. */
+.mark span{color:var(--w50);font-size:.68em;letter-spacing:.02em;margin-left:2px}
 .src{text-align:right}
 .src .t{font-family:'Outfit';font-weight:300;font-size:clamp(15px,1.8vw,19px);color:var(--w80)}
 .src .m{font-size:13px;color:var(--w50);letter-spacing:.02em}
@@ -120,7 +124,7 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 /* ---- panel block: the second thing worth looking at ---- */
 
 .n{font-family:'Outfit';font-weight:200;font-size:clamp(52px,9vw,90px);color:var(--w100);line-height:.9;letter-spacing:-.02em}
-.n em{font-style:normal;color:var(--purple-t);font-size:.26em;letter-spacing:.14em;margin-left:12px;font-family:'Manrope';font-weight:500}
+.n em{font-style:normal;color:var(--w50);font-size:.26em;letter-spacing:.14em;margin-left:12px;font-family:'Manrope';font-weight:500}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:26px;margin-top:26px}
 .cols .v{font-family:'Outfit';font-weight:300;font-size:24px;color:var(--w100);margin-top:6px}
 
@@ -307,7 +311,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
     <div class="grp-sec" id="panelblock" hidden>
       <div class="grp">Display panel</div>
-      <div class="lbl">Lifespan</div>
+      <div class="lbl">Total power on hours</div>
       <div class="n num" style="margin-top:10px"><span id="ph">&mdash;</span><em>hours</em></div>
       <div class="cols">
         <div><div class="lbl">Compensation in</div><div class="v num" id="comp">&mdash;</div></div>
@@ -352,7 +356,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="btns">
         <button id="btn-screenoff" onclick="c('screenOff')">Screen off</button>
         <button id="btn-screenon" onclick="c('screenOn')">Screen on</button>
-        <button onclick="c('screensaver')">Screensaver</button>
+        <button id="btn_ss" onclick="c('screensaver')">Screensaver</button>
       </div>
     </div>
 
@@ -378,9 +382,9 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     </div>
 
     <details class="disc" id="disc-timers">
-      <summary>Timer &amp; lights <span class="cur" id="tl-cur"></span></summary>
+      <summary>Sleep timer <span class="cur" id="tl-cur"></span></summary>
 
-      <div class="set"><div class="lbl">Sleep timer</div>
+      <div class="set">
         <div class="btns" id="sleepbtns">
           <button id="sl_off" onclick="c('sleepTimer','off')">Off</button>
           <button id="sl_10"  onclick="c('sleepTimer','10')">10 min</button>
@@ -390,29 +394,23 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
           <button id="sl_120" onclick="c('sleepTimer','120')">120 min</button>
         </div>
       </div>
-
-      <div class="set"><div class="lbl">Front lights</div>
-        <div class="btns">
-          <button id="lt_standby" onclick="toggleLight('standbyLight')">Standby LED</button>
-          <button id="lt_logo" onclick="toggleLight('logoLight')" hidden>Logo light</button>
-        </div>
-      </div>
     </details>
 
     <details class="disc" id="disc-display">
-      <summary>Display &amp; sound <span class="cur" id="ds-cur"></span></summary>
+      <summary>Picture <span class="cur" id="ds-cur"></span></summary>
 
-      <div class="set"><div class="lbl">Picture mode &middot; <span id="picmode-lbl" class="num">&mdash;</span></div>
-        <div class="btns" id="picmodes">
-          <button id="pm_expert1" onclick="c('pictureMode','expert1')">ISF Bright</button>
-          <button id="pm_expert2" onclick="c('pictureMode','expert2')">ISF Dark</button>
-          <button id="pm_cinema" onclick="c('pictureMode','cinema')">Cinema</button>
-          <button id="pm_game" onclick="c('pictureMode','game')">Game</button>
-          <button id="pm_standard" onclick="c('pictureMode','standard')">Standard</button>
-        </div>
+      <div class="set"><div class="lbl">Mode &middot; <span id="picmode-lbl" class="num">&mdash;</span></div>
+        <!-- Built from what the TV says it will accept: the settable modes
+             change with the dynamic range of what is playing. -->
+        <div class="btns" id="picmodes"></div>
       </div>
 
-      <div class="set"><div class="lbl">Sound output &middot; <span id="soundout-lbl" class="num">&mdash;</span></div>
+    </details>
+
+    <details class="disc" id="disc-sound">
+      <summary>Sound <span class="cur" id="snd-cur"></span></summary>
+
+      <div class="set"><div class="lbl">Output &middot; <span id="soundout-lbl" class="num">&mdash;</span></div>
         <div class="btns" id="soundouts">
           <button id="so_tv_speaker" onclick="c('soundOutput','tv_speaker')">TV Speaker</button>
           <button id="so_external_arc" onclick="c('soundOutput','external_arc')">HDMI ARC</button>
@@ -429,6 +427,13 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
         <div class="app-grid" id="apps"></div>
       </div>
     </details>
+
+    <div class="set"><div class="lbl">Front lights</div>
+      <div class="btns">
+        <button id="lt_standby" onclick="toggleLight('standbyLight')">Standby LED</button>
+        <button id="lt_logo" onclick="toggleLight('logoLight')" hidden>Logo light</button>
+      </div>
+    </div>
 
     <div class="set"><div class="lbl">Privacy &amp; data collection</div>
       <div class="btns"><button id="privtoggle" onclick="togglePrivacy()">Show privacy panel</button></div>
@@ -519,10 +524,14 @@ const ROWS = [
   { k: 'cpu',   label: 'Processor',  warn: 85 },
   { k: 'mem',   label: 'Memory',     warn: 90 },
   { k: 'swap',  label: 'Swap',       warn: 70 },
-  { k: 'net',   label: 'Network',    warn: 101, tint: 'var(--blue)' },
-  { k: 'draw',  label: 'Current',    warn: 101, tint: 'var(--warm)' }
+  /* Throughput and draw have no threshold to cross - warn: 101 was the tell.
+     A level hue on them would be a lie, and the fixed blue and amber they used
+     to carry read as level anyway, sitting in a column where every other bar
+     meant exactly that. Their domain shows on the unit instead. */
+  { k: 'net',   label: 'Network',    warn: 101, flat: true },
+  { k: 'draw',  label: 'Current',    warn: 101, flat: true }
 ];
-const TINT = Object.fromEntries(ROWS.map(r => [r.k, r.tint || null]));
+const FLAT = Object.fromEntries(ROWS.map(r => [r.k, !!r.flat]));
 
 /*
  * The hero stays white through the whole normal operating band, and only takes
@@ -668,7 +677,7 @@ function row(k, val, pct, sub, warn) {
   q('val-' + k).innerHTML = val;
   const bar = q('bar-' + k);
   bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
-  bar.style.background = TINT[k] || headroom(pct, warn);
+  bar.style.background = FLAT[k] ? 'var(--w60)' : headroom(pct, warn);
   q('sub-' + k).textContent = sub || '';
   q('row-' + k).classList.toggle('hi', pct >= warn);
 }
@@ -716,15 +725,11 @@ async function tick() {
         q('lt_logo').classList.toggle('on', !!lights.logo);
       }
       if (q('tl-cur')) {
-        const bits = [st === 'off' ? 'No sleep timer' : `Sleep in ${st} min`];
-        const lit = [lights.standby && 'standby LED',
-                     lights.hasLogo && lights.logo && 'logo'].filter(Boolean);
-        bits.push(lit.length ? lit.join(' + ') + ' on' : 'lights off');
-        q('tl-cur').textContent = bits.join('  ·  ');
+        q('tl-cur').textContent = st === 'off' ? 'Off' : `${st} min`;
       }
 
-      q('ds-cur').textContent = [pic.mode, audioLabel(d.audio_output)]
-        .filter(Boolean).join('  ·  ');
+      q('ds-cur').textContent = pic.mode || '';
+      if (q('snd-cur')) q('snd-cur').textContent = audioLabel(d.audio_output) || '';
     }
     const dr = pic.dynamicRange || '';
     const drCol = /dolby/i.test(dr) ? 'var(--purple-t)' : /hdr/i.test(dr) ? 'var(--cand)' : 'var(--w60)';
@@ -857,12 +862,33 @@ async function tick() {
       }
     }
 
+    /* The screen saver is drawn by whatever app registered for it, and an
+       input registers nothing - so it cannot run over HDMI or Live TV. Show
+       that rather than leaving a button that does nothing when pressed. */
+    if (q('btn_ss')) {
+      const onInput = /^hdmi[1-4]$/.test(d.app || '') || d.app === 'livetv';
+      q('btn_ss').disabled = onInput;
+      q('btn_ss').title = onInput ? 'Available from an app, not from ' + d.app : '';
+    }
+
     if (d.picture) {
       if (q('picmode-lbl')) q('picmode-lbl').textContent = (d.picture.mode || d.picture.mode_raw || '').toUpperCase();
-      const pmBtns = q('picmodes') ? q('picmodes').querySelectorAll('button') : [];
-      for (let b of pmBtns) {
-        const m = b.id.replace('pm_', '');
-        b.classList.toggle('on', d.picture.mode_raw === m || (m === 'expert1' && d.picture.mode_raw.indexOf('expert1') !== -1) || (m === 'expert2' && d.picture.mode_raw.indexOf('expert2') !== -1));
+      /* Rebuild only when the set actually changes - it changes when the source
+         does, and rewriting the buttons on every tick would kill the :active
+         state mid-press. */
+      const modes = d.picture.modes || [];
+      const sig = modes.map(m => m.value).join(',');
+      const box = q('picmodes');
+      if (box && box.dataset.sig !== sig) {
+        box.dataset.sig = sig;
+        box.innerHTML = modes.map(m =>
+          `<button id="pm_${m.value}" onclick="c('pictureMode','${m.value}')">${esc(m.label)}</button>`
+        ).join('');
+      }
+      if (box) {
+        for (let b of box.querySelectorAll('button')) {
+          b.classList.toggle('on', b.id.replace('pm_', '') === d.picture.mode_raw);
+        }
       }
     }
 
