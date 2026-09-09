@@ -198,6 +198,18 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 .pill.warn{color:var(--cand);border-color:var(--cand)}
 .pill.bad{color:var(--red);border-color:var(--red)}
 .pill.idle{color:var(--w50);border-color:var(--w25)}
+/* Collapsible privacy sections. The consent list alone runs to 21 rows, so the
+   long sections fold. The summary keeps the pv-h size rather than borrowing the
+   control column's small caps, so folding a section does not demote it. */
+.pv-d{border:0;margin:0}
+.pv-d>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:16px;
+  font-family:'Outfit';font-weight:300;font-size:clamp(20px,2.4vw,26px);color:var(--w100);
+  margin:22px 0 4px;min-height:44px}
+.pv-d>summary::-webkit-details-marker{display:none}
+.pv-d>summary::after{content:'+';font-family:'Manrope';font-size:20px;line-height:1;color:var(--w50)}
+.pv-d[open]>summary::after{content:'\2212'}
+.pv-d>summary .cur{margin-left:auto;font-family:'Manrope';font-weight:500;font-size:12px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--w50);white-space:nowrap}
 .pv-note{font-size:13px;color:var(--w60);border-left:2px solid var(--w25);padding:10px 14px;margin:16px 0;max-width:64ch}
 .proc{display:grid;grid-template-columns:1fr auto;gap:14px;padding:9px 0;
   border-bottom:1px solid var(--w06);font-size:14px}
@@ -233,7 +245,6 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 .port.live .pl{color:var(--w100)}
 .port.live .pd{color:var(--w60)}
 @media (max-width:420px){.ports{grid-template-columns:1fr}}
-.pv-id{font-family:'Outfit';font-weight:300;font-size:22px;color:var(--w100);font-variant-numeric:tabular-nums}
 #err{margin-top:18px;font-size:14px;color:var(--red);border-left:2px solid var(--red);padding:9px 13px;background:var(--w06);display:none}
 @media (max-width:620px){.src{text-align:left}.hero{gap:22px}}
 footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:uppercase;color:var(--w50);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
@@ -432,36 +443,41 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 <section class="priv" id="privpane" hidden>
   <div class="lbl">Privacy &amp; data collection</div>
 
-  <div class="pv-h">What your TV is doing right now</div>
+  <div class="pv-h" id="pv-acr-h">Screen content recognition</div>
   <div class="pv-sub" id="pv-live-sub">&mdash;</div>
   <div id="pv-live"></div>
 
   <div class="pv-h">Advertising identifier</div>
   <div class="pv-sub">A unique ID your TV hands to advertisers. Resetting it breaks the
     link between your TV and any profile built from past activity.</div>
-  <div class="pv-id" id="pv-adid">&mdash;</div>
-  <div class="sub" id="pv-adnote" style="margin-top:2px"></div>
+  <div id="pv-adid"></div>
   <div id="pv-lmt"></div>
+  <div class="sub" id="pv-adnote" style="margin-top:8px"></div>
   <div class="btns" style="margin-top:14px;max-width:520px">
     <button onclick="privAction('resetAdId')">Reset advertising ID</button>
     <button onclick="privAction('clearAdCookies')">Clear ad cookies</button>
   </div>
 
-  <div class="pv-h">What LG is allowed to collect</div>
+  <details class="pv-d">
+  <summary>What LG is allowed to collect <span class="cur" id="pv-consent-cur"></span></summary>
   <div class="pv-sub">These are the agreements recorded on the TV. <b>Off is the private
     setting.</b></div>
   <div id="pv-consent"></div>
   <div class="pv-note">These cannot be changed from here &mdash; the TV owns them. Change
     them on the TV itself under <b>Settings &rarr; General &rarr; About This TV &rarr;
     User Agreements</b>, then reopen this panel to confirm.</div>
+  </details>
 
-  <div class="pv-h">Background services</div>
+  <details class="pv-d">
+  <summary>Background services <span class="cur" id="pv-daemons-cur"></span></summary>
   <div class="pv-sub">Whether LG's data-collection services are currently running. A
     service can be running while its permission is switched off &mdash; it simply has
     nothing it is allowed to send.</div>
   <div id="pv-daemons"></div>
+  </details>
 
-  <div class="pv-h">On-TV ad &amp; telemetry sinkhole</div>
+  <details class="pv-d">
+  <summary>On-TV ad &amp; telemetry sinkhole <span class="cur" id="pv-adblock-cur"></span></summary>
   <div class="pv-sub">Sinkholes known LG telemetry, ad servers, and Automatic Content Recognition (ACR) tracking endpoints directly on the TV by bind-mounting a local blackhole table over /etc/hosts.</div>
   <div class="pv-note">Two of the blocked domains are LG infrastructure rather than pure ad hosts:
     <b>ngfts.lge.com</b> (content and firmware delivery) and <b>lgtvsdp.com</b> (the service
@@ -477,6 +493,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <div class="btns" style="margin-top:14px;max-width:320px">
     <button id="adblock-toggle" onclick="toggleAdBlock()">Enable ad blocker</button>
   </div>
+  </details>
 </section>
 
 <footer>
@@ -917,11 +934,14 @@ async function loadPrivacy() {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
 
-    // live state
+    /* The heading is what this section is about; the description explains it
+       and the rows report it. Previously the heading was generic and the ACR
+       description sat under it as if it explained the whole panel. */
     const a = d.acr || {};
+    q('pv-acr-h').textContent = a.label || 'Screen content recognition';
     q('pv-live-sub').textContent = a.detail || '';
     q('pv-live').innerHTML =
-      pvRow(a.label || 'Screen content recognition',
+      pvRow('Recognition engine',
           a.active ? 'The recognition engine is running on your TV.'
                    : 'The recognition engine is not running.',
           `<span class="pill ${a.active ? 'bad' : 'good'}">${a.active ? 'Active' : 'Not running'}</span>`) +
@@ -934,10 +954,13 @@ async function loadPrivacy() {
     const ad = d.advertisingId || {};
     // The identifier itself is never sent to the browser, so it cannot end up
     // in a screenshot. Presence is all that is useful here.
-    q('pv-adid').textContent = ad.present ? 'Assigned' : 'None reported';
-    q('pv-adnote').textContent = ad.present
-      ? 'The value is deliberately not displayed.'
-      : '';
+    /* "Assigned" set in the heading face read as a section title rather than
+       the state of the ID. It is a reading like any other in this panel, so it
+       gets a row and a pill. */
+    q('pv-adid').innerHTML = pvRow('Advertising ID',
+      ad.present ? 'The value is deliberately not displayed here.'
+                 : 'No identifier is currently assigned.',
+      `<span class="pill ${ad.present ? 'warn' : 'good'}">${ad.present ? 'Assigned' : 'None'}</span>`);
     q('pv-lmt').innerHTML = pvRow(
       ad.limitTrackingLabel || 'Limit ad tracking',
       ad.limitTrackingDetail || '',
@@ -952,11 +975,21 @@ async function loadPrivacy() {
         pvPill(f.enabled, true))).join('');
     }
     q('pv-consent').innerHTML = html || '<div class="d">Could not read the agreements file.</div>';
+    /* A folded section still has to say where it stands, or folding it just
+       hides the answer. Off is the private setting, so the count is of the
+       agreements that are on. */
+    const allConsent = (c.known || []).concat(c.other || []);
+    const onCount = allConsent.filter(f => f.enabled).length;
+    q('pv-consent-cur').textContent = allConsent.length
+      ? onCount + ' of ' + allConsent.length + ' on' : '';
 
     // services
     q('pv-daemons').innerHTML = (d.daemons || []).map(x => pvRow(
       x.label, x.detail,
       `<span class="pill ${x.running ? 'idle' : 'good'}">${x.running ? 'Running' : 'Stopped'}</span>`)).join('');
+    const dae = d.daemons || [];
+    q('pv-daemons-cur').textContent = dae.length
+      ? dae.filter(x => x.running).length + ' of ' + dae.length + ' running' : '';
 
     // ad blocker
     const ab = d.adblock || {};
@@ -966,6 +999,7 @@ async function loadPrivacy() {
       pill.textContent = abActive ? 'Active' : 'Inactive';
       pill.className = 'pill ' + (abActive ? 'good' : 'idle');
     }
+    q('pv-adblock-cur').textContent = abActive ? 'Active' : 'Inactive';
     const abBtn = q('adblock-toggle');
     if (abBtn) {
       abBtn.textContent = abActive ? 'Disable ad blocker' : 'Enable ad blocker';
