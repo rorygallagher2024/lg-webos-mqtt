@@ -62,8 +62,25 @@ start_watch() {
 # An absent heartbeat is deliberately NOT a fault: a server predating the
 # heartbeat, or one still starting up, would otherwise be restarted forever.
 watch_loop() {
+  last=$(date +%s)
   while true; do
     sleep "$CHECK"
+
+    #
+    # Standby suspends this loop along with everything else, so on resume the
+    # heartbeat is stale because the whole TV stopped - not because the server
+    # wedged. The tell is that far more time passed than was slept for: a real
+    # wedge is caught inside two checks, because the watchdog itself keeps
+    # running. Give the server one round to write a beat before judging it.
+    #
+    now=$(date +%s)
+    slept=$(( now - last ))
+    last=$now
+    if [ "$slept" -gt $(( CHECK * 3 )) ]; then
+      echo "$(date): resumed after ${slept}s suspended - skipping one check" >> "$LOG"
+      continue
+    fi
+
     [ -f "$PIDFILE" ] || continue                     # stopped on purpose
     if ! kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
       echo "$(date): process gone - starting" >> "$RESTARTS"
