@@ -89,6 +89,10 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 .hero .big{font-family:'Outfit';font-weight:200;color:var(--hot,#fff);transition:color .8s ease;
   font-size:clamp(96px,20vw,208px);line-height:.82;letter-spacing:-.025em}
 .hero .deg{font-size:.34em;color:var(--w35);vertical-align:super;letter-spacing:0}
+/* Nothing to show. The spectacle is the number, so at 208px an em dash reads
+   as a broken readout rather than an absent one - drop it to the size of an
+   ordinary figure and let the caption say why. */
+.hero .big.none{font-size:clamp(38px,6vw,58px);color:var(--w25)}
 .hero .side{flex:1;min-width:210px;padding-bottom:10px}
 .trace{display:flex;align-items:flex-end;gap:2px;height:46px;margin-bottom:9px}
 .trace i{flex:1;background:var(--w25);min-height:1px;display:block;transition:background .8s ease}
@@ -235,7 +239,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <section class="hero" style="margin-top:0">
         <div>
           <div class="lbl" style="margin-bottom:14px">SoC</div>
-          <div class="big num"><span id="temp">--</span><span class="deg" id="degsym">&deg;</span></div>
+          <div class="big num none" id="tempbig"><span id="temp">&mdash;</span><span class="deg" id="degsym">&deg;</span></div>
         </div>
         <div class="side">
           <div class="trace" id="trace"></div>
@@ -569,7 +573,8 @@ const audioLabel = raw => AUDIO_LABELS[raw] ||
 
 const SLOTS = 56;
 function trace(vals) {
-  if (!vals.length) return;
+  // Empty means there is nothing to draw, not "leave the last drawing up".
+  if (!vals.length) { q('trace').innerHTML = ''; return; }
   const lo = Math.min(...vals), hi = Math.max(...vals), span = (hi - lo) || 1;
   const recent = vals.slice(-SLOTS);
   // Always lay out SLOTS columns, right-aligned, padding the left with empty
@@ -663,8 +668,9 @@ async function tick() {
     // the old "MIN 0 MAX 0" came from on sensorless sets.
     const noThermal = !!(d.capabilities && d.capabilities.thermal === false);
     const hasTemp = !(d.temp === null || d.temp === undefined);
-    q('temp').textContent = hasTemp ? d.temp : '--';
+    q('temp').textContent = hasTemp ? d.temp : '\u2014';
     q('degsym').hidden = !hasTemp;
+    q('tempbig').classList.toggle('none', !hasTemp);
     if (hasTemp) {
       document.documentElement.style.setProperty('--hot', thermal(d.temp));
       // Seed from the server's ring buffer on first paint so the trace says
