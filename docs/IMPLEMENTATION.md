@@ -226,3 +226,24 @@ events unless told, so it is stated at the toggle in the UI as well as here.
 
 Removing those two entries from `ADBLOCK_DOMAINS` gives a conservative list
 that only targets advertising and telemetry.
+
+---
+
+## Entity state must come from the TV, not from the command
+
+Entities derive state from the telemetry payload via a `value_template`, so
+they re-assert the truth on every tick whatever changed it - dashboard, remote,
+the TV's own menus, or Home Assistant.
+
+The display panel switch originally published only when a command arrived over
+MQTT, plus a retained `ON` on every connect. Blanking the panel from the
+dashboard left Home Assistant showing it on indefinitely. It is now reconciled
+against `powerState` each telemetry publish.
+
+So: prefer `state_topic: telemetryTopic` with a template. An entity on its own
+topic must be republished from real state every tick, or it is a guess that
+holds until someone notices.
+
+`scripts/check-entities.py` resolves every entity's `value_json` paths against a
+live `/api/stats`. A renamed field otherwise leaves an entity at `unknown` with
+no error anywhere.
