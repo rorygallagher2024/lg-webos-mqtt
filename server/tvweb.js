@@ -204,6 +204,8 @@ function emmcInfo() {
     if (uniqWear.indexOf(wearList[u]) === -1) uniqWear.push(wearList[u]);
   }
   var wearStr = uniqWear.length ? uniqWear.join(' / ') : '0-10%';
+  // The wear band inverted. Kept for anyone templating on it; nothing in this
+  // project presents it, because next to `wear` it is the same fact twice.
   var healthStr = (minHealth >= 90) ? '>90% (Healthy)' : (minHealth + '% remaining');
   return {
     life: wearStr,    // backwards-compatible with old HA discovery template
@@ -2927,7 +2929,11 @@ function setupHomeAssistant() {
         payload: {
           name: 'Flash Storage Health',
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.emmc.health }}',
+          /* pre_eol_info, not the inverted wear band: emmc.health is derived
+             from the same register as emmc.wear, so the two sensors were
+             reporting one number twice. The name still fits - Normal, Warning
+             and Urgent are exactly a health status. */
+          value_template: '{{ value_json.emmc.eol }}',
           icon: 'mdi:harddisk'
         }
       },
