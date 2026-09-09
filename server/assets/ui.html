@@ -203,6 +203,36 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
   border-bottom:1px solid var(--w06);font-size:14px}
 .proc .p-name{color:var(--w80);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .proc .p-mb{color:var(--w100);font-variant-numeric:tabular-nums}
+/* ---- HDMI port grid ----
+   Four tiles, always all four: a port that vanished when nothing was plugged
+   into it would read as a missing port rather than an empty one. State is
+   carried by fill and weight, the same way the selected controls are - the
+   live port is the bright one. */
+.ports{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:14px}
+.port{border:1px solid var(--w06);border-radius:4px;padding:13px 14px 14px;
+  display:flex;flex-direction:column;min-height:112px}
+.port .ptop{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.port .pn{font-family:'Outfit';font-weight:200;font-size:38px;line-height:.9;
+  color:var(--w25);font-variant-numeric:tabular-nums}
+.port .pst{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--w35);
+  padding-top:4px;white-space:nowrap}
+.port .pl{font-size:14px;color:var(--w50);margin-top:auto;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.port .pd{font-size:12px;color:var(--w35);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Nothing plugged in: the number alone. The dashed edge carries "empty", so
+   the numeral keeps its normal weight - it is the only thing in the tile, and
+   dimming it further would make the one piece of information unreadable. */
+.port.empty{border-color:var(--w06);border-style:dashed}
+.port.seen{border-color:var(--w10)}
+.port.seen .pn{color:var(--w50)}
+.port.seen .pl{color:var(--w80)}
+.port.live{border-color:var(--w25);background:var(--w06)}
+.port.live .pn{color:var(--w100)}
+.port.live .pst{color:var(--w80)}
+.port.live .pl{color:var(--w100)}
+.port.live .pd{color:var(--w60)}
+@media (max-width:420px){.ports{grid-template-columns:1fr}}
 .pv-id{font-family:'Outfit';font-weight:300;font-size:22px;color:var(--w100);font-variant-numeric:tabular-nums}
 #err{margin-top:18px;font-size:14px;color:var(--red);border-left:2px solid var(--red);padding:9px 13px;background:var(--w06);display:none}
 @media (max-width:620px){.src{text-align:left}.hero{gap:22px}}
@@ -286,7 +316,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="grp">Advanced</div>
       <details class="disc" id="disc-hdmi" style="border-top:0;margin-top:0">
       <summary>HDMI <span class="cur" id="hdmi-cur"></span></summary>
-      <div id="hdmi-list"></div>
+      <div class="ports" id="hdmi-grid"></div>
     </details>
 
       <details class="disc" id="disc-proc">
@@ -957,20 +987,38 @@ async function loadHdmi() {
     const d = await r.json();
     const act = d.inputs.find(i => i.active);
     q('hdmi-cur').textContent = act ? act.label : 'no active input';
-    q('hdmi-list').innerHTML = d.inputs.map(i => {
+    q('hdmi-grid').innerHTML = d.inputs.map(i => {
       const s = i.signal;
-      const detail = s
-        ? [s.resolution, s.refreshHz ? s.refreshHz + ' Hz' : null, s.colorDepth,
-           s.pixelClockMhz ? s.pixelClockMhz + ' MHz pixel clock' : null,
+      /* The resolution is the headline; the link figures sit under it. Both
+         only exist for the port actually carrying signal - see hdmiInputs(),
+         which refuses to guess a pairing it cannot prove. */
+      const mode = s
+        ? [s.resolution ? s.resolution.replace('x', '×') : null,
+           s.refreshHz ? s.refreshHz + ' Hz' : null,
            s.interlaced ? 'interlaced' : null].filter(Boolean).join(' · ')
-        : (i.deviceSeen ? 'Device seen, no signal' : 'Nothing connected');
-      const state = i.active ? 'Active' : (i.deviceSeen ? 'Idle' : '—');
-      return `<div class="proc"><div class="p-name">${esc(i.label)}` +
-             `<div class="sub">HDMI ${i.port} · ${detail}</div></div>` +
-             `<div class="p-mb">${state}</div></div>`;
+        : 'Device seen, no signal';
+      const link = s
+        ? [s.colorDepth, s.pixelClockMhz ? s.pixelClockMhz + ' MHz' : null]
+            .filter(Boolean).join(' · ')
+        : '';
+      /* An empty port is just its number. Writing "HDMI 3 / Nothing connected"
+         under a large 3 says the same thing three times, and leaves the one
+         port that matters competing with three that do not. */
+      if (!s && !i.deviceSeen) {
+        return `<div class="port empty"><div class="ptop">` +
+               `<span class="pn num">${i.port}</span></div></div>`;
+      }
+      const cls = i.active ? 'port live' : 'port seen';
+      const state = i.active ? 'Active' : 'Idle';
+      return `<div class="${cls}">` +
+             `<div class="ptop"><span class="pn num">${i.port}</span>` +
+             `<span class="pst">${state}</span></div>` +
+             `<div class="pl">${esc(i.label)}</div>` +
+             `<div class="pd">${esc(mode)}${link ? ' · ' + esc(link) : ''}</div>` +
+             `</div>`;
     }).join('');
   } catch (e) {
-    q('hdmi-list').innerHTML = `<div class="sub">Could not read HDMI state — ${e.message}</div>`;
+    q('hdmi-grid').innerHTML = `<div class="sub">Could not read HDMI state — ${e.message}</div>`;
   }
 }
 
