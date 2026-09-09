@@ -252,6 +252,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <section class="readouts" id="readouts"></section>
       <div class="cols" style="margin-top:20px">
         <div><div class="lbl">GPU clock</div><div class="v num" id="gpuclk">&mdash;</div></div>
+        <div id="ssid-cell" hidden><div class="lbl">Network</div><div class="v" id="ssid">&mdash;</div><div class="sub">Connected Wi-Fi</div></div>
       </div>
     </div>
 
@@ -705,6 +706,8 @@ async function tick() {
     // GPU clock, panel dimming, app storage and the ambient sensor. Each is
     // hidden when the set does not report it rather than showing a dash.
     q('gpuclk').textContent = d.gpuMhz ? d.gpuMhz + ' MHz' : '—';
+    q('ssid-cell').hidden = !d.ssid;      // wired sets report none
+    if (d.ssid) q('ssid').textContent = d.ssid;
     const dim = d.dimming;
     q('dimming-cell').hidden = !dim;
     if (dim) q('dimming').textContent = dim.charAt(0).toUpperCase() + dim.slice(1);
@@ -908,18 +911,19 @@ async function loadHdmi() {
   try {
     const r = await fetch(api('/api/hdmi'), { cache: 'no-store' });
     const d = await r.json();
-    const live = d.ports.filter(p => p.connected);
-    q('hdmi-cur').textContent = live.length
-      ? live.map(p => p.label.replace('HDMI ', 'HDMI')).join(', ') + ' active'
-      : 'nothing connected';
-    q('hdmi-list').innerHTML = d.ports.map(p => {
-      const detail = p.connected
-        ? [p.resolution, p.refreshHz ? p.refreshHz + ' Hz' : null, p.colorDepth,
-           p.pixelClockMhz ? p.pixelClockMhz + ' MHz pixel clock' : null,
-           p.interlaced ? 'interlaced' : null].filter(Boolean).join(' · ')
-        : 'No source detected';
-      return `<div class="proc"><div class="p-name">${p.label}<div class="sub">${detail}</div></div>` +
-             `<div class="p-mb">${p.connected ? 'Linked' : '—'}</div></div>`;
+    const act = d.inputs.find(i => i.active);
+    q('hdmi-cur').textContent = act ? act.label : 'no active input';
+    q('hdmi-list').innerHTML = d.inputs.map(i => {
+      const s = i.signal;
+      const detail = s
+        ? [s.resolution, s.refreshHz ? s.refreshHz + ' Hz' : null, s.colorDepth,
+           s.pixelClockMhz ? s.pixelClockMhz + ' MHz pixel clock' : null,
+           s.interlaced ? 'interlaced' : null].filter(Boolean).join(' · ')
+        : (i.deviceSeen ? 'Device seen, no signal' : 'Nothing connected');
+      const state = i.active ? 'Active' : (i.deviceSeen ? 'Idle' : '—');
+      return `<div class="proc"><div class="p-name">${esc(i.label)}` +
+             `<div class="sub">HDMI ${i.port} · ${detail}</div></div>` +
+             `<div class="p-mb">${state}</div></div>`;
     }).join('');
   } catch (e) {
     q('hdmi-list').innerHTML = `<div class="sub">Could not read HDMI state — ${e.message}</div>`;
