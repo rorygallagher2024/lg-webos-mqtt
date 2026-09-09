@@ -257,6 +257,8 @@ function getVideoSignal() {
 }
 
 var PIC_MODE_MAP = {
+  dolbyHdrVivid: 'Dolby Vision Vivid',
+  dolbyHdrCinemaBright: 'Dolby Vision Cinema Bright',
   dolbyHdrCinema: 'Dolby Vision Cinema',
   dolbyHdrCinemaHome: 'Dolby Vision Cinema Home',
   dolbyHdrStandard: 'Dolby Vision Standard',
@@ -274,6 +276,35 @@ var PIC_MODE_MAP = {
   sports: 'Sports',
   technicolorHdr: 'Technicolor HDR'
 };
+
+/*
+ * Which picture modes the set will accept right now.
+ *
+ * They depend on the dynamic range of what is playing: under Dolby Vision the
+ * only settable modes are the dolbyHdr* ones, and setting an SDR mode is
+ * refused with "There is No matched extended item: pictureMode". A fixed list
+ * therefore offers buttons that cannot work - which is what the dashboard used
+ * to do, showing SDR modes against Dolby Vision content.
+ *
+ * getSystemSettingValues marks the currently selectable ones visible:true, and
+ * that set changes with the source, so it is read rather than assumed.
+ */
+var lastPicModes = [];
+
+function pictureModes(cb) {
+  lunaCached('com.webos.service.settings/getSystemSettingValues',
+    { category: 'picture', key: 'pictureMode' }, 10000, function (res) {
+      var arr = (res && res.values && res.values.arrayExt) || [];
+      var out = [];
+      for (var i = 0; i < arr.length; i++) {
+        if (arr[i].visible === true && arr[i].active !== false) {
+          out.push({ value: arr[i].value, label: formatPicMode(arr[i].value) });
+        }
+      }
+      if (out.length) lastPicModes = out;
+      cb(out);
+    });
+}
 
 function formatPicMode(mode) {
   if (!mode) return 'Standard';
@@ -867,9 +898,12 @@ function collectStats(cb) {
                   backlight: num(pic.settings.backlight, 50),
                   energySaving: pic.settings.energySaving || 'off',
                   screenShift: pic.settings.screenShift || 'off',
-                  logoLuminanceAdjust: pic.settings.logoLuminanceAdjust || 'off'
+                  logoLuminanceAdjust: pic.settings.logoLuminanceAdjust || 'off',
+                  modes: []
                 };
               }
+              pictureModes(function (modes) {
+              if (out.picture) out.picture.modes = modes;
               refreshInstalledApps(function (apps) {
                 out.apps = apps || [];
                 out.privacy = {
@@ -895,6 +929,7 @@ function collectStats(cb) {
                     flushStats(out);
                   });
                 });
+              });
               });
             }
           );
@@ -3125,7 +3160,12 @@ function setupHomeAssistant() {
           command_topic: pfx + '/command/picture_mode',
           state_topic: telemetryTopic,
           value_template: '{{ value_json.picture.mode_raw if value_json.picture else "standard" }}',
-          options: ['expert1', 'expert2', 'cinema', 'game', 'standard', 'eco', 'sports'],
+          /* The settable modes depend on the dynamic range of what is playing,
+             so this is whatever the TV last said it would accept. Discovery is
+             republished when that set changes - see publishTelemetry. */
+          options: lastPicModes.length
+            ? lastPicModes.map(function (m) { return m.value; })
+            : ['expert1', 'expert2', 'cinema', 'game', 'standard', 'eco', 'sports'],
           icon: 'mdi:image-filter-black-white'
         }
       },
@@ -3421,6 +3461,8 @@ function setupHomeAssistant() {
     console.log('mqtt: published ' + entities.length + ' Home Assistant discovery entities');
   }
 
+  var lastPicSig = '';
+
   function publishTelemetry() {
     if (!mqttClient.connected) return;
     mqttClient.publish(statusTopic, 'online', true);
@@ -3436,6 +3478,21 @@ function setupHomeAssistant() {
        */
       if (s.powerState && typeof s.powerState.screenOn === 'boolean') {
         mqttClient.publish(stateScreenTopic, s.powerState.screenOn ? 'ON' : 'OFF', true);
+      }
+      /*
+       * The picture modes a set will accept change with the source's dynamic
+       * range, and a select whose options cannot be applied is worse than no
+       * select - Home Assistant would offer SDR modes against Dolby Vision
+       * content and every one of them would be refused. The options live in
+       * the discovery payload, so a changed set means republishing it.
+       */
+      var sig = ((s.picture && s.picture.modes) || []).map(function (m) {
+        return m.value;
+      }).join(',');
+      if (sig && sig !== lastPicSig) {
+        lastPicSig = sig;
+        console.log('mqtt: picture modes changed (' + sig + ') - republishing discovery');
+        publishDiscovery();
       }
     });
   }
