@@ -2969,6 +2969,17 @@ function setupHomeAssistant() {
     mqttClient.publish(statusTopic, 'online', true);
     collectStats(function(s) {
       mqttClient.publish(telemetryTopic, JSON.stringify(s), false);
+      /*
+       * Reconcile the panel switch against what the TV actually reports.
+       * It used to be published only when the command arrived over MQTT, so
+       * blanking the panel from the dashboard, the remote, or the TV's own
+       * menus left Home Assistant asserting the opposite indefinitely.
+       * Driving it from powerState makes it self-correcting whatever the
+       * change came from.
+       */
+      if (s.powerState && typeof s.powerState.screenOn === 'boolean') {
+        mqttClient.publish(stateScreenTopic, s.powerState.screenOn ? 'ON' : 'OFF', true);
+      }
     });
   }
 
@@ -2976,7 +2987,9 @@ function setupHomeAssistant() {
     console.log('mqtt: connected to ' + CONFIG.mqtt.host + ':' + mqttClient.opts.port +
                 (useTls ? ' (tls)' : ' (plaintext)'));
     mqttClient.publish(statusTopic, 'online', true);
-    mqttClient.publish(stateScreenTopic, 'ON', true);
+    // Deliberately not asserting a screen state here: publishTelemetry below
+    // sets it from what the TV reports. Publishing a retained 'ON' on every
+    // reconnect meant a restart silently flipped Home Assistant back to on.
     // Resolve the panel type first: publishDiscovery filters on it, and on a
     // first connect it would otherwise still be undetermined.
     detectOled(function () { publishDiscovery(); });
