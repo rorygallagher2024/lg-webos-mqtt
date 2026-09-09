@@ -1,3 +1,11 @@
+# Working conventions
+
+## Never push to main
+
+Branch, push the branch, open a PR. This applies to "commit and push" too.
+Push to an existing PR branch rather than opening a second one for the same
+line of work. Merging is the maintainer's call.
+
 # Writing conventions
 
 Applies to commit messages, PR descriptions, release notes, README and docs.

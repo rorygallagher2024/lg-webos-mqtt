@@ -10,7 +10,9 @@ There are no dependencies. This is pure ES5 on the Node 0.12 runtime that is on 
 
 ### Web Dashboard & Controls
 
-Live telemetry and full local control in a unified two-column layout: volume, media playback, picture modes, audio output, app launcher, panel blanking, input switching, and power.
+Live telemetry and full local control in a two-column layout. The masthead
+shows whether the panel is actually lit, so a blanked screen does not read as
+though something is playing.
 
 <p align="center">
   <img src="docs/screenshots/dashboard.png" alt="LG webOS TV live dashboard: metrics and interactive controls" width="900">
@@ -18,7 +20,7 @@ Live telemetry and full local control in a unified two-column layout: volume, me
 
 ### Home Assistant (Auto-Discovered Device via MQTT)
 
-All 41 entities arrive over MQTT Discovery as a single device
+All 47 entities arrive over MQTT Discovery as a single device
 <p align="center">
 <img width="1061" height="1042" alt="image" src="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235" />
 </p>
@@ -62,8 +64,11 @@ bind-mounting over `/etc/hosts` that persists across reboots.
   mode, OLED light level, raw HDMI signal (`3840x2160 @ 60Hz`), audio output
   routing, and active app with friendly input names (`Apple TV (HDMI2)`).
 * **Hardware diagnostics.** SoC temperature and current draw, CPU and per-core
-  load, memory and zram swap, Wi-Fi RSSI, network throughput, and eMMC flash
-  wear with JEDEC health translation.
+  load, GPU clock, memory and zram swap, Wi-Fi RSSI, network throughput, eMMC
+  flash wear with JEDEC health translation, and free space on the app partition.
+* **Advanced panels.** HDMI link state per port straight off the receiver
+  (resolution, refresh rate, colour depth, pixel clock) and a read-only list of
+  what is resident in memory. Both load on demand.
 * **Bi-directional control.** Volume, mute, input select, media playback (play/pause/stop/skip via native remote key injection), app launching, picture presets, sound outputs, screen blanking, on-screen notifications, power and restart (from the dashboard or Home Assistant).
 * **On-TV ad & telemetry sinkhole.** Sinkholes 15 known LG tracking, ad and ACR
   endpoints directly on the set by bind-mounting a local blackhole table over
