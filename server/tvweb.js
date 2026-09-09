@@ -744,11 +744,13 @@ function collectStats(cb) {
        { category: 'time', keys: ['sleepTimer'] }, function (tm) {
     out.sleepTimer = (tm && tm.settings && tm.settings.sleepTimer) || 'off';
   luna('com.webos.service.settings/getSystemSettings',
-       { category: 'option', keys: ['standByLight', 'logoLight'] }, function (op) {
+       { category: 'option', keys: ['standByLight', 'logoLight', 'powerOnLight'] }, function (op) {
     var os = (op && op.settings) || {};
     out.lights = {
       standby: os.standByLight === 'on',
-      logo: os.logoLight === 'on'
+      logo: os.logoLight === 'on',
+      powerOn: os.powerOnLight === 'on',
+      hasLogo: hasLogoLight === true
     };
     out.gpuMhz = gpuClockMhz();
   luna('com.webos.service.tv.display/getDimmingStatus', {}, function (dim) {
@@ -1094,6 +1096,27 @@ var INPUTS = { hdmi1: 1, hdmi2: 1, hdmi3: 1, hdmi4: 1, livetv: 1 };
 // Verified against the settings service: 15 is rejected, 10 and 90 are not.
 // Set from collectStats: sets without the hardware report 65535 and get null.
 var hasLightSensor = false;
+
+/*
+ * Front-panel lights. The "option" settings category carries standByLight,
+ * logoLight and powerOnLight on every set, whether or not the hardware is
+ * fitted - tv.model.logoLight is the capability flag, and reads false on a
+ * B8, which has only a standby LED. Ask the model, not the setting.
+ */
+var hasLogoLight = null;   // null = not yet determined
+
+function detectLogoLight(cb) {
+  if (hasLogoLight !== null) return cb(hasLogoLight);
+  luna('com.webos.service.config/getConfigs',
+    { configNames: ['tv.model.logoLight'] },
+    function (res) {
+      var v = res && res.configs && res.configs['tv.model.logoLight'];
+      // Absent means the model does not declare it; treat that as no hardware.
+      hasLogoLight = (v === true);
+      console.log('front lights: standby LED' + (hasLogoLight ? ' + logo light' : ' only (no logo light on this model)'));
+      cb(hasLogoLight);
+    });
+}
 
 var SLEEP_TIMER_VALUES = ['off', '10', '30', '60', '90', '120'];
 
@@ -2380,6 +2403,7 @@ if (webEnabled) {
                 '  control=' + CONFIG.allowControl + '  power=' + CONFIG.allowPower +
                 '  auth=' + (CONFIG.token ? 'token' : 'none'));
     detectOled(function () {});   // resolve and log panel type up front
+  detectLogoLight(function () {});
   });
 } else {
   console.log('web dashboard disabled (web.enabled=false) - mqtt bridge only');
@@ -3191,6 +3215,16 @@ function setupHomeAssistant() {
      * answer getLightSensorData, reporting 65535, so the entity would sit at
      * "unknown" forever instead of simply not existing.
      */
+    if (hasLogoLight === false) {
+      var keptLogo = [];
+      for (var g = 0; g < entities.length; g++) {
+        if (entities[g].id === 'logo_light') {
+          mqttClient.publish(discPfx + '/switch/' + devId + '/logo_light/config', '', true);
+        } else { keptLogo.push(entities[g]); }
+      }
+      entities = keptLogo;
+    }
+
     if (!hasLightSensor) {
       var keptAmb = [];
       for (var a = 0; a < entities.length; a++) {
@@ -3266,7 +3300,7 @@ function setupHomeAssistant() {
     // reconnect meant a restart silently flipped Home Assistant back to on.
     // Resolve the panel type first: publishDiscovery filters on it, and on a
     // first connect it would otherwise still be undetermined.
-    detectOled(function () { publishDiscovery(); });
+    detectOled(function () { detectLogoLight(function () { publishDiscovery(); }); });
     mqttClient.subscribe(pfx + '/command/#');
     publishTelemetry();
   });

@@ -324,11 +324,11 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       </div>
 
       <div class="set"><div class="lbl">Front lights</div>
-        <div class="sub" style="margin-bottom:8px">The standby LED and the illuminated
-          logo on the front of the set.</div>
+        <div class="sub" style="margin-bottom:8px">The indicator lights on the front of
+          the set. Only what this model actually has is shown.</div>
         <div class="btns">
           <button id="lt_standby" onclick="toggleLight('standbyLight')">Standby LED</button>
-          <button id="lt_logo" onclick="toggleLight('logoLight')">Logo light</button>
+          <button id="lt_logo" onclick="toggleLight('logoLight')" hidden>Logo light</button>
         </div>
       </div>
     </details>
@@ -633,10 +633,15 @@ async function tick() {
       });
       const lights = d.lights || {};
       if (q('lt_standby')) q('lt_standby').classList.toggle('on', !!lights.standby);
-      if (q('lt_logo')) q('lt_logo').classList.toggle('on', !!lights.logo);
+      // Only sets that declare tv.model.logoLight actually have one.
+      if (q('lt_logo')) {
+        q('lt_logo').hidden = !lights.hasLogo;
+        q('lt_logo').classList.toggle('on', !!lights.logo);
+      }
       if (q('tl-cur')) {
         const bits = [st === 'off' ? 'No sleep timer' : `Sleep in ${st} min`];
-        const lit = [lights.standby && 'standby LED', lights.logo && 'logo'].filter(Boolean);
+        const lit = [lights.standby && 'standby LED',
+                     lights.hasLogo && lights.logo && 'logo'].filter(Boolean);
         bits.push(lit.length ? lit.join(' + ') + ' on' : 'lights off');
         q('tl-cur').textContent = bits.join('  ·  ');
       }
