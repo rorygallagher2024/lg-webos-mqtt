@@ -4,7 +4,7 @@ A telemetry server that runs **on** a rooted LG webOS TV. It serves a live
 dashboard to any browser on your network, and bridges the TV into Home
 Assistant over MQTT as a single auto-discovered device with 41 entities.
 
-There are no dependencies. This is pure ES5 on the Node 0.12 runtime that is on the TV.
+There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the TV.
 
 ---
 
