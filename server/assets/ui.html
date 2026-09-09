@@ -926,10 +926,11 @@ async function loadHdmi() {
   }
 }
 
-let hdmiTimer = null;
 function onHdmiToggle(el) {
-  clearInterval(hdmiTimer);
-  if (el.open) { loadHdmi(); hdmiTimer = setInterval(loadHdmi, 5000); }
+  /* Loaded on open, not polled. Each read is a luna-send fork on the TV, and
+     link state does not change while someone stares at the panel; reopening
+     it refreshes. */
+  if (el.open) loadHdmi();
 }
 
 (function wireHdmiPanel() {
@@ -954,10 +955,9 @@ async function loadProcesses() {
 }
 
 // Only poll while the panel is open; it costs a ps on the TV each time.
-let procTimer = null;
 function onProcToggle(el) {
-  clearInterval(procTimer);
-  if (el.open) { loadProcesses(); procTimer = setInterval(loadProcesses, 5000); }
+  /* Same as the HDMI panel: on open only. This one forks `ps`. */
+  if (el.open) loadProcesses();
 }
 
 (function wireProcPanel() {
