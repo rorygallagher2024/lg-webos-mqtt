@@ -98,7 +98,7 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 .meta{display:flex;justify-content:space-between;font-size:13px;color:var(--w60);letter-spacing:.02em}
 
 /* ---- readouts ---- */
-.readouts{margin-top:clamp(30px,5vw,52px);border-top:1px solid var(--w10)}
+.readouts{margin-top:0;border-top:1px solid var(--w06)}
 .r{display:grid;grid-template-columns:clamp(118px,17%,176px) 1fr 92px;gap:20px;align-items:center;
    padding:15px 0;border-bottom:1px solid var(--w06)}
 .r .v{font-family:'Outfit';font-weight:200;font-size:26px;color:var(--w100);text-align:right;line-height:1}
@@ -110,9 +110,9 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 .sub{font-size:13px;color:var(--w60);letter-spacing:.02em;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ---- panel block: the second thing worth looking at ---- */
-.panel{margin-top:clamp(30px,5vw,52px);padding-top:clamp(24px,4vw,36px);border-top:1px solid var(--w10)}
-.panel .n{font-family:'Outfit';font-weight:200;font-size:clamp(52px,9vw,90px);color:var(--w100);line-height:.9;letter-spacing:-.02em}
-.panel .n em{font-style:normal;color:var(--purple-t);font-size:.26em;letter-spacing:.14em;margin-left:12px;font-family:'Manrope';font-weight:500}
+
+.n{font-family:'Outfit';font-weight:200;font-size:clamp(52px,9vw,90px);color:var(--w100);line-height:.9;letter-spacing:-.02em}
+.n em{font-style:normal;color:var(--purple-t);font-size:.26em;letter-spacing:.14em;margin-left:12px;font-family:'Manrope';font-weight:500}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:26px;margin-top:26px}
 .cols .v{font-family:'Outfit';font-weight:300;font-size:24px;color:var(--w100);margin-top:6px}
 
@@ -123,6 +123,16 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 }
 /* Column headings sit above the .lbl sub-headings, so they take the display
    face at size rather than being another 12px uppercase line. */
+/* Three tiers in this column:
+     .col-sec  column heading   - Metrics / Control
+     .grp      group heading    - Temperature, System, Display panel, Storage
+     .lbl      item label       - Processor, Wear, Compensation in
+   Groups and items previously shared .lbl, so nothing read as a heading. */
+.grp{font-family:'Manrope';font-weight:500;font-size:14px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--w80);margin:0 0 16px}
+.grp-sec{margin-top:clamp(30px,5vw,46px);padding-top:clamp(20px,3vw,28px);
+  border-top:1px solid var(--w12)}
+.grp-sec.first{margin-top:0;padding-top:0;border-top:0}
 .col-sec{font-family:'Outfit';font-weight:300;font-size:clamp(20px,2.2vw,25px);
   letter-spacing:.005em;text-transform:none;color:var(--w100);
   padding-bottom:12px;border-bottom:1px solid var(--w25);margin-bottom:22px}
@@ -220,57 +230,69 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <div class="col-telemetry">
     <div class="col-sec">Metrics</div>
 
-    <section class="hero" style="margin-top:0">
-      <div>
-        <div class="lbl" style="margin-bottom:14px">SoC temperature</div>
-        <div class="big num"><span id="temp">--</span><span class="deg">&deg;</span></div>
-      </div>
-      <div class="side">
-        <div class="trace" id="trace"></div>
-        <div class="meta num">
-          <span id="trange">&mdash;</span>
-          <span id="mhz">&mdash;</span>
+    <div class="grp-sec first">
+      <div class="grp">Temperature</div>
+      <section class="hero" style="margin-top:0">
+        <div>
+          <div class="lbl" style="margin-bottom:14px">SoC</div>
+          <div class="big num"><span id="temp">--</span><span class="deg">&deg;</span></div>
         </div>
+        <div class="side">
+          <div class="trace" id="trace"></div>
+          <div class="meta num">
+            <span id="trange">&mdash;</span>
+            <span id="mhz">&mdash;</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="grp-sec">
+      <div class="grp">System</div>
+      <section class="readouts" id="readouts"></section>
+      <div class="cols" style="margin-top:20px">
+        <div><div class="lbl">GPU clock</div><div class="v num" id="gpuclk">&mdash;</div></div>
       </div>
-    </section>
+    </div>
 
-    <section class="readouts" id="readouts"></section>
-
-    <div class="panel" id="panelblock" hidden>
-      <div class="lbl">OLED panel &middot; Lifespan</div>
-      <div class="n num" style="margin-top:12px"><span id="ph">&mdash;</span><em>hours</em></div>
+    <div class="grp-sec" id="panelblock" hidden>
+      <div class="grp">Display panel</div>
+      <div class="lbl">Lifespan</div>
+      <div class="n num" style="margin-top:10px"><span id="ph">&mdash;</span><em>hours</em></div>
       <div class="cols">
         <div><div class="lbl">Compensation in</div><div class="v num" id="comp">&mdash;</div></div>
         <div><div class="lbl">Refresher in</div><div class="v num" id="refr">&mdash;</div></div>
         <div><div class="lbl">Refresher state</div><div class="v" id="rstate">&mdash;</div></div>
-      </div>
-    </div>
-
-    <div class="panel" id="flashblock">
-      <div class="lbl">Flash storage</div>
-      <div class="cols" style="margin-top:14px">
-        <div><div class="lbl">Wear</div><div class="v num" id="flashval">&mdash;</div><div class="sub">eMMC lifetime estimated</div></div>
-        <div><div class="lbl">Health</div><div class="v" id="flasheol">&mdash;</div><div class="sub">Pre-EOL status</div></div>
-        <div id="appstore-cell" hidden><div class="lbl">App space</div><div class="v num" id="appstore">&mdash;</div><div class="sub" id="appstore-sub"></div></div>
-        <div><div class="lbl">GPU</div><div class="v num" id="gpuclk">&mdash;</div><div class="sub">Graphics clock</div></div>
-        <div id="dimming-cell" hidden><div class="lbl">Panel dimming</div><div class="v" id="dimming">&mdash;</div><div class="sub">ABL / logo protection</div></div>
+        <div id="dimming-cell" hidden><div class="lbl">Dimming</div><div class="v" id="dimming">&mdash;</div><div class="sub">ABL / logo protection</div></div>
         <div id="lux-cell" hidden><div class="lbl">Room light</div><div class="v num" id="lux">&mdash;</div><div class="sub">Ambient sensor</div></div>
       </div>
     </div>
 
-    <details class="disc" id="disc-hdmi">
-      <summary>Advanced &middot; HDMI <span class="cur" id="hdmi-cur"></span></summary>
+    <div class="grp-sec">
+      <div class="grp">Storage</div>
+      <div class="cols">
+        <div><div class="lbl">Flash wear</div><div class="v num" id="flashval">&mdash;</div><div class="sub">eMMC lifetime estimated</div></div>
+        <div><div class="lbl">Flash health</div><div class="v" id="flasheol">&mdash;</div><div class="sub">Pre-EOL status</div></div>
+        <div id="appstore-cell" hidden><div class="lbl">App space</div><div class="v num" id="appstore">&mdash;</div><div class="sub" id="appstore-sub"></div></div>
+      </div>
+    </div>
+
+    <div class="grp-sec">
+      <div class="grp">Advanced</div>
+      <details class="disc" id="disc-hdmi" style="border-top:0;margin-top:0">
+      <summary>HDMI <span class="cur" id="hdmi-cur"></span></summary>
       <div class="sub" style="margin:10px 0 6px">Link state straight off the HDMI
         receiver &mdash; what each port is actually negotiating.</div>
       <div id="hdmi-list"></div>
     </details>
 
-    <details class="disc" id="disc-proc">
+      <details class="disc" id="disc-proc">
       <summary>Processes <span class="cur" id="proc-cur"></span></summary>
       <div class="sub" style="margin:10px 0 6px">What is resident in memory. Read-only &mdash;
         close an app from Source or the app itself rather than killing a process.</div>
       <div id="proc-list"></div>
     </details>
+    </div>
   </div>
 
   <!-- Right Column: Interactive Controls -->
