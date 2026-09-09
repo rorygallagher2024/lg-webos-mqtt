@@ -231,33 +231,19 @@ that only targets advertising and telemetry.
 
 ## Entity state must come from the TV, not from the command
 
-Home Assistant entities here derive their state from the telemetry payload via
-a `value_template`, so they re-assert the truth on every tick no matter where a
-change came from - the dashboard, the remote, the TV's own menus, or Home
-Assistant itself.
+Entities derive state from the telemetry payload via a `value_template`, so
+they re-assert the truth on every tick whatever changed it - dashboard, remote,
+the TV's own menus, or Home Assistant.
 
-The display panel switch originally did not. It published its state only when
-the command arrived over MQTT, and published a retained `ON` on every connect.
-Blanking the panel from the dashboard therefore left Home Assistant showing it
-on indefinitely, and a reconnect would silently flip it back on and look
-authoritative. It is now reconciled against `powerState` on each telemetry
-publish.
+The display panel switch originally published only when a command arrived over
+MQTT, plus a retained `ON` on every connect. Blanking the panel from the
+dashboard left Home Assistant showing it on indefinitely. It is now reconciled
+against `powerState` each telemetry publish.
 
-Two rules follow, for anything added later:
+So: prefer `state_topic: telemetryTopic` with a template. An entity on its own
+topic must be republished from real state every tick, or it is a guess that
+holds until someone notices.
 
-1. Prefer `state_topic: telemetryTopic` with a `value_template`. Such an entity
-   is self-correcting by construction.
-2. If an entity genuinely needs its own topic, something must republish it from
-   real state on every telemetry tick. A command-time publish alone is a guess
-   that survives until someone notices.
-
-`scripts/check-entities.py` walks every discovery entity, extracts the
-`value_json` paths its template uses, and resolves each against a live
-`/api/stats` response. A renamed field otherwise just leaves an entity stuck at
-`unknown`, which is easy to miss for a long time.
-
-```
-$ ./scripts/check-entities.py 192.168.1.134
-54 paths checked across 34 entities
-all entity templates resolve against the live payload
-```
+`scripts/check-entities.py` resolves every entity's `value_json` paths against a
+live `/api/stats`. A renamed field otherwise leaves an entity at `unknown` with
+no error anywhere.
