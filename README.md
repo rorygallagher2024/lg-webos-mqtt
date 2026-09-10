@@ -12,10 +12,16 @@ There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the T
 
 Live telemetry and full local control in a two-column layout. The masthead
 shows whether the panel is actually lit, so a blanked screen does not read as
-though something is playing.
+though something is playing. Includes a masthead theme toggle (☾ / ☀) to switch
+between true OLED black and light mode, with automatic OS color-scheme preference
+detection and URL deep-linking (`/?theme=light`).
 
 <p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="LG webOS TV live dashboard: metrics and interactive controls" width="900">
+  <img src="docs/screenshots/dashboard.png" alt="LG webOS TV live dashboard: dark theme (OLED42C24LA)" width="900">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/dashboard-light.png" alt="LG webOS TV live dashboard: light theme (OLED65B8SLC)" width="900">
 </p>
 
 ### Home Assistant (Auto-Discovered Device via MQTT)
@@ -89,6 +95,10 @@ bind-mounting over `/etc/hosts` that persists across reboots.
   cookies, and toggle the on-TV ad blocker. Deep link: `/?privacy=1`.
 * **Self-contained dashboard.** Fonts and assets are served by the TV, so the
   page works with no internet access.
+* **Dark and light themes.** High-contrast light mode with dark text alongside
+  the default true-black OLED theme. One-click toggle in the masthead (☾ / ☀),
+  automatic `prefers-color-scheme` support, persistent preference in local storage,
+  and deep-linking via `/?theme=light`.
 
 ## Requirements
 
