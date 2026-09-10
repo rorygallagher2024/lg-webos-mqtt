@@ -2579,7 +2579,7 @@ var PAGE = [
   '    }',
   '    if (d.remote && d.remote.battery !== null && d.remote.battery !== undefined) {',
   '      q("remote-pill").style.display = "inline-flex";',
-  '      q("remote-text").textContent = (d.remote.model ? d.remote.model.replace("LGE ", "") + " " : "Remote ") + d.remote.battery + "% 🔋";',
+  '      q("remote-text").textContent = "Magic Remote " + d.remote.battery + "%";',
   '      q("remote-pill").title = (d.remote.model || "Magic Remote") + (d.remote.firmware ? " · FW: " + d.remote.firmware : "");',
   '    } else {',
   '      q("remote-pill").style.display = "none";',
