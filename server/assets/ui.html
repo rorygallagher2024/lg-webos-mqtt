@@ -236,6 +236,14 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 /* ---- controls ---- */
 .set{margin-top:22px}
 .btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:11px}
+#picmodes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:11px}
+#picmodes button{
+  font-size:11.5px;letter-spacing:.06em;padding:12px 6px;line-height:1.25;
+  text-align:center;display:flex;align-items:center;justify-content:center;
+}
+@media (max-width:380px){
+  #picmodes{grid-template-columns:repeat(2,1fr)}
+}
 /* Collapsed groups. Picture mode, sound output and the app list are
    set-and-forget: they were taking the majority of the column's height for
    the things you would least often reach for from a phone. */

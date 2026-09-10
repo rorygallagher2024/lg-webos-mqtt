@@ -27,7 +27,7 @@ var zlib = require('zlib');
  * a link to /releases/tag/v<version>, so a value with no tag behind it gives a
  * 404 rather than a wrong page.
  */
-var TVWEB_VERSION = '0.18.0';
+var TVWEB_VERSION = '0.19.0';
 
 // ---------------------------------------------------------------- config
 var CONFIG = {
@@ -567,8 +567,11 @@ var PIC_MODE_MAP = {
   game: 'Game',
   standard: 'Standard',
   eco: 'Eco',
-  sports: 'Sports',
-  technicolorHdr: 'Technicolor HDR'
+  technicolor: 'Technicolor',
+  technicolorHdr: 'Technicolor HDR',
+  hdrEffect: 'HDR Effect',
+  vivid: 'Vivid',
+  normal: 'Standard'
 };
 
 /*
