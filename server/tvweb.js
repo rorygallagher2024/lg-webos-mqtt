@@ -224,6 +224,45 @@ function emmcInfo() {
   };
 }
 
+/*
+ * webOS 4.x reports this in kHz (1200000), webOS 9+ in MHz (1200), so a fixed
+ * divisor turns a 1.2 GHz SoC into "1 MHz" on the newer sets. No TV SoC runs
+ * anywhere near 10 GHz, so a value above that is taken as the kHz form.
+ *
+ * Only those two conventions have been seen, so the result is bounded rather
+ * than trusted: a set reporting Hz would land far outside a plausible clock,
+ * and nothing is better than a confident wrong figure.
+ */
+function socMhz() {
+  var v = num(rd('/proc/lg/pm/frequency'), 0);
+  if (!v || v < 0) return null;
+  var mhz = Math.round(v > 10000 ? v / 1000 : v);
+  return (mhz >= 100 && mhz <= 10000) ? mhz : null;
+}
+
+/*
+ * What swap is actually backed by. The B8 swaps to zram, but this is not
+ * universal: a G4 swaps to a flash partition (/dev/f2io-0) and leaves zram0
+ * present with disksize 0. Calling both "zram" understated the cost, since
+ * compressed RAM costs no writes and a partition wears the eMMC.
+ *
+ * The largest device wins, which is the one carrying the pages.
+ */
+function swapBacking() {
+  var raw = rd('/proc/swaps');
+  if (!raw) return null;
+  var lines = raw.split('\n'), best = null, bestSize = -1;
+  for (var i = 1; i < lines.length; i++) {          // row 0 is the header
+    var f = lines[i].replace(/\s+/g, ' ').trim().split(' ');
+    if (f.length < 3 || !f[0]) continue;
+    var size = parseInt(f[2], 10);
+    if (isNaN(size) || size <= bestSize) continue;
+    bestSize = size;
+    best = /zram/i.test(f[0]) ? 'zram' : (f[1] === 'file' ? 'file' : 'flash');
+  }
+  return best;
+}
+
 function wifi() {
   var raw = rd('/proc/net/wireless');
   if (!raw) return null;
@@ -231,23 +270,68 @@ function wifi() {
   for (var i = 0; i < lines.length; i++) {
     if (lines[i].indexOf('wlan0') !== -1) {
       var f = lines[i].replace(/\s+/g, ' ').trim().split(' ');
-      return { link: parseFloat(f[2]), level: parseFloat(f[3]) };
+      var link = parseFloat(f[2]), level = parseFloat(f[3]);
+      /*
+       * A wired set still has a wlan0 row, reading zero across the board
+       * because the radio is not associated. Reporting that as 0 dBm states a
+       * measurement that was never taken - the same mistake as 0 C for a
+       * missing thermal sensor.
+       */
+      if (!link && !level) return null;
+      return { link: link, level: level };
     }
   }
   return null;
 }
 
+/*
+ * Live first, then busiest. Ranking on byte count alone would keep choosing a
+ * link that has since been unplugged: a set moved from Wi-Fi to ethernet has
+ * a dormant wlan0 holding more lifetime bytes than eth0 will accumulate for
+ * days, and its idle counters would report zero throughput on a busy TV -
+ * which is the fault this replaced, in a new form.
+ *
+ * A kernel too old to publish operstate or carrier leaves every interface
+ * unranked, and the busiest still wins.
+ */
+function ifaceRank(name) {
+  var st = rd('/sys/class/net/' + name + '/operstate');
+  if (st) {
+    st = st.trim();
+    if (st === 'up') return 2;
+    if (st === 'down') return 0;
+    return 1;                                       // "unknown" is not "down"
+  }
+  var car = rd('/sys/class/net/' + name + '/carrier');
+  if (!car) return 1;
+  return car.trim() === '1' ? 2 : 0;
+}
+
+/*
+ * Whichever interface is actually carrying traffic. This matched wlan0 alone,
+ * so every wired set reported zero throughput forever - the counters it wanted
+ * were on eth0. Loopback is excluded.
+ */
 function netBytes() {
   var raw = rd('/proc/net/dev');
   if (!raw) return null;
-  var lines = raw.split('\n');
+  var lines = raw.split('\n'), best = null;
   for (var i = 0; i < lines.length; i++) {
-    if (lines[i].indexOf('wlan0') !== -1) {
-      var f = lines[i].replace(/\s+/g, ' ').trim().split(' ');
-      return { rx: parseInt(f[1], 10), tx: parseInt(f[9], 10), t: Date.now() };
+    // Split on the first colon only: the counters follow it, and a long byte
+    // count can run straight up against it with no space.
+    var idx = lines[i].indexOf(':');
+    if (idx === -1) continue;                       // the two header rows
+    var name = lines[i].slice(0, idx).replace(/\s+/g, '');
+    if (!name || name === 'lo') continue;
+    var f = lines[i].slice(idx + 1).replace(/\s+/g, ' ').trim().split(' ');
+    var rx = parseInt(f[0], 10), tx = parseInt(f[8], 10);
+    if (isNaN(rx) || isNaN(tx)) continue;
+    var rank = ifaceRank(name);
+    if (!best || rank > best.rank || (rank === best.rank && rx > best.rx)) {
+      best = { iface: name, rank: rank, rx: rx, tx: tx, t: Date.now() };
     }
   }
-  return null;
+  return best;
 }
 
 function getVideoSignal() {
@@ -1037,7 +1121,9 @@ function collectStats(cb) {
 
   var n = netBytes();
   var rate = null;
-  if (n && prevNet && n.t > prevNet.t && n.rx >= prevNet.rx) {
+  // Same interface both samples, or the delta is between two different NICs -
+  // switching from Wi-Fi to ethernet would otherwise report one huge burst.
+  if (n && prevNet && n.iface === prevNet.iface && n.t > prevNet.t && n.rx >= prevNet.rx) {
     var dt = (n.t - prevNet.t) / 1000;
     rate = { rx: Math.round((n.rx - prevNet.rx) / dt), tx: Math.round((n.tx - prevNet.tx) / dt) };
   }
@@ -1081,14 +1167,20 @@ function collectStats(cb) {
     })(),
     temps: null,   // filled in below from the ring buffer
     load: num(rd('/proc/lg/pm/current_load'), null),
-    mhz: Math.round(num(rd('/proc/lg/pm/frequency'), 0) / 1000),
+    mhz: socMhz(),
     cores: coreMatch ? coreMatch[1].trim().split(/\s+/).map(Number) : [],
     mem: { total: mi.MemTotal || 0, avail: mi.MemAvailable || 0 },
-    swap: { total: mi.SwapTotal || 0, free: mi.SwapFree || 0 },
+    swap: { total: mi.SwapTotal || 0, free: mi.SwapFree || 0, backing: swapBacking() },
     uptime: Math.floor(parseFloat(rd('/proc/uptime') || '0')),
     loadavg: (rd('/proc/loadavg') || '').split(' ').slice(0, 3),
     wifi: wifi(),
     net: rate,
+    /*
+     * Cumulative counters for the interface the rate came from, so the two
+     * always describe the same link. Kernel counters, so they reset at boot
+     * and start from zero on whichever interface is in use - Wi-Fi or wired.
+     */
+    netTotal: n ? { rx: n.rx, tx: n.tx, iface: n.iface } : null,
     emmc: emmcInfo(),
     signal: getVideoSignal(),
     hdmi_diag: hdmiDiag,
@@ -2727,7 +2819,7 @@ var PAGE = [
   '    const swapUsed = swapTotal - swapFree;',
   '    const swapPct = swapTotal ? Math.round((swapUsed / swapTotal) * 100) : 0;',
   '    setProgress("swapbar", swapPct, "var(--purple)");',
-  '    q("swapmeta").textContent = "zram Swap: " + formatMb(swapUsed) + " of " + formatMb(swapTotal) + " (" + swapPct + "%)";',
+  '    q("swapmeta").textContent = "Swap: " + formatMb(swapUsed) + " of " + formatMb(swapTotal) + " (" + swapPct + "%)";',
   '',
   '    // Storage & Network',
   '    q("emmc").textContent = (d.emmc && d.emmc.health) || "unknown";',
@@ -3294,7 +3386,9 @@ function setupHomeAssistant() {
         payload: {
           name: 'Wi-Fi Signal',
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.wifi.level if value_json.wifi else 0 }}',
+          // none, not 0: a wired set has no signal to report, and 0 dBm would
+          // enter the history as though it had been measured.
+          value_template: '{{ value_json.wifi.level if value_json.wifi else none }}',
           unit_of_measurement: 'dBm',
           device_class: 'signal_strength',
           state_class: 'measurement'

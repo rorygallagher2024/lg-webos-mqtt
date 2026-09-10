@@ -78,7 +78,7 @@ Once connected to your MQTT broker, Home Assistant automatically discovers **up 
 | `sensor` | `sensor.lg_tv_cpu_usage` | CPU Usage | Real-time CPU load (`%`) |
 | `sensor` | `sensor.lg_tv_gpu_clock` | GPU Clock | Real-time GPU frequency (`MHz`) |
 | `sensor` | `sensor.lg_tv_memory_usage` | Memory Usage | System RAM usage (`%`) |
-| `sensor` | `sensor.lg_tv_swap_usage` | Swap Usage | zram Swap usage (`%`) |
+| `sensor` | `sensor.lg_tv_swap_usage` | Swap Usage | Swap usage (`%`), backed by zram or a flash partition depending on the set |
 | `sensor` | `sensor.lg_tv_app_storage_free` | App Storage Free | Available storage on `/media/developer` (`GB`) |
 | `sensor` | `sensor.lg_tv_ambient_light` | Ambient Light | Ambient room illuminance (`lux`, if sensor present) |
 | `sensor` | `sensor.lg_tv_wifi_signal` | Wi-Fi Signal | Wi-Fi signal strength (`dBm`) |

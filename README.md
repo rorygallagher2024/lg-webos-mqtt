@@ -80,7 +80,7 @@ bind-mounting over `/etc/hosts` that persists across reboots.
   mode, OLED light level, raw HDMI signal (`3840x2160 @ 120Hz`), audio output
   routing, and active app with friendly input names (`Apple TV (HDMI2)`).
 * **Hardware diagnostics.** SoC temperature and current draw, CPU and per-core
-  load, GPU clock, memory and zram swap, Wi-Fi RSSI, network throughput, eMMC
+  load, GPU clock, memory and swap, Wi-Fi RSSI, network throughput, eMMC
   flash wear with JEDEC health translation, and free space on the app partition.
 * **Advanced panels.** HDMI link state per port straight off the receiver
   (resolution, refresh rate, colour depth, pixel clock) and a read-only list of
