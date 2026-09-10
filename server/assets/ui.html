@@ -141,6 +141,8 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 .st i{width:7px;height:7px;border-radius:50%;background:var(--w100);flex:none}
 .st.off i{background:transparent;box-shadow:inset 0 0 0 1px var(--w50)}
 .st.off{color:var(--w50)}
+.st.comp i{background:var(--cand);box-shadow:0 0 6px var(--cand)}
+.st.comp{color:var(--cand)}
 
 /* Tiered stream diagnostics */
 .stream-info{margin-top:3px}
@@ -448,9 +450,8 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="lbl">Total power on hours</div>
       <div class="n num" style="margin-top:10px"><span id="ph">&mdash;</span><em>hours</em></div>
       <div class="cols">
-        <div><div class="lbl">Compensation in</div><div class="v num" id="comp">&mdash;</div><div class="sub" id="comp-sub">&mdash;</div></div>
-        <div><div class="lbl">Refresher in</div><div class="v num" id="refr">&mdash;</div><div class="sub" id="refr-sub">&mdash;</div></div>
-        <div><div class="lbl">Refresher state</div><div class="v" id="rstate">&mdash;</div><div class="sub" id="fail-sub">&mdash;</div></div>
+        <div><div class="lbl" id="comp-lbl">Panel maintenance in</div><div class="v num" id="comp">&mdash;</div><div class="sub" id="comp-sub">&mdash;</div></div>
+        <div><div class="lbl" id="refr-lbl">Pixel refresher in</div><div class="v num" id="refr">&mdash;</div><div class="sub" id="refr-sub">&mdash;</div></div>
         <div id="lux-cell" hidden><div class="lbl">Room light</div><div class="v num" id="lux">&mdash;</div><div class="sub">Ambient sensor</div></div>
       </div>
 
@@ -963,12 +964,19 @@ async function tick() {
     // Panel state first: without it, a blanked screen still reads as though
     // something were being displayed.
     const ps = d.powerState || {};
+    const o = d.oled || {};
+    const isComp = !!(o.comp_status === 'Running' || (ps.raw === 'Active Standby' && o.hours_until_comp === 0));
     const stEl = q('state');
-    stEl.querySelector('span').textContent = ps.label || '—';
-    stEl.classList.toggle('off', ps.screenOn === false);
-    q('source').parentElement.classList.toggle('dim', ps.screenOn === false);
-
-    q('source').textContent = d.display_title || d.app_name || d.app || '—';
+    stEl.classList.toggle('comp', isComp);
+    stEl.classList.toggle('off', !isComp && ps.screenOn === false);
+    if (isComp) {
+      stEl.querySelector('span').textContent = 'Active Standby';
+      q('source').textContent = 'Completing Panel Maintenance (Short Cycle)';
+    } else {
+      stEl.querySelector('span').textContent = ps.label || '—';
+      q('source').textContent = d.display_title || d.app_name || d.app || '—';
+    }
+    q('source').parentElement.classList.toggle('dim', ps.screenOn === false && !isComp);
     const pic = d.picture || {};
 
     // Summarise the collapsed groups so their current values are readable
@@ -1134,26 +1142,43 @@ async function tick() {
     const hasOled = !!(d.oled && d.oled.panel_hours !== undefined) &&
                     !(d.capabilities && d.capabilities.oled === false);
     q('panelblock').hidden = !hasOled;
-    const o = d.oled || {};
     q('ph').textContent = (o.panel_hours || 0).toLocaleString();
-    q('comp').textContent = hrs(o.hours_until_comp) + ' h';
-    if (q('comp-sub')) {
-      q('comp-sub').textContent = (o.comp_cycles !== undefined && o.comp_cycles !== null) ?
-        o.comp_cycles + ' cycles completed (Off-RS)' : '4-hour short cycle';
+    if (isComp) {
+      if (q('comp-lbl')) q('comp-lbl').textContent = 'Panel maintenance';
+      q('comp').textContent = 'In progress';
+      q('comp').style.color = 'var(--cand)';
+      if (q('comp-sub')) q('comp-sub').textContent = 'Completing Panel Maintenance (Short Cycle)';
+    } else {
+      if (q('comp-lbl')) q('comp-lbl').textContent = 'Panel maintenance in';
+      q('comp').textContent = hrs(o.hours_until_comp) + ' h';
+      q('comp').style.color = '';
+      if (q('comp-sub')) {
+        q('comp-sub').textContent = (o.comp_cycles !== undefined && o.comp_cycles !== null) ?
+          o.comp_cycles + ' cycles completed (Off-RS)' : '4-hour short cycle';
+      }
     }
-    q('refr').textContent = hrs(o.hours_until_refresher) + ' h';
-    if (q('refr-sub')) {
-      q('refr-sub').textContent = (o.refresher_cycles !== undefined && o.refresher_cycles !== null) ?
-        o.refresher_cycles + ' deep cycles completed (JB)' : '2,000-hour calibration';
-    }
-    q('rstate').textContent = o.refresher_status || '—';
-    if (q('fail-sub')) {
-      if (o.failure_alerts !== undefined && o.failure_alerts !== null) {
-        q('fail-sub').innerHTML = o.failure_alerts === 0 ?
-          '0 failures recorded (Healthy)' :
-          '<span style="color:var(--cand)">' + o.failure_alerts + ' failures recorded</span>';
-      } else {
-        q('fail-sub').textContent = 'Calibration status';
+    if (o.refresher_status === 'Running') {
+      if (q('refr-lbl')) q('refr-lbl').textContent = 'Pixel refresher';
+      q('refr').textContent = 'In progress';
+      q('refr').style.color = 'var(--cand)';
+      if (q('refr-sub')) q('refr-sub').textContent = 'Running 1-hour calibration';
+    } else if (o.refresher_status === 'Scheduled') {
+      if (q('refr-lbl')) q('refr-lbl').textContent = 'Pixel refresher';
+      q('refr').textContent = 'Scheduled';
+      q('refr').style.color = 'var(--cand)';
+      if (q('refr-sub')) q('refr-sub').textContent = 'Runs on next shutdown';
+    } else {
+      if (q('refr-lbl')) q('refr-lbl').textContent = 'Pixel refresher in';
+      q('refr').textContent = hrs(o.hours_until_refresher) + ' h';
+      q('refr').style.color = '';
+      if (q('refr-sub')) {
+        if (o.failure_alerts !== undefined && o.failure_alerts !== null && o.failure_alerts > 0) {
+          q('refr-sub').innerHTML = '<span style="color:var(--cand)">' + o.failure_alerts + ' failures recorded</span>';
+        } else if (o.refresher_cycles !== undefined && o.refresher_cycles !== null) {
+          q('refr-sub').textContent = o.refresher_cycles + ' deep cycles completed (JB)';
+        } else {
+          q('refr-sub').textContent = '2,000-hour calibration';
+        }
       }
     }
 
@@ -1259,6 +1284,12 @@ async function tick() {
       for (let b of inBtns) {
         b.classList.toggle('on', b.id === 'in_' + d.app);
       }
+    } else {
+      if (q('currapp-lbl')) q('currapp-lbl').textContent = isComp ? 'MAINTENANCE' : (ps.label ? ps.label.toUpperCase() : 'STANDBY');
+      const inBtns = q('inputs') ? q('inputs').querySelectorAll('button') : [];
+      for (let b of inBtns) {
+        b.classList.toggle('on', false);
+      }
     }
 
     if (d.apps && d.apps.length) {
@@ -1268,7 +1299,7 @@ async function tick() {
       } else {
         const appBtns = q('apps') ? q('apps').querySelectorAll('button') : [];
         for (let b of appBtns) {
-          b.classList.toggle('on', b.id === 'app_' + d.app.replace(/[^a-zA-Z0-9_-]/g, '_') || b.id === 'app_com_webos_app_' + d.app);
+          b.classList.toggle('on', !!(d.app && (b.id === 'app_' + d.app.replace(/[^a-zA-Z0-9_-]/g, '_') || b.id === 'app_com_webos_app_' + d.app)));
         }
       }
     }

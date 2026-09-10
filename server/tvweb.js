@@ -27,7 +27,7 @@ var zlib = require('zlib');
  * a link to /releases/tag/v<version>, so a value with no tag behind it gives a
  * 404 rather than a wrong page.
  */
-var TVWEB_VERSION = '0.17.0';
+var TVWEB_VERSION = '0.18.0';
 
 // ---------------------------------------------------------------- config
 var CONFIG = {
@@ -1032,13 +1032,20 @@ function detectOled(cb) {
     });
 }
 
-function refreshOledStats(picSettings, cb) {
+function refreshOledStats(picSettings, pState, cb) {
   var now = Date.now();
   if (cachedOled && (now - lastOledCheck < 30000)) {
     if (picSettings) {
       if (picSettings.screenShift) cachedOled.screen_shift = picSettings.screenShift;
       if (picSettings.logoLuminanceAdjust) cachedOled.logo_dimming = picSettings.logoLuminanceAdjust;
     }
+    var pnStateCached = rd('/mnt/lg/cmn_data/pnwash/state');
+    var jobScopeCached = rd('/mnt/lg/cmn_data/pnwash/jobScope');
+    var isPnwashRunningCached = (pnStateCached && pnStateCached.indexOf('2') === 0) || (jobScopeCached === '1');
+    var isCompRunningCached = isPnwashRunningCached ||
+      (pState && pState.raw === 'Active Standby' && cachedOled.hours_until_comp === 0);
+    cachedOled.comp_status = isCompRunningCached ? 'Running' : 'Idle';
+    cachedOled.comp_status_label = isCompRunningCached ? 'Completing Panel Maintenance (Short Cycle)' : 'Idle';
     return cb(cachedOled);
   }
 
@@ -1134,6 +1141,14 @@ function refreshOledStats(picSettings, cb) {
     var asblStatus = hasTpcMonitoring ? ((tpcOffExists || socTpcRaw === '0') ? 'Disabled' : 'Active') : null;
     var gsrStatus = hasTpcMonitoring ? (gsrOffExists ? 'Disabled' : 'Active') : null;
 
+    var pnStateRaw = rd('/mnt/lg/cmn_data/pnwash/state');
+    var jobScopeRaw = rd('/mnt/lg/cmn_data/pnwash/jobScope');
+    var isPnwashRunning = (pnStateRaw && pnStateRaw.indexOf('2') === 0) || (jobScopeRaw === '1');
+    var isCompRunning = isPnwashRunning ||
+      (pState && pState.raw === 'Active Standby' && hoursUntilComp === 0);
+    var compStatus = isCompRunning ? 'Running' : 'Idle';
+    var compStatusLabel = isCompRunning ? 'Completing Panel Maintenance (Short Cycle)' : 'Idle';
+
     cachedOled = {
       panel_hours: panelHours,
       panel_hours_exact: panelHoursExact,
@@ -1143,6 +1158,8 @@ function refreshOledStats(picSettings, cb) {
       comp_interval_hours: compInterval,
       comp_interval_units: compIntervalUnits,
       comp_cycles: offRsCycles,
+      comp_status: compStatus,
+      comp_status_label: compStatusLabel,
       refresher_interval_hours: REFRESHER_INTERVAL_HOURS,
       last_refresher_hours: lastRefresher,
       hours_since_refresher: hoursSinceRefresher,
@@ -1448,7 +1465,7 @@ function collectStats(cb) {
                     out.oled = null;
                     return flushStats(out);
                   }
-                  refreshOledStats((pic && pic.settings) ? pic.settings : null, function (oled) {
+                  refreshOledStats((pic && pic.settings) ? pic.settings : null, out.powerState, function (oled) {
                     out.oled = oled;
                     flushStats(out);
                   });
@@ -3116,6 +3133,15 @@ function setupHomeAssistant() {
         }
       },
       {
+        type: 'sensor', id: 'oled_compensation_status',
+        payload: {
+          name: 'OLED Compensation Status',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.oled.comp_status if value_json.oled else "Unknown" }}',
+          icon: 'mdi:autorenew'
+        }
+      },
+      {
         type: 'sensor', id: 'oled_refresher_status',
         payload: {
           name: 'Pixel Refresher Status',
@@ -3432,7 +3458,8 @@ function setupHomeAssistant() {
 
     var OLED_ONLY = {
       oled_panel_hours: 1, oled_hours_since_compensation: 1,
-      oled_hours_until_compensation: 1, oled_hours_since_refresher: 1,
+      oled_hours_until_compensation: 1, oled_compensation_status: 1,
+      oled_hours_since_refresher: 1,
       oled_hours_until_refresher: 1, oled_refresher_status: 1,
       oled_short_cycles: 1, oled_refresher_cycles: 1,
       oled_failure_alerts: 1, oled_asbl_dimmer: 1,
