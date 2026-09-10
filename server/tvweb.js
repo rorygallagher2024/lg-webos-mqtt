@@ -1265,6 +1265,7 @@ function collectStats(cb) {
       hasLogo: hasLogoLight === true
     };
     out.gpuMhz = gpuClockMhz();
+    out.screenSaver = screenSaverOn();
   lunaCached('com.palm.connectionmanager/getStatus', {}, 60000, function (cm) {
     // Network name, so the Wi-Fi figures say which network they refer to.
     var w = cm && cm.wifi;
@@ -1449,6 +1450,25 @@ function gpuClockMhz() {
   if (!raw) return null;
   var m = raw.match(/gpu pll out\s*:\s*(\d+)/i);
   return m ? Math.round(parseInt(m[1], 10) / 1000000) : null;
+}
+
+/*
+ * Whether the screen saver is on screen right now. The same file already read
+ * for the GPU clock carries it as "ss: OFF".
+ *
+ * There has been a control to start one since #24 but no way to see whether
+ * it took: turnOnScreenSaver returns true whether or not anything answered the
+ * request, so the only honest confirmation is the set saying so itself.
+ *
+ * A set that does not publish the field reports nothing rather than "off",
+ * which would claim a screen saver is not running on a TV that never says.
+ */
+function screenSaverOn() {
+  var raw = rd('/proc/lg/sys/status');
+  if (!raw) return null;
+  var m = raw.match(/^\s*ss\s*:\s*(\w+)/im);
+  if (!m) return null;
+  return /^(on|1|true)$/i.test(m[1]);
 }
 
 /*
@@ -4002,6 +4022,21 @@ function setupHomeAssistant() {
         }
       },
       {
+        /*
+         * The other half of that button. turnOnScreenSaver reports success
+         * whether or not anything answered the request, so this is the only
+         * confirmation that one is actually on screen. Withheld on sets whose
+         * kernel does not publish it - see publishDiscovery.
+         */
+        type: 'binary_sensor', id: 'screen_saver_active',
+        payload: {
+          name: 'Screen Saver',
+          state_topic: telemetryTopic,
+          value_template: '{{ "ON" if value_json.screenSaver else "OFF" }}',
+          icon: 'mdi:television-shimmer'
+        }
+      },
+      {
         type: 'switch', id: 'ad_blocker',
         payload: {
           name: 'Ad & Telemetry Blocker',
@@ -4235,6 +4270,21 @@ function setupHomeAssistant() {
         } else { keptGpu.push(entities[gi]); }
       }
       entities = keptGpu;
+    }
+
+    /*
+     * Screen saver state, from the same file. A set that never publishes it
+     * would otherwise get an entity reading OFF forever, which asserts that no
+     * screen saver is running on a TV that has never said either way.
+     */
+    if (screenSaverOn() === null) {
+      var keptSs = [];
+      for (var si = 0; si < entities.length; si++) {
+        if (entities[si].id === 'screen_saver_active') {
+          mqttClient.publish(discPfx + '/binary_sensor/' + devId + '/screen_saver_active/config', '', true);
+        } else { keptSs.push(entities[si]); }
+      }
+      entities = keptSs;
     }
 
     /*
