@@ -811,7 +811,11 @@ async function tick() {
     /* The core figures are positional, so the c0/c1 prefixes were four
        redundant labels competing for a 132px column - at three digits each the
        last core was being ellipsised away exactly when the TV was busy. */
-    const cores = (d.cores || []).join('  ·  ');
+    /* Only the cores that are online, so the count moves as the TV parks and
+       wakes them - say how many are down rather than leaving that unexplained. */
+    const live = d.cores || [];
+    const parked = Math.max(0, (d.coresTotal || live.length) - live.length);
+    const cores = live.join('  ·  ') + (parked ? '  ·  ' + parked + ' parked' : '');
     row('cpu', d.load + '<small>%</small>', d.load, cores, 85);
 
     const mu = d.mem.total ? 100 * (d.mem.total - d.mem.avail) / d.mem.total : 0;
