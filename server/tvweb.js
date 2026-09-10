@@ -1198,6 +1198,7 @@ function collectStats(cb) {
   if (n) prevNet = n;
 
   var hdmiDiag = getActiveHdmiDiagnostics();
+  if (hdmiDiag) hasHdmiDiag = true;
   var peInfo = getPictureEngineInfo();
 
   var out = {
@@ -1764,6 +1765,16 @@ var INPUTS = { hdmi1: 1, hdmi2: 1, hdmi3: 1, hdmi4: 1, livetv: 1 };
 // Verified against the settings service: 15 is rejected, 10 and 90 are not.
 // Set from collectStats: sets without the hardware report 65535 and get null.
 var hasLightSensor = false;
+
+/*
+ * Whether this set reports HDMI 2.1 diagnostics at all.
+ *
+ * Latched rather than read live, because hdmi_diag is absent whenever no HDMI
+ * source is active - on the Home screen, on Live TV, on an app - and that is
+ * not the same as the set being unable to report it. Once seen, the entities
+ * stay; a set that never reports them never gets them.
+ */
+var hasHdmiDiag = false;
 
 /*
  * Front-panel lights. The "option" settings category carries standByLight,
@@ -2699,7 +2710,7 @@ function setupHomeAssistant() {
         payload: {
           name: 'HDMI Link Protocol',
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.hdmi_diag.phy_mode if value_json.hdmi_diag and value_json.hdmi_diag.phy_mode else "None" }}',
+          value_template: '{{ value_json.hdmi_diag.phy_mode if value_json.hdmi_diag and value_json.hdmi_diag.phy_mode else none }}',
           entity_category: 'diagnostic',
           icon: 'mdi:video-input-hdmi'
         }
@@ -2709,7 +2720,7 @@ function setupHomeAssistant() {
         payload: {
           name: 'HDMI Chroma Format',
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.hdmi_diag.chroma if value_json.hdmi_diag and value_json.hdmi_diag.chroma else "None" }}',
+          value_template: '{{ value_json.hdmi_diag.chroma if value_json.hdmi_diag and value_json.hdmi_diag.chroma else none }}',
           entity_category: 'diagnostic',
           icon: 'mdi:palette'
         }
@@ -2719,7 +2730,7 @@ function setupHomeAssistant() {
         payload: {
           name: 'HDMI HDCP Version',
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.hdmi_diag.hdcp if value_json.hdmi_diag and value_json.hdmi_diag.hdcp else "None" }}',
+          value_template: '{{ value_json.hdmi_diag.hdcp if value_json.hdmi_diag and value_json.hdmi_diag.hdcp else none }}',
           entity_category: 'diagnostic',
           icon: 'mdi:lock-check'
         }
@@ -2729,7 +2740,7 @@ function setupHomeAssistant() {
         payload: {
           name: 'HDMI Cable Bit Errors',
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.hdmi_diag.phy_errors if value_json.hdmi_diag and value_json.hdmi_diag.phy_errors is not none else 0 }}',
+          value_template: '{{ value_json.hdmi_diag.phy_errors if value_json.hdmi_diag and value_json.hdmi_diag.phy_errors is not none else none }}',
           state_class: 'measurement',
           entity_category: 'diagnostic',
           icon: 'mdi:alert-outline'
@@ -2740,7 +2751,7 @@ function setupHomeAssistant() {
         payload: {
           name: 'Auto Low Latency Mode (ALLM)',
           state_topic: telemetryTopic,
-          value_template: '{{ "ON" if value_json.hdmi_diag and value_json.hdmi_diag.allm else "OFF" }}',
+          value_template: '{{ ("ON" if value_json.hdmi_diag.allm else "OFF") if value_json.hdmi_diag else none }}',
           icon: 'mdi:gamepad-variant'
         }
       },
@@ -2749,7 +2760,7 @@ function setupHomeAssistant() {
         payload: {
           name: 'Variable Refresh Rate (VRR)',
           state_topic: telemetryTopic,
-          value_template: '{{ "ON" if value_json.hdmi_diag and value_json.hdmi_diag.vrr else "OFF" }}',
+          value_template: '{{ ("ON" if value_json.hdmi_diag.vrr else "OFF") if value_json.hdmi_diag else none }}',
           icon: 'mdi:speedometer'
         }
       },
@@ -3275,6 +3286,13 @@ function setupHomeAssistant() {
      * looks like a real reading. Retained discovery configs are cleared so
      * they disappear from HA rather than lingering as orphans.
      */
+    // Everything sourced from hdmi_diag, and nothing else - these six stand or
+    // fall together, since one absent block leaves all of them with no source.
+    var HDMI_DIAG_ONLY = {
+      hdmi_link_mode: 1, hdmi_chroma: 1, hdmi_hdcp: 1,
+      hdmi_cable_errors: 1, hdmi_allm: 1, hdmi_vrr: 1
+    };
+
     var OLED_ONLY = {
       oled_panel_hours: 1, oled_hours_since_compensation: 1,
       oled_hours_until_compensation: 1, oled_hours_since_refresher: 1,
@@ -3421,6 +3439,22 @@ function setupHomeAssistant() {
     }
 
     /*
+     * HDMI 2.1 diagnostics, on a set that has never reported any. A B8 has no
+     * FRL link, no chroma report and no PHY error counter, and six entities
+     * that can only ever read unknown are worse than none.
+     */
+    if (!hasHdmiDiag) {
+      var keptHdmi = [];
+      for (var hi = 0; hi < entities.length; hi++) {
+        if (HDMI_DIAG_ONLY[entities[hi].id]) {
+          mqttClient.publish(discPfx + '/' + entities[hi].type + '/' + devId + '/' +
+                             entities[hi].id + '/config', '', true);
+        } else { keptHdmi.push(entities[hi]); }
+      }
+      entities = keptHdmi;
+    }
+
+    /*
      * GPU clock. Withheld on sets whose kernel does not expose the PLL output
      * in /proc/lg/sys/status (such as webOS 9+ / C2).
      */
@@ -3495,6 +3529,7 @@ function setupHomeAssistant() {
   }
 
   var lastPicSig = '';
+  var lastHdmiCap = false;
 
   function publishTelemetry() {
     if (!mqttClient.connected) return;
@@ -3525,6 +3560,17 @@ function setupHomeAssistant() {
       if (sig && sig !== lastPicSig) {
         lastPicSig = sig;
         console.log('mqtt: picture modes changed (' + sig + ') - republishing discovery');
+        publishDiscovery();
+      }
+      /*
+       * The HDMI diagnostics only appear once a source has been active, so a
+       * set that started on the Home screen looks incapable at first connect.
+       * Publishing again the first time they show turns the entities on; the
+       * flag never clears, so this happens once.
+       */
+      if (hasHdmiDiag && !lastHdmiCap) {
+        lastHdmiCap = true;
+        console.log('mqtt: HDMI diagnostics reported - republishing discovery');
         publishDiscovery();
       }
     });
