@@ -107,6 +107,7 @@ versions and panel types.
 | :--- | :--- | :--- | :--- | :--- |
 | OLED65B8SLC | 4.4.3 | 05.50.70 | OLED | Development set |
 | OLED65C9AUA | 4.9.x (4.5+) | 05.50.00 | OLED | |
+| OLED55C9PLA | 4.9.0 | 05.30.40 | OLED | Working fine |
 | OLED55C1PUB | 6.x (6.3+) | 03.53.45 | OLED | SSH install and MQTT bridge confirmed |
 | 55UH6030-UC | 3.4.3 | &mdash; | LCD | |
 | OLED55G42LW | 24 | 33.31.68 | OLED | Rooted with slopbro, not the Homebrew Channel |
