@@ -6,6 +6,8 @@ Assistant over MQTT as a single auto-discovered device with 47 entities.
 
 There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the TV.
 
+> **Device & webOS Support:** Built and tested for rooted LG TVs running **webOS 3.4 up to webOS 24 (webOS 9+)**, covering 2016–2024+ models across OLED, QNED, NanoCell, and LCD (including B7, B8, C9, C1, C2, and G4). Telemetry, controls, and Home Assistant MQTT entities dynamically adapt to your set's capabilities. See [Tested on](#tested-on) for verified models.
+
 ---
 
 ### Web Dashboard & Controls
