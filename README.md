@@ -2,7 +2,7 @@
 
 A telemetry server that runs **on** a rooted LG webOS TV. It serves a live
 dashboard to any browser on your network, and bridges the TV into Home
-Assistant over MQTT as a single auto-discovered device with 48 entities.
+Assistant over MQTT as a single auto-discovered device with up to 61 entities.
 
 There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the TV.
 
@@ -22,7 +22,7 @@ though something is playing.
 
 ### Home Assistant (Auto-Discovered Device via MQTT)
 
-All 48 entities arrive over MQTT Discovery as a single device
+Up to 61 native entities arrive over MQTT Discovery as a single unified device
 <p align="center">
 <img width="1061" height="1042" alt="image" src="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235" />
 </p>
@@ -50,20 +50,34 @@ bind-mounting over `/etc/hosts` that persists across reboots.
    load, memory, swap, current draw, Wi-Fi signal and throughput.
 
 3. **Observing OLED panel wear.** Cumulative panel hours, where you are in the
-   4-hour compensation cycle, and how far off the 2,000-hour Pixel Refresher is.
+   4-hour compensation cycle, how far off the 2,000-hour Pixel Refresher is, lifetime
+   completed cycles, failure alerts, and ASBL / GSR dimmer protection status.
    You can schedule or cancel a refresher for the next power-off.
 
-4. **Seeing what LG collects & blocking telemetry.** Whether the content-recognition
+4. **Monitoring HDMI 2.1 & gaming signal integrity.** Real-time FRL 48 Gbps vs TMDS link rate,
+   RGB 4:4:4 chroma subsampling, HDCP 2.3, physical cable error counter, ALLM, and VRR flags.
+
+5. **Magic Remote & hardware specs.** Magic Remote battery percentage, model, and firmware;
+   SoC generation (Alpha 9 Gen 5), OLED Cell generation, and TCON FPGA firmware.
+
+6. **Seeing what LG collects & blocking telemetry.** Whether the content-recognition
    engine is actually running and sampling your screen, your advertising identifier,
    data agreements, and an on-TV `/etc/hosts` blackhole for LG ad and telemetry domains.
 
 ## Core features
 
-* **OLED panel health.** Panel hours, compensation cycle, Pixel Refresher
-  countdown and scheduling, screen shift and logo dimming state. Automatically
+* **OLED panel health.** Cumulative panel hours, 4-hour short cycle progress,
+  2,000-hour Pixel Refresher countdown and scheduling, lifetime completed cycle counters
+  (short Off-RS and deep JB refresher), compensation failure alert monitoring, screen shift,
+  logo dimming, and human-readable ASBL / GSR auto-dimmer protection states. Automatically
   hidden on LCD/QNED sets, which have no such counters.
+* **HDMI 2.1 & stream observability.** Live link rate (e.g. `FRL 48 Gbps (12G 4L)` vs `TMDS`),
+  chroma subsampling (`RGB 4:4:4`, `YCbCr 4:2:2`), HDCP version (`2.3`), physical cable bit error
+  counter, ALLM, VRR, QMS flags, and picture engine colorimetry (`BT.709`, `BT.2020`).
+* **Magic Remote & hardware specs.** Magic Remote battery percentage, remote model, and firmware version;
+  SoC architecture detection (e.g. `Alpha 9 Gen 5 (O22)`), OLED Cell ID/stack, and TCON FPGA firmware.
 * **Video and audio observability.** Dolby Vision / HDR / SDR detection, picture
-  mode, OLED light level, raw HDMI signal (`3840x2160 @ 60Hz`), audio output
+  mode, OLED light level, raw HDMI signal (`3840x2160 @ 120Hz`), audio output
   routing, and active app with friendly input names (`Apple TV (HDMI2)`).
 * **Hardware diagnostics.** SoC temperature and current draw, CPU and per-core
   load, GPU clock, memory and zram swap, Wi-Fi RSSI, network throughput, eMMC
@@ -240,7 +254,7 @@ Full detail, including the MQTT ACL guidance and optional TLS, is in
 ## Documentation
 
 * [docs/SECURITY.md](docs/SECURITY.md) &mdash; threat model, SSH migration, MQTT hardening
-* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; all 48 entities, universal media player, example automations
+* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; up to 61 entities, universal media player, example automations
 * [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) &mdash; architecture, `/proc/lg` reference, platform quirks
 
 ---

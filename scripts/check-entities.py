@@ -39,7 +39,7 @@ def resolve(path):
 
 
 blocks = re.findall(
-    r"type: '(switch|number|select|sensor)', id: '([a-z0-9_]+)',\s*payload: \{(.*?)\n        \}",
+    r"type: '(switch|number|select|sensor|binary_sensor)', id: '([a-z0-9_]+)',\s*payload: \{(.*?)\n        \}",
     src, re.S)
 
 failures, checked = [], 0

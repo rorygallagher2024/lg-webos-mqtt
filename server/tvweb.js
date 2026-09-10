@@ -280,6 +280,113 @@ function getVideoSignal() {
   return null;
 }
 
+function readRemoteInfo() {
+  var raw = rd('/mnt/lg/cmn_data/mrcu/mrcu1.info');
+  if (!raw) return null;
+  var bMatch = raw.match(/Battery\s*=\s*(\d+)/i);
+  var nMatch = raw.match(/Name\s*=\s*([^\r\n]+)/i);
+  var macMatch = raw.match(/BDAddr\s*=\s*([^\r\n]+)/i);
+  var fwMatch = raw.match(/fwVer\s*=\s*([^\r\n]+)/i);
+  if (!bMatch && !nMatch) return null;
+  return {
+    battery: bMatch ? parseInt(bMatch[1], 10) : null,
+    model: nMatch ? nMatch[1].trim() : null,
+    mac: macMatch ? macMatch[1].trim() : null,
+    firmware: fwMatch ? fwMatch[1].trim() : null,
+    paired: true
+  };
+}
+
+function getActiveHdmiDiagnostics() {
+  for (var p = 0; p < 4; p++) {
+    var raw = rd('/proc/lg/hdmi20/port' + p + '/status');
+    if (!raw) continue;
+    var isConn = /connected:\s*on/i.test(raw) || /PHY\s+Lock\[1\]/i.test(raw) || /is5Vconnected\[1\]/i.test(raw);
+    if (!isConn) continue;
+
+    var phyMatch = raw.match(/PHY Mode\[([^\]]+)\]/i);
+    var fmtMatch = raw.match(/Video Format\[([^\]]+)\]/i);
+    var hdcpMatch = raw.match(/Current HDCP Auth Version => (HDCP\w+)/i);
+    var errMatch = raw.match(/PHY Error Count\s*:\s*(\d+)/i);
+    var allmMatch = raw.match(/isAllm\[(\d+)\]/i);
+    var vrrMatch = raw.match(/isFreeSync\[(\d+)\]/i);
+    var vrrMinMax = raw.match(/VRR Min\[(\d+)\]\/Max\[(\d+)\]/i);
+    var qmsMatch = raw.match(/QMSMode\[(\d+)\]/i);
+
+    var phyMode = null;
+    if (phyMatch) {
+      var rawPhy = phyMatch[1].trim();
+      if (/FRL 12G 4L/i.test(rawPhy)) phyMode = 'FRL 48 Gbps';
+      else if (/FRL 10G 4L/i.test(rawPhy)) phyMode = 'FRL 40 Gbps';
+      else if (/FRL 8G 4L/i.test(rawPhy)) phyMode = 'FRL 32 Gbps';
+      else if (/FRL 6G 4L/i.test(rawPhy)) phyMode = 'FRL 24 Gbps';
+      else if (/FRL 6G 3L/i.test(rawPhy)) phyMode = 'FRL 18 Gbps';
+      else if (/FRL 3G 3L/i.test(rawPhy)) phyMode = 'FRL 9 Gbps';
+      else if (/3G/i.test(rawPhy)) phyMode = 'TMDS (3G)';
+      else if (/6G/i.test(rawPhy)) phyMode = 'TMDS (6G)';
+      else phyMode = rawPhy;
+    }
+
+    var format = null;
+    if (fmtMatch) {
+      var rawFmt = fmtMatch[1].trim();
+      if (rawFmt === 'R444') format = 'RGB 4:4:4';
+      else if (rawFmt === 'Y444') format = 'YCbCr 4:4:4';
+      else if (rawFmt === 'Y422') format = 'YCbCr 4:2:2';
+      else if (rawFmt === 'Y420') format = 'YCbCr 4:2:0';
+      else format = rawFmt;
+    }
+
+    var hdcp = null;
+    if (hdcpMatch) {
+      var rawHdcp = hdcpMatch[1].trim();
+      if (rawHdcp === 'HDCP23') hdcp = 'HDCP 2.3';
+      else if (rawHdcp === 'HDCP22') hdcp = 'HDCP 2.2';
+      else if (rawHdcp === 'HDCP14') hdcp = 'HDCP 1.4';
+      else if (rawHdcp === 'HDCP0') hdcp = 'None';
+      else hdcp = rawHdcp;
+    }
+
+    var isVrr = (vrrMatch && vrrMatch[1] === '1') ||
+                (vrrMinMax && (parseInt(vrrMinMax[1], 10) > 0 || parseInt(vrrMinMax[2], 10) > 0));
+
+    return {
+      port: p,
+      phy_mode: phyMode,
+      chroma: format,
+      hdcp: hdcp,
+      phy_errors: errMatch ? parseInt(errMatch[1], 10) : 0,
+      allm: allmMatch ? (allmMatch[1] === '1') : false,
+      vrr: !!isVrr,
+      qms: qmsMatch ? (qmsMatch[1] === '1') : false
+    };
+  }
+  return null;
+}
+
+function getPictureEngineInfo() {
+  var raw = rd('/proc/lg/pe/hdr_status');
+  if (!raw) return null;
+  var colMatch = raw.match(/colorimetry:\s*([^,\}]+)/i);
+  var hdrMatch = raw.match(/hdrStatus:\s*([^\(,\}]+)/i);
+  var peakMatch = raw.match(/peakLuminance:\s*(\d+)/i);
+
+  var colorimetry = null;
+  if (colMatch) {
+    var rawCol = colMatch[1].trim().toLowerCase();
+    if (rawCol === 'bt709') colorimetry = 'BT.709';
+    else if (rawCol === 'bt2020') colorimetry = 'BT.2020';
+    else if (rawCol === 'bt601') colorimetry = 'BT.601';
+    else colorimetry = colMatch[1].trim();
+  }
+
+  return {
+    colorimetry: colorimetry,
+    hdr_mode: hdrMatch ? hdrMatch[1].trim() : null,
+    peak_luminance: peakMatch ? parseInt(peakMatch[1], 10) : null
+  };
+}
+
 var PIC_MODE_MAP = {
   dolbyHdrVivid: 'Dolby Vision Vivid',
   dolbyHdrCinemaBright: 'Dolby Vision Cinema Bright',
@@ -413,6 +520,54 @@ function lunaCached(uri, payload, ttlMs, cb) {
 
 function clearLunaCache() { lunaCache = {}; }
 
+var HARDWARE_INFO = {
+  socArch: null,
+  ram: null,
+  refreshRate: null,
+  eyeSensor: null,
+  cell: null,
+  tconFirmware: null,
+  tconModule: null
+};
+
+function detectHardwareInfo(cb) {
+  var envRaw = rd('/var/luna/preferences/environmentCondition');
+  if (envRaw) {
+    try {
+      var env = JSON.parse(envRaw);
+      var bStr = env.boardTypeStr || rd('/proc/lg/base/chip_name') || '';
+      if (bStr) {
+        bStr = bStr.trim();
+        if (bStr === '_O22_' || bStr === 'o22') HARDWARE_INFO.socArch = 'Alpha 9 Gen 5 (O22)';
+        else if (bStr === '_O20_' || bStr === 'o20') HARDWARE_INFO.socArch = 'Alpha 9 Gen 3 (O20)';
+        else if (bStr === '_O18_' || bStr === 'o18') HARDWARE_INFO.socArch = 'Alpha 9 Gen 1 (O18)';
+        else if (bStr === '_M16P_' || bStr === 'm16p') HARDWARE_INFO.socArch = 'Alpha 7 (M16P)';
+        else HARDWARE_INFO.socArch = bStr;
+      }
+      if (env.ddrSize) HARDWARE_INFO.ram = env.ddrSize;
+      if (env.panelOutputFrameRate) HARDWARE_INFO.refreshRate = env.panelOutputFrameRate + ' Hz';
+      if (env.digitalEyeMode) HARDWARE_INFO.eyeSensor = env.digitalEyeMode;
+      else if (env.isDigitalEye === 'true') HARDWARE_INFO.eyeSensor = 'Digital Eye';
+    } catch (e) {}
+  }
+  if (!HARDWARE_INFO.socArch) {
+    var chip = rd('/proc/lg/base/chip_name');
+    if (chip) HARDWARE_INFO.socArch = chip.trim();
+  }
+
+  // Query panelcontroller (webOS 9+)
+  luna('com.webos.service.panelcontroller/getOledCellInfo', {}, function (cellRes) {
+    if (cellRes && cellRes.cellInfo) HARDWARE_INFO.cell = cellRes.cellInfo;
+    luna('com.webos.service.panelcontroller/getOledTconInfo', {}, function (tconRes) {
+      if (tconRes && tconRes.tconParamForInstart) {
+        HARDWARE_INFO.tconFirmware = tconRes.tconParamForInstart.tconFpgaFirmwareVer || null;
+        HARDWARE_INFO.tconModule = tconRes.tconParamForInstart.tconModuleInfo || null;
+      }
+      if (cb) cb();
+    });
+  });
+}
+
 function detectDeviceInfo(cb) {
   luna('com.webos.service.tv.systemproperty/getSystemProperties',
     { keys: ['modelName', 'firmwareVersion', 'boardType'] },
@@ -431,7 +586,9 @@ function detectDeviceInfo(cb) {
       }
       if (!CONFIG.device.name) CONFIG.device.name = 'LG webOS TV';
       if (!CONFIG.device.model) CONFIG.device.model = 'webOS TV';
-      if (cb) cb();
+      detectHardwareInfo(function () {
+        if (cb) cb();
+      });
     }
   );
 }
@@ -754,6 +911,18 @@ function refreshOledStats(picSettings, cb) {
     var hoursSinceRefresher = (panelHours && lastRefresher) ? Math.max(0, panelHours - lastRefresher) : 0;
     var hoursUntilRefresher = Math.max(0, REFRESHER_INTERVAL_HOURS - hoursSinceRefresher);
 
+    var offRsCountRaw = rd('/mnt/lg/cmn_data/pnwash/completedOffRsCount');
+    var jbCountRaw = rd('/mnt/lg/cmn_data/pnwash/completedJbCount');
+    var failAlertCountRaw = rd('/mnt/lg/cmn_data/pnwash/failAlertCount');
+    var tpcOffRaw = rd('/mnt/lg/cmn_data/pnwash/tpcOff');
+    var gsrOffRaw = rd('/mnt/lg/cmn_data/pnwash/gsrOff');
+
+    var offRsCycles = offRsCountRaw ? parseInt(offRsCountRaw, 10) : null;
+    var jbCycles = jbCountRaw ? parseInt(jbCountRaw, 10) : null;
+    var failCount = failAlertCountRaw ? parseInt(failAlertCountRaw, 10) : null;
+    var asblStatus = (tpcOffRaw && tpcOffRaw.trim() === '1') ? 'Disabled' : 'Active';
+    var gsrStatus = (gsrOffRaw && gsrOffRaw.trim() === '1') ? 'Disabled' : 'Active';
+
     cachedOled = {
       panel_hours: panelHours,
       panel_hours_exact: panelHoursExact,
@@ -762,12 +931,17 @@ function refreshOledStats(picSettings, cb) {
       hours_until_comp: hoursUntilComp,
       comp_interval_hours: compInterval,
       comp_interval_units: compIntervalUnits,
+      comp_cycles: offRsCycles,
       refresher_interval_hours: REFRESHER_INTERVAL_HOURS,
       last_refresher_hours: lastRefresher,
       hours_since_refresher: hoursSinceRefresher,
       hours_until_refresher: hoursUntilRefresher,
+      refresher_cycles: jbCycles,
       refresher_status: statusStr,
       refresher_status_raw: rawStatus,
+      failure_alerts: failCount,
+      asbl_protection: asblStatus,
+      gsr_protection: gsrStatus,
       screen_shift: (picSettings && picSettings.screenShift) ? picSettings.screenShift : 'off',
       logo_dimming: (picSettings && picSettings.logoLuminanceAdjust) ? picSettings.logoLuminanceAdjust : 'off'
     };
@@ -867,6 +1041,9 @@ function collectStats(cb) {
   }
   if (n) prevNet = n;
 
+  var hdmiDiag = getActiveHdmiDiagnostics();
+  var peInfo = getPictureEngineInfo();
+
   var out = {
     ok: true,
     time: Date.now(),
@@ -876,6 +1053,18 @@ function collectStats(cb) {
       name: CONFIG.device.name || 'LG webOS TV',
       model: CONFIG.device.model || 'webOS TV'
     },
+    hardware: {
+      soc_arch: HARDWARE_INFO.socArch,
+      ram: HARDWARE_INFO.ram,
+      refresh_rate: HARDWARE_INFO.refreshRate,
+      eye_sensor: HARDWARE_INFO.eyeSensor
+    },
+    panel_silicon: HARDWARE_INFO.cell ? {
+      cell: HARDWARE_INFO.cell,
+      tcon_firmware: HARDWARE_INFO.tconFirmware,
+      tcon_module: HARDWARE_INFO.tconModule
+    } : null,
+    remote: readRemoteInfo(),
     /*
      * The thermal sensor is not populated immediately after boot: for roughly
      * the first 80 seconds /proc/lg/pm/temperature reads a literal 0, which is
@@ -900,6 +1089,9 @@ function collectStats(cb) {
     net: rate,
     emmc: emmcInfo(),
     signal: getVideoSignal(),
+    hdmi_diag: hdmiDiag,
+    picture_engine: peInfo,
+    colorimetry: peInfo ? peInfo.colorimetry : null,
     power: {
       cpu_ma: cpuMa,
       core_ma: coreMa,
@@ -2082,7 +2274,7 @@ var PAGE = [
   '      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>',
   '    </div>',
   '    <div>',
-  '      <h1><span id="devname">LG OLED TV</span> <span class="status-pill"><span class="pulse-dot"></span> Online</span></h1>',
+  '      <h1><span id="devname">LG OLED TV</span> <span class="status-pill"><span class="pulse-dot"></span> Online</span> <span class="status-pill" id="remote-pill" style="display: none;"><span id="remote-text">-</span></span></h1>',
   '      <div style="font-size: 13px; color: var(--dim); margin-top: 2px;" id="sub">Connecting...</div>',
   '    </div>',
   '  </div>',
@@ -2112,6 +2304,7 @@ var PAGE = [
   '      <div class="oled-stat-lbl">Short Cycle (Off-RS)</div>',
   '      <div class="oled-stat-val" id="oled-short">-</div>',
   '      <div class="oled-stat-meta" id="oled-short-meta">Runs on standby (4h interval)</div>',
+  '      <div class="oled-stat-meta" id="oled-short-cycles" style="margin-top: 4px;"></div>',
   '      <div style="margin-top: 8px;">',
   '        <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); margin-bottom: 4px;">',
   '          <span>4h Cycle Progress</span>',
@@ -2124,6 +2317,7 @@ var PAGE = [
   '      <div class="oled-stat-lbl">Pixel Refresher (1-Hour JB)</div>',
   '      <div class="oled-stat-val" id="oled-refresher">-</div>',
   '      <div class="oled-stat-meta" id="oled-refresher-meta">Deep cycle (2,000h interval)</div>',
+  '      <div class="oled-stat-meta" id="oled-jb-cycles" style="margin-top: 4px;"></div>',
   '    </div>',
   '    <div class="oled-stat">',
   '      <div class="oled-stat-lbl">Burn-In Protection</div>',
@@ -2383,6 +2577,13 @@ var PAGE = [
   '      q("devname").textContent = d.device.name;',
   '      document.title = d.device.name + (d.app ? " · " + (d.display_title || d.app) : "");',
   '    }',
+  '    if (d.remote && d.remote.battery !== null && d.remote.battery !== undefined) {',
+  '      q("remote-pill").style.display = "inline-flex";',
+  '      q("remote-text").textContent = (d.remote.model ? d.remote.model.replace("LGE ", "") + " " : "Remote ") + d.remote.battery + "% 🔋";',
+  '      q("remote-pill").title = (d.remote.model || "Magic Remote") + (d.remote.firmware ? " · FW: " + d.remote.firmware : "");',
+  '    } else {',
+  '      q("remote-pill").style.display = "none";',
+  '    }',
   '    const upSec = d.uptime || 0;',
   '    const upH = Math.floor(upSec / 3600);',
   '    const upM = Math.floor((upSec % 3600) / 60);',
@@ -2401,12 +2602,23 @@ var PAGE = [
   '',
   '      q("oled-short").textContent = d.oled.hours_since_comp + "h ago";',
   '      q("oled-short-meta").textContent = "Due in ~" + d.oled.hours_until_comp + "h on standby";',
+  '      if (q("oled-short-cycles")) {',
+  '        q("oled-short-cycles").textContent = (d.oled.comp_cycles !== undefined && d.oled.comp_cycles !== null) ?',
+  '          d.oled.comp_cycles + " cycles completed" : "";',
+  '      }',
   '',
   '      q("oled-refresher").textContent = d.oled.hours_since_refresher + "h ago";',
   '      q("oled-refresher-meta").textContent = "~" + d.oled.hours_until_refresher + "h until next 2,000h cycle";',
+  '      if (q("oled-jb-cycles")) {',
+  '        q("oled-jb-cycles").textContent = (d.oled.refresher_cycles !== undefined && d.oled.refresher_cycles !== null) ?',
+  '          d.oled.refresher_cycles + " deep cycles" : "";',
+  '      }',
   '',
-  '      q("oled-protect").textContent = "Orbit: " + String(d.oled.screen_shift).toUpperCase() + " · Logo: " + String(d.oled.logo_dimming).toUpperCase();',
-  '      q("oled-schedule").textContent = "Schedule: " + d.oled.refresher_status;',
+  '      var dimmerText = d.oled.asbl_protection ? (" · ASBL: " + d.oled.asbl_protection) : "";',
+  '      q("oled-protect").textContent = "Orbit: " + String(d.oled.screen_shift).toUpperCase() + " · Logo: " + String(d.oled.logo_dimming).toUpperCase() + dimmerText;',
+  '      var failText = (d.oled.failure_alerts !== undefined && d.oled.failure_alerts !== null) ?',
+  '        (d.oled.failure_alerts === 0 ? " · 0 failures" : " · " + d.oled.failure_alerts + " failures") : "";',
+  '      q("oled-schedule").textContent = "Schedule: " + d.oled.refresher_status + failText;',
   '',
   '      if (d.oled.refresher_status === "Scheduled") {',
   '        q("btn_sched").style.display = "none";',
@@ -2431,7 +2643,21 @@ var PAGE = [
   '        hdrBadge.className = "badge badge-sdr";',
   '      }',
   '      setProgress("backlightbar", d.picture.backlight || 50);',
-  '      q("picmeta").textContent = "OLED Light " + d.picture.backlight + "%" + (d.signal ? " · " + d.signal : "");',
+  '      var hdmiParts = [];',
+  '      if (d.hdmi_diag) {',
+  '        if (d.hdmi_diag.phy_mode) hdmiParts.push(d.hdmi_diag.phy_mode);',
+  '        if (d.hdmi_diag.chroma) hdmiParts.push(d.hdmi_diag.chroma);',
+  '        if (d.hdmi_diag.hdcp && d.hdmi_diag.hdcp !== "None") hdmiParts.push(d.hdmi_diag.hdcp);',
+  '        if (d.hdmi_diag.allm) hdmiParts.push("ALLM");',
+  '        if (d.hdmi_diag.vrr) hdmiParts.push("VRR");',
+  '      }',
+  '      var colSpace = d.colorimetry || "";',
+  '      var extraSignal = [',
+  '        d.signal || "",',
+  '        hdmiParts.join(" · "),',
+  '        colSpace',
+  '      ].filter(Boolean).join(" · ");',
+  '      q("picmeta").textContent = "OLED Light " + d.picture.backlight + "%" + (extraSignal ? " · " + extraSignal : "");',
   '    }',
   '',
   '    // Audio',
@@ -3159,6 +3385,74 @@ function setupHomeAssistant() {
         }
       },
       {
+        type: 'sensor', id: 'hdmi_link_mode',
+        payload: {
+          name: 'HDMI Link Protocol',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.hdmi_diag.phy_mode if value_json.hdmi_diag and value_json.hdmi_diag.phy_mode else "None" }}',
+          entity_category: 'diagnostic',
+          icon: 'mdi:video-input-hdmi'
+        }
+      },
+      {
+        type: 'sensor', id: 'hdmi_chroma',
+        payload: {
+          name: 'HDMI Chroma Format',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.hdmi_diag.chroma if value_json.hdmi_diag and value_json.hdmi_diag.chroma else "None" }}',
+          entity_category: 'diagnostic',
+          icon: 'mdi:palette'
+        }
+      },
+      {
+        type: 'sensor', id: 'hdmi_hdcp',
+        payload: {
+          name: 'HDMI HDCP Version',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.hdmi_diag.hdcp if value_json.hdmi_diag and value_json.hdmi_diag.hdcp else "None" }}',
+          entity_category: 'diagnostic',
+          icon: 'mdi:lock-check'
+        }
+      },
+      {
+        type: 'sensor', id: 'hdmi_cable_errors',
+        payload: {
+          name: 'HDMI Cable Bit Errors',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.hdmi_diag.phy_errors if value_json.hdmi_diag and value_json.hdmi_diag.phy_errors is not none else 0 }}',
+          state_class: 'measurement',
+          entity_category: 'diagnostic',
+          icon: 'mdi:alert-outline'
+        }
+      },
+      {
+        type: 'binary_sensor', id: 'hdmi_allm',
+        payload: {
+          name: 'Auto Low Latency Mode (ALLM)',
+          state_topic: telemetryTopic,
+          value_template: '{{ "ON" if value_json.hdmi_diag and value_json.hdmi_diag.allm else "OFF" }}',
+          icon: 'mdi:gamepad-variant'
+        }
+      },
+      {
+        type: 'binary_sensor', id: 'hdmi_vrr',
+        payload: {
+          name: 'Variable Refresh Rate (VRR)',
+          state_topic: telemetryTopic,
+          value_template: '{{ "ON" if value_json.hdmi_diag and value_json.hdmi_diag.vrr else "OFF" }}',
+          icon: 'mdi:speedometer'
+        }
+      },
+      {
+        type: 'sensor', id: 'video_colorimetry',
+        payload: {
+          name: 'Video Color Space',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.picture_engine.colorimetry if value_json.picture_engine and value_json.picture_engine.colorimetry else "BT.709" }}',
+          icon: 'mdi:palette-swatch'
+        }
+      },
+      {
         type: 'sensor', id: 'audio_output',
         payload: {
           name: 'Audio Output',
@@ -3204,6 +3498,49 @@ function setupHomeAssistant() {
           value_template: '{{ value_json.tvwebVersion }}',
           entity_category: 'diagnostic',
           icon: 'mdi:tag-outline'
+        }
+      },
+      {
+        type: 'sensor', id: 'remote_battery',
+        payload: {
+          name: 'Remote Battery',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.remote.battery if value_json.remote and value_json.remote.battery is not none else none }}',
+          unit_of_measurement: '%',
+          device_class: 'battery',
+          state_class: 'measurement',
+          entity_category: 'diagnostic',
+          icon: 'mdi:remote'
+        }
+      },
+      {
+        type: 'sensor', id: 'soc_architecture',
+        payload: {
+          name: 'SoC Architecture',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.hardware.soc_arch if value_json.hardware and value_json.hardware.soc_arch else "Unknown" }}',
+          entity_category: 'diagnostic',
+          icon: 'mdi:cpu-64-bit'
+        }
+      },
+      {
+        type: 'sensor', id: 'oled_cell_type',
+        payload: {
+          name: 'OLED Cell Info',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.panel_silicon.cell if value_json.panel_silicon and value_json.panel_silicon.cell else none }}',
+          entity_category: 'diagnostic',
+          icon: 'mdi:monitor-cell'
+        }
+      },
+      {
+        type: 'sensor', id: 'tcon_firmware',
+        payload: {
+          name: 'TCON Firmware',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.panel_silicon.tcon_firmware if value_json.panel_silicon and value_json.panel_silicon.tcon_firmware else none }}',
+          entity_category: 'diagnostic',
+          icon: 'mdi:chip'
         }
       },
       {
@@ -3342,6 +3679,48 @@ function setupHomeAssistant() {
           state_topic: telemetryTopic,
           value_template: '{{ value_json.oled.logo_dimming if value_json.oled else "Unknown" }}',
           icon: 'mdi:television-guide'
+        }
+      },
+      {
+        type: 'sensor', id: 'oled_short_cycles',
+        payload: {
+          name: 'OLED Short Cycles Completed',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.oled.comp_cycles if value_json.oled and value_json.oled.comp_cycles is not none else none }}',
+          state_class: 'total_increasing',
+          entity_category: 'diagnostic',
+          icon: 'mdi:counter'
+        }
+      },
+      {
+        type: 'sensor', id: 'oled_refresher_cycles',
+        payload: {
+          name: 'OLED Refresher Cycles Completed',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.oled.refresher_cycles if value_json.oled and value_json.oled.refresher_cycles is not none else none }}',
+          state_class: 'total_increasing',
+          entity_category: 'diagnostic',
+          icon: 'mdi:counter'
+        }
+      },
+      {
+        type: 'sensor', id: 'oled_failure_alerts',
+        payload: {
+          name: 'OLED Compensation Failures',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.oled.failure_alerts if value_json.oled and value_json.oled.failure_alerts is not none else 0 }}',
+          entity_category: 'diagnostic',
+          icon: 'mdi:alert-circle-outline'
+        }
+      },
+      {
+        type: 'binary_sensor', id: 'oled_asbl_dimmer',
+        payload: {
+          name: 'OLED ASBL Protection',
+          state_topic: telemetryTopic,
+          value_template: '{{ "ON" if value_json.oled and value_json.oled.asbl_protection == "Active" else "OFF" }}',
+          entity_category: 'diagnostic',
+          icon: 'mdi:shield-check'
         }
       },
       {
@@ -3572,9 +3951,91 @@ function setupHomeAssistant() {
       oled_panel_hours: 1, oled_hours_since_compensation: 1,
       oled_hours_until_compensation: 1, oled_hours_since_refresher: 1,
       oled_hours_until_refresher: 1, oled_refresher_status: 1,
+      oled_short_cycles: 1, oled_refresher_cycles: 1,
+      oled_failure_alerts: 1, oled_asbl_dimmer: 1,
+      oled_cell_type: 1, tcon_firmware: 1,
       oled_screen_shift: 1, oled_logo_dimming: 1,
       pixel_refresher_schedule: 1
     };
+
+    /*
+     * Withhold remote battery entity if Magic Remote info is absent (e.g. set only uses IR).
+     */
+    if (!readRemoteInfo()) {
+      var keptRemote = [];
+      for (var ri = 0; ri < entities.length; ri++) {
+        if (entities[ri].id === 'remote_battery') {
+          mqttClient.publish(discPfx + '/sensor/' + devId + '/remote_battery/config', '', true);
+        } else { keptRemote.push(entities[ri]); }
+      }
+      entities = keptRemote;
+    }
+
+    /*
+     * Withhold OLED cycle counters & failure alerts on older sets where pnwash files don't exist.
+     */
+    if (!fs.existsSync('/mnt/lg/cmn_data/pnwash/completedOffRsCount')) {
+      var keptCycles = [];
+      for (var ci = 0; ci < entities.length; ci++) {
+        if (entities[ci].id === 'oled_short_cycles' || entities[ci].id === 'oled_refresher_cycles' || entities[ci].id === 'oled_failure_alerts') {
+          mqttClient.publish(discPfx + '/' + entities[ci].type + '/' + devId + '/' + entities[ci].id + '/config', '', true);
+        } else { keptCycles.push(entities[ci]); }
+      }
+      entities = keptCycles;
+    }
+
+    /*
+     * Withhold panel silicon cell & TCON firmware if not available from panelcontroller.
+     */
+    if (!HARDWARE_INFO.cell) {
+      var keptSilicon = [];
+      for (var si = 0; si < entities.length; si++) {
+        if (entities[si].id === 'oled_cell_type' || entities[si].id === 'tcon_firmware') {
+          mqttClient.publish(discPfx + '/' + entities[si].type + '/' + devId + '/' + entities[si].id + '/config', '', true);
+        } else { keptSilicon.push(entities[si]); }
+      }
+      entities = keptSilicon;
+    }
+
+    /*
+     * Withhold HDMI 2.1 diagnostics on platforms without /proc/lg/hdmi20.
+     */
+    if (!fs.existsSync('/proc/lg/hdmi20')) {
+      var keptHdmi = [];
+      for (var hi = 0; hi < entities.length; hi++) {
+        if (entities[hi].id.indexOf('hdmi_') === 0) {
+          mqttClient.publish(discPfx + '/' + entities[hi].type + '/' + devId + '/' + entities[hi].id + '/config', '', true);
+        } else { keptHdmi.push(entities[hi]); }
+      }
+      entities = keptHdmi;
+    }
+
+    /*
+     * Withhold colorimetry if /proc/lg/pe/hdr_status does not exist.
+     */
+    if (!fs.existsSync('/proc/lg/pe/hdr_status')) {
+      var keptColor = [];
+      for (var cli = 0; cli < entities.length; cli++) {
+        if (entities[cli].id === 'video_colorimetry') {
+          mqttClient.publish(discPfx + '/sensor/' + devId + '/video_colorimetry/config', '', true);
+        } else { keptColor.push(entities[cli]); }
+      }
+      entities = keptColor;
+    }
+
+    /*
+     * Withhold SoC architecture if unknown.
+     */
+    if (!HARDWARE_INFO.socArch) {
+      var keptArch = [];
+      for (var ai = 0; ai < entities.length; ai++) {
+        if (entities[ai].id === 'soc_architecture') {
+          mqttClient.publish(discPfx + '/sensor/' + devId + '/soc_architecture/config', '', true);
+        } else { keptArch.push(entities[ai]); }
+      }
+      entities = keptArch;
+    }
+
     /*
      * Withhold the ambient light entity on sets without the sensor. They still
      * answer getLightSensorData, reporting 65535, so the entity would sit at

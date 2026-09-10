@@ -278,7 +278,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 <body>
 
 <header>
-  <div class="mark">LG OLED TV <span id="model">&mdash;</span></div>
+  <div class="mark">LG OLED TV <span id="model">&mdash;</span> <span id="remote-badge" style="display:none;margin-left:8px;font-size:11px;background:var(--w10);color:var(--w90);padding:2px 7px;border-radius:10px;font-weight:500;"></span></div>
   <div class="src">
     <div class="st" id="state"><i></i><span>&mdash;</span></div>
     <div class="t" id="source">&mdash;</div>
@@ -320,6 +320,8 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="grp">System</div>
       <section class="readouts" id="readouts"></section>
       <div class="cols" style="margin-top:20px">
+        <div id="socarch-cell" hidden><div class="lbl">Architecture</div><div class="v" id="socarch">&mdash;</div><div class="sub">Processor SoC</div></div>
+        <div id="panelsilicon-cell" hidden><div class="lbl">Panel Silicon</div><div class="v" id="panelsilicon">&mdash;</div><div class="sub" id="panelsilicon-sub">TCON FPGA</div></div>
         <div id="gpuclk-cell" hidden><div class="lbl">GPU clock</div><div class="v num" id="gpuclk">&mdash;</div></div>
         <div id="ssid-cell" hidden><div class="lbl">Network</div><div class="v" id="ssid">&mdash;</div><div class="sub">Connected Wi-Fi</div></div>
       </div>
@@ -330,9 +332,10 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="lbl">Total power on hours</div>
       <div class="n num" style="margin-top:10px"><span id="ph">&mdash;</span><em>hours</em></div>
       <div class="cols">
-        <div><div class="lbl">Compensation in</div><div class="v num" id="comp">&mdash;</div></div>
-        <div><div class="lbl">Refresher in</div><div class="v num" id="refr">&mdash;</div></div>
-        <div><div class="lbl">Refresher state</div><div class="v" id="rstate">&mdash;</div></div>
+        <div><div class="lbl">Compensation in</div><div class="v num" id="comp">&mdash;</div><div class="sub" id="comp-sub">&mdash;</div></div>
+        <div><div class="lbl">Refresher in</div><div class="v num" id="refr">&mdash;</div><div class="sub" id="refr-sub">&mdash;</div></div>
+        <div><div class="lbl">Refresher state</div><div class="v" id="rstate">&mdash;</div><div class="sub" id="fail-sub">&mdash;</div></div>
+        <div id="dimmer-cell" hidden><div class="lbl">Dimmer Protection</div><div class="v" id="dimmer-stat">&mdash;</div><div class="sub">ASBL &amp; GSR</div></div>
         <div id="dimming-cell" hidden><div class="lbl">Dimming</div><div class="v" id="dimming">&mdash;</div><div class="sub">ABL / logo protection</div></div>
         <div id="lux-cell" hidden><div class="lbl">Room light</div><div class="v num" id="lux">&mdash;</div><div class="sub">Ambient sensor</div></div>
       </div>
@@ -761,10 +764,32 @@ async function tick() {
       q('ds-cur').textContent = pic.mode || '';
       if (q('snd-cur')) q('snd-cur').textContent = audioLabel(d.audio_output) || '';
     }
+
+    const rem = d.remote;
+    if (rem && rem.battery !== null && rem.battery !== undefined) {
+      q('remote-badge').style.display = 'inline-block';
+      q('remote-badge').textContent = (rem.model ? rem.model.replace('LGE ', '') + ' ' : 'Remote ') + rem.battery + '% 🔋';
+      q('remote-badge').title = (rem.model || 'Magic Remote') + (rem.firmware ? ' · FW: ' + rem.firmware : '') + (rem.mac ? ' · ' + rem.mac : '');
+    } else {
+      q('remote-badge').style.display = 'none';
+    }
+
     const dr = pic.dynamicRange || '';
     const drCol = /dolby/i.test(dr) ? 'var(--purple-t)' : /hdr/i.test(dr) ? 'var(--cand)' : 'var(--w60)';
+    const hdmiParts = [];
+    if (d.hdmi_diag) {
+      if (d.hdmi_diag.phy_mode) hdmiParts.push(d.hdmi_diag.phy_mode);
+      if (d.hdmi_diag.chroma) hdmiParts.push(d.hdmi_diag.chroma);
+      if (d.hdmi_diag.hdcp && d.hdmi_diag.hdcp !== 'None') hdmiParts.push(d.hdmi_diag.hdcp);
+      if (d.hdmi_diag.allm) hdmiParts.push('ALLM');
+      if (d.hdmi_diag.vrr) hdmiParts.push('VRR');
+      if (d.hdmi_diag.qms) hdmiParts.push('QMS');
+    }
+    const colSpace = d.colorimetry || (d.picture_engine && d.picture_engine.colorimetry) || '';
     q('signal').innerHTML = [
       d.signal ? esc(d.signal) : '',
+      hdmiParts.length ? `<span style="color:var(--w70)">${esc(hdmiParts.join(' · '))}</span>` : '',
+      colSpace ? `<span style="color:var(--w70)">${esc(colSpace)}</span>` : '',
       dr ? `<b style="color:${drCol}">${esc(dr)}</b>` : '',
       pic.mode ? esc(pic.mode) : ''
     ].filter(Boolean).join('  ·  ');
@@ -827,8 +852,48 @@ async function tick() {
     const o = d.oled || {};
     q('ph').textContent = (o.panel_hours || 0).toLocaleString();
     q('comp').textContent = hrs(o.hours_until_comp) + ' h';
+    if (q('comp-sub')) {
+      q('comp-sub').textContent = (o.comp_cycles !== undefined && o.comp_cycles !== null) ?
+        o.comp_cycles + ' cycles completed' : 'Short Off-RS cycle';
+    }
     q('refr').textContent = hrs(o.hours_until_refresher) + ' h';
+    if (q('refr-sub')) {
+      q('refr-sub').textContent = (o.refresher_cycles !== undefined && o.refresher_cycles !== null) ?
+        o.refresher_cycles + ' deep cycles' : '1-hour JB cycle';
+    }
     q('rstate').textContent = o.refresher_status || '—';
+    if (q('fail-sub')) {
+      q('fail-sub').textContent = (o.failure_alerts !== undefined && o.failure_alerts !== null) ?
+        (o.failure_alerts === 0 ? '0 failures (Healthy)' : o.failure_alerts + ' failures') : 'Refresher status';
+    }
+    if (q('dimmer-cell')) {
+      if (o.asbl_protection) {
+        q('dimmer-cell').hidden = false;
+        q('dimmer-stat').textContent = 'ASBL ' + o.asbl_protection + ' · GSR ' + o.gsr_protection;
+      } else {
+        q('dimmer-cell').hidden = true;
+      }
+    }
+
+    // Architecture & Panel silicon
+    if (q('socarch-cell')) {
+      if (d.hardware && d.hardware.soc_arch) {
+        q('socarch-cell').hidden = false;
+        q('socarch').textContent = d.hardware.soc_arch;
+      } else {
+        q('socarch-cell').hidden = true;
+      }
+    }
+    if (q('panelsilicon-cell')) {
+      if (d.panel_silicon && d.panel_silicon.cell) {
+        q('panelsilicon-cell').hidden = false;
+        q('panelsilicon').textContent = 'Cell ' + d.panel_silicon.cell;
+        if (q('panelsilicon-sub')) q('panelsilicon-sub').textContent = 'TCON FW ' + (d.panel_silicon.tcon_firmware || '—');
+      } else {
+        q('panelsilicon-cell').hidden = true;
+      }
+    }
+
     // GPU clock, panel dimming, app storage and the ambient sensor. Each is
     // hidden when the set does not report it rather than showing a dash.
     q('gpuclk-cell').hidden = !d.gpuMhz;
