@@ -10,9 +10,7 @@ There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the T
 
 ### Web Dashboard & Controls
 
-Live telemetry and full local control in a two-column layout. The masthead
-shows whether the panel is actually lit, so a blanked screen does not read as
-though something is playing.
+Live telemetry and full local control in a two-column layout.
 
 <p align="center">
   <img src="docs/screenshots/dashboard.png" alt="LG webOS TV live dashboard: metrics and interactive controls" width="900">
