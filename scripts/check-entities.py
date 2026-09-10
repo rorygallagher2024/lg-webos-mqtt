@@ -79,9 +79,16 @@ def resolve(path):
     return True
 
 
-blocks = re.findall(
-    r"type: '(switch|number|select|sensor|binary_sensor)', id: '([a-z0-9_]+)',\s*payload: \{(.*?)\n        \}",
-    src, re.S)
+# Every entity, whatever its domain and however its payload is built.
+#
+# Naming the domains meant each new one had to be remembered here, and
+# binary_sensor was not until three of them had shipped. Requiring `payload: {`
+# also skipped any entity whose payload is returned by a function - the Launch
+# App select builds its options that way - so a state-bearing select went
+# unchecked while the run still reported success.
+#
+# The block ends at the closing brace of the entity object, indented six.
+blocks = re.findall(r"type: '(\w+)', id: '([a-z0-9_]+)',(.*?)\n      \}", src, re.S)
 
 failures, checked = [], 0
 print(f'{"entity":30} {"state source":14} paths')
@@ -90,12 +97,19 @@ for typ, eid, body in blocks:
     source = ('telemetry' if 'telemetryTopic' in body
               else 'own topic' if 'Topic' in body else 'none')
     tmpl = re.search(r"value_template:\s*'(.*?)'", body, re.S)
-    paths = sorted(set(re.findall(r'value_json\.([A-Za-z0-9_.]+)', tmpl.group(1)))) if tmpl else []
+    # Read the paths from the whole entity, not just a literal value_template.
+    # Five entities build their template from a helper or across several lines,
+    # and every one of them is state-bearing - mute, input_source, sound_output,
+    # the pixel refresher and the app select - so they were reported as having
+    # no template at all while the run still passed.
+    paths = sorted(set(re.findall(r'value_json\.([A-Za-z0-9_.]+)', body)))
     # A template that guards its own path (`... if value_json.x else none`) is
     # allowed to reference something absent: that is how optional hardware is
-    # handled. Only an unguarded missing path is a real failure.
-    body = tmpl.group(1) if tmpl else ''
-    guarded = 'else none' in body or 'else "' in body
+    # handled. Only an unguarded missing path is a real failure. selectState()
+    # emits `else 'None'` for exactly that reason, so it counts as a guard.
+    text = tmpl.group(1) if tmpl else body
+    guarded = ('else none' in text or 'else "' in text or "else '" in text
+               or 'selectState(' in body)
     missing = [p for p in paths if not resolve(p)]
     bad = [] if guarded else missing
     optional = missing if guarded else []
