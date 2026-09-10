@@ -93,26 +93,9 @@ Once connected to your MQTT broker, Home Assistant automatically discovers **up 
 
 ## Multiple TVs
 
-If you have more than one webOS TV reporting to Home Assistant over the same MQTT broker, configure a unique `topicPrefix` and `device.id` for each set in its `/var/lib/tvweb/config.json`.
-
-For example, on a second TV (e.g. living room vs. bedroom):
-
-```json
-{
-  "mqtt": {
-    "topicPrefix": "lgtv_bedroom"
-  },
-  "device": {
-    "id": "lg_bedroom_tv",
-    "name": "LG Bedroom OLED"
-  }
-}
-```
-
-This ensures:
-1. **No entity collisions**: Entity unique IDs are scoped to `device.id` (e.g. `lg_bedroom_tv_soc_temperature` vs `lg_tv_soc_temperature`).
-2. **Distinct Home Assistant devices**: Each TV appears as its own independent device in the MQTT integration.
-3. **No broker disconnects**: Each set generates a distinct MQTT client ID (`<devId>_tvweb`), preventing clients from kicking each other offline.
+Each TV on the same broker needs a unique `topicPrefix` and `device.id` in its
+config, otherwise they overwrite each other's state and disconnect each other.
+See the README for a config example and the `deploy.sh` per-IP config lookup.
 
 ---
 

@@ -6,8 +6,6 @@ Assistant over MQTT as a single auto-discovered device with up to 61 entities.
 
 There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the TV.
 
-> **Device & webOS Support:** Built and tested for rooted LG TVs running **webOS 3.4 up to webOS 24 (webOS 9+)**, covering 2016–2024+ models across OLED, QNED, NanoCell, and LCD (including B7, B8, C9, C1, C2, and G4). Telemetry, controls, and Home Assistant MQTT entities dynamically adapt to your set's capabilities. See [Tested on](#tested-on) for verified models.
-
 ---
 
 ### Web Dashboard & Controls
@@ -49,33 +47,26 @@ bind-mounting over `/etc/hosts` that persists across reboots.
 2. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
    load, memory, swap, current draw, Wi-Fi signal and throughput.
 
-3. **Observing OLED panel wear.** Cumulative panel hours, where you are in the
-   4-hour compensation cycle, how far off the 2,000-hour Pixel Refresher is, lifetime
-   completed cycles, failure alerts, and ASBL / GSR dimmer protection status.
-   You can schedule or cancel a refresher for the next power-off.
+3. **Observing OLED panel wear.** Cumulative panel hours, compensation cycle
+   progress, Pixel Refresher countdown with scheduling, completed cycle counters,
+   failure alerts, and ASBL / GSR protection status.
 
-4. **Monitoring HDMI 2.1 & gaming signal integrity.** Real-time FRL 48 Gbps vs TMDS link rate,
-   RGB 4:4:4 chroma subsampling, HDCP 2.3, physical cable error counter, ALLM, and VRR flags.
+4. **HDMI 2.1 diagnostics.** Link rate, chroma format, HDCP version, cable
+   error counter, ALLM, and VRR flags on sets with `/proc/lg/hdmi20`.
 
-5. **Magic Remote & hardware specs.** Magic Remote battery percentage, model, and firmware;
-   SoC generation (Alpha 9 Gen 5), OLED Cell generation, and TCON FPGA firmware.
-
-6. **Seeing what LG collects & blocking telemetry.** Whether the content-recognition
+5. **Seeing what LG collects & blocking telemetry.** Whether the content-recognition
    engine is actually running and sampling your screen, your advertising identifier,
    data agreements, and an on-TV `/etc/hosts` blackhole for LG ad and telemetry domains.
 
 ## Core features
 
-* **OLED panel health.** Cumulative panel hours, 4-hour short cycle progress,
-  2,000-hour Pixel Refresher countdown and scheduling, lifetime completed cycle counters
-  (short Off-RS and deep JB refresher), compensation failure alert monitoring, screen shift,
-  logo dimming, and human-readable ASBL / GSR auto-dimmer protection states. Automatically
-  hidden on LCD/QNED sets, which have no such counters.
-* **HDMI 2.1 & stream observability.** Live link rate (e.g. `FRL 48 Gbps (12G 4L)` vs `TMDS`),
-  chroma subsampling (`RGB 4:4:4`, `YCbCr 4:2:2`), HDCP version (`2.3`), physical cable bit error
-  counter, ALLM, VRR, QMS flags, and picture engine colorimetry (`BT.709`, `BT.2020`).
-* **Magic Remote & hardware specs.** Magic Remote battery percentage, remote model, and firmware version;
-  SoC architecture detection (e.g. `Alpha 9 Gen 5 (O22)`), OLED Cell ID/stack, and TCON FPGA firmware.
+* **OLED panel health.** Panel hours, compensation and Pixel Refresher countdowns
+  with scheduling, completed cycle counters, failure alerts, ASBL / GSR
+  protection status, screen shift and logo dimming. Hidden on LCD/QNED sets.
+* **HDMI 2.1 diagnostics.** Link rate, chroma format, HDCP version, cable error
+  counter, ALLM, VRR, QMS, and colorimetry. Requires `/proc/lg/hdmi20`.
+* **Magic Remote & hardware info.** Battery, model, firmware; SoC architecture,
+  OLED cell ID, and TCON firmware where the platform exposes them.
 * **Video and audio observability.** Dolby Vision / HDR / SDR detection, picture
   mode, OLED light level, raw HDMI signal (`3840x2160 @ 120Hz`), audio output
   routing, and active app with friendly input names (`Apple TV (HDMI2)`).
@@ -180,25 +171,12 @@ network. Enable it deliberately.
 Recommended: Give the TV its own MQTT user with a
 restricted ACL, rather than reusing your main Home Assistant credentials. See [docs/SECURITY.md](docs/SECURITY.md)
 
-### Multiple TVs on the same network
+### Multiple TVs
 
-If you run `tvweb` on more than one TV connecting to the same MQTT broker, each TV **must** have its own unique `topicPrefix` and `device.id`. If two TVs share the default (`lgtv` / `lg_tv`), they will overwrite each other's state topics and Home Assistant device registry, and repeatedly disconnect each other from the broker due to matching client IDs.
-
-In each TV's `config.json` (or `server/config.<tv-ip>.json` on your computer before deploying):
-
-```json
-{
-  "mqtt": {
-    "topicPrefix": "lgtv_bedroom"
-  },
-  "device": {
-    "id": "lg_bedroom_tv",
-    "name": "LG Bedroom OLED"
-  }
-}
-```
-
-`deploy.sh` automatically checks for `server/config.<tv-ip>.json` first (e.g. `server/config.192.168.1.13.json`) before falling back to `server/config.json`, making multi-TV deployments straightforward.
+Each TV on the same broker needs a unique `topicPrefix` and `device.id`,
+otherwise they overwrite each other's state and disconnect each other.
+`deploy.sh` checks for `server/config.<tv-ip>.json` before falling back to
+`server/config.json`.
 
 ## 3. Install
 

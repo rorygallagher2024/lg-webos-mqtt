@@ -1223,7 +1223,6 @@ function collectStats(cb) {
   lunaCached('com.webos.service.tv.display/getDimmingStatus', {}, 15000, function (dim) {
     // ABL / logo dimming activity. OLED only in practice.
     out.dimming = (dim && dim.status) || null;
-    if (out.dimming) hasDimming = true;
   lunaCached('com.webos.service.tv.display/getLightSensorData', {}, 30000, function (ls) {
     /*
      * Ambient light sensor. Not every set has one: a model without it still
@@ -1674,7 +1673,6 @@ var INPUTS = { hdmi1: 1, hdmi2: 1, hdmi3: 1, hdmi4: 1, livetv: 1 };
 // Verified against the settings service: 15 is rejected, 10 and 90 are not.
 // Set from collectStats: sets without the hardware report 65535 and get null.
 var hasLightSensor = false;
-var hasDimming = false;
 
 /*
  * Front-panel lights. The "option" settings category carries standByLight,
@@ -4206,10 +4204,10 @@ function setupHomeAssistant() {
 
     /*
      * Panel dimming. OLED sets control light per subpixel rather than via
-     * backlight zones, and webOS 9+ has no com.webos.service.tv.display service.
-     * Withhold on OLEDs and any set where dimming is unmeasured.
+     * backlight zones — withhold on OLEDs. On LCD/QNED sets the entity stays
+     * registered; the template returns null until the first telemetry tick.
      */
-    if (isOled === true || !hasDimming) {
+    if (isOled === true) {
       var keptDim = [];
       for (var di = 0; di < entities.length; di++) {
         if (entities[di].id === 'panel_dimming') {
