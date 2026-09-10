@@ -401,7 +401,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 <header>
   <div class="hdr-left">
     <div class="mark">LG OLED TV <span id="model">&mdash;</span></div>
-    <button class="theme-toggle" id="theme-toggle" title="Toggle light / dark theme" aria-label="Toggle theme">☾</button>
+    <button type="button" class="theme-toggle" id="theme-toggle" title="Toggle light / dark theme" aria-label="Toggle theme">☾</button>
   </div>
   <div class="src">
     <div class="st" id="state"><i></i><span>&mdash;</span></div>
@@ -734,7 +734,8 @@ const q = id => document.getElementById(id);
 // ---- theme toggle (light / dark) ----
 (function initTheme() {
   const html = document.documentElement;
-  const stored = localStorage.getItem('theme');
+  const urlTheme = new URLSearchParams(location.search).get('theme');
+  const stored = urlTheme || localStorage.getItem('theme');
   const prefersDark = matchMedia('(prefers-color-scheme: dark)').matches;
   const theme = stored || (prefersDark ? 'dark' : 'light');
   applyTheme(theme);
@@ -749,7 +750,9 @@ const q = id => document.getElementById(id);
   }
 
   document.addEventListener('click', function(e) {
-    if (!e.target.closest('#theme-toggle')) return;
+    const btn = e.target.closest('#theme-toggle');
+    if (!btn) return;
+    e.preventDefault();
     const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
     localStorage.setItem('theme', next);
     applyTheme(next);
