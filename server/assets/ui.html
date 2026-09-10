@@ -479,8 +479,8 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
           </div>
           <div class="prot-row" id="logo-row" hidden>
             <div class="prot-main">
-              <div class="prot-title">Logo Luminance Dimming</div>
-              <div class="prot-desc">Configured logo protection intensity</div>
+              <div class="prot-title">Adjust Logo Brightness <span class="prot-sub">&middot; Logo Luminance Dimming</span></div>
+              <div class="prot-desc">Dims fixed on-screen logos, channel bugs, and HUD elements to prevent local burn-in</div>
             </div>
             <div class="prot-status"><span class="pill" id="logo-pill">&mdash;</span></div>
           </div>
@@ -1094,8 +1094,11 @@ async function tick() {
     if (o.logo_dimming) {
       q('logo-row').hidden = false;
       const pill = q('logo-pill');
-      pill.textContent = o.logo_dimming.charAt(0).toUpperCase() + o.logo_dimming.slice(1);
-      pill.className = 'pill ' + (/off/i.test(o.logo_dimming) ? 'idle' : 'good');
+      const val = String(o.logo_dimming).toLowerCase();
+      let label = val.charAt(0).toUpperCase() + val.slice(1);
+      if (val === 'strong') label = 'High';
+      pill.textContent = label;
+      pill.className = 'pill ' + (/off/i.test(val) ? 'idle' : 'good');
       hasProt = true;
     } else {
       q('logo-row').hidden = true;
