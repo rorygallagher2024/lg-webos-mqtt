@@ -51,10 +51,7 @@ bind-mounting over `/etc/hosts` that persists across reboots.
    progress, Pixel Refresher countdown with scheduling, completed cycle counters,
    failure alerts, and ASBL / GSR protection status.
 
-4. **HDMI 2.1 diagnostics.** Link rate, chroma format, HDCP version, cable
-   error counter, ALLM, and VRR flags on sets with `/proc/lg/hdmi20`.
-
-5. **Seeing what LG collects & blocking telemetry.** Whether the content-recognition
+4. **Seeing what LG collects & blocking telemetry.** Whether the content-recognition
    engine is actually running and sampling your screen, your advertising identifier,
    data agreements, and an on-TV `/etc/hosts` blackhole for LG ad and telemetry domains.
 

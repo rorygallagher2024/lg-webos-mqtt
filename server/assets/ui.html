@@ -137,10 +137,6 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
   font-family:'Manrope',sans-serif;font-size:12px;font-weight:400;
   color:var(--w70);letter-spacing:.02em;
 }
-.stream-secondary{
-  font-family:'Manrope',sans-serif;font-size:11.5px;color:var(--w50);
-  letter-spacing:.03em;margin-top:4px;line-height:1.4;
-}
 @media (max-width:620px){
   .st{justify-content:flex-start}
   .src{text-align:left}
@@ -385,7 +381,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     <div class="t" id="source">&mdash;</div>
     <div class="stream-info">
       <div class="stream-primary num" id="stream-primary">&mdash;</div>
-      <div class="stream-secondary num" id="stream-secondary" hidden></div>
     </div>
   </div>
 </header>
@@ -499,6 +494,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <details class="disc" id="disc-hdmi" style="border-top:0;margin-top:0">
       <summary>HDMI <span class="cur" id="hdmi-cur"></span></summary>
       <div class="ports" id="hdmi-grid"></div>
+      <div class="sub" id="hdmi-diag-row" hidden style="margin-top:12px;line-height:1.5"></div>
     </details>
 
       <details class="disc" id="disc-proc">
@@ -946,28 +942,7 @@ async function tick() {
     const primList = [resStr, drBadge, modeBadge].filter(Boolean);
     q('stream-primary').innerHTML = primList.length ? primList.join('  ') : '&mdash;';
 
-    const secParts = [];
-    if (d.hdmi_diag) {
-      if (d.hdmi_diag.phy_mode) secParts.push(esc(d.hdmi_diag.phy_mode));
-      if (d.hdmi_diag.chroma) secParts.push(esc(d.hdmi_diag.chroma));
-      if (d.hdmi_diag.hdcp && d.hdmi_diag.hdcp !== 'None') secParts.push('HDCP ' + esc(d.hdmi_diag.hdcp.replace(/^HDCP\s*/i, '')));
-    }
-    const colSpace = d.colorimetry || (d.picture_engine && d.picture_engine.colorimetry) || '';
-    if (colSpace) secParts.push(esc(colSpace));
-    if (d.hdmi_diag) {
-      if (d.hdmi_diag.allm) secParts.push('ALLM');
-      if (d.hdmi_diag.vrr) secParts.push('VRR');
-      if (d.hdmi_diag.qms) secParts.push('QMS');
-      if (d.hdmi_diag.phy_errors > 0) {
-        secParts.push('<span style="color:var(--cand)">' + d.hdmi_diag.phy_errors + ' errors</span>');
-      }
-    }
-    if (secParts.length) {
-      q('stream-secondary').hidden = false;
-      q('stream-secondary').innerHTML = secParts.join(' &middot; ');
-    } else {
-      q('stream-secondary').hidden = true;
-    }
+    renderHdmiDiag(d.hdmi_diag, d.colorimetry || (d.picture_engine && d.picture_engine.colorimetry) || '');
 
     // temp is null in two different situations: the sensor is warming up
     // (~80s after boot, file exists but reads 0), or the platform has no
@@ -1408,6 +1383,30 @@ async function loadPrivacy() {
 async function toggleAdBlock() {
   await c('toggleAdBlock', 'toggle');
   setTimeout(loadPrivacy, 600);
+}
+
+function renderHdmiDiag(diag, colSpace) {
+  const el = q('hdmi-diag-row');
+  if (!el) return;
+  const parts = [];
+  if (diag) {
+    if (diag.phy_mode) parts.push(esc(diag.phy_mode));
+    if (diag.chroma) parts.push(esc(diag.chroma));
+    if (diag.hdcp && diag.hdcp !== 'None') parts.push('HDCP ' + esc(diag.hdcp.replace(/^HDCP\s*/i, '')));
+  }
+  if (colSpace) parts.push(esc(colSpace));
+  if (diag) {
+    if (diag.allm) parts.push('ALLM');
+    if (diag.vrr) parts.push('VRR');
+    if (diag.qms) parts.push('QMS');
+    if (diag.phy_errors > 0) parts.push('<span style="color:var(--cand)">' + diag.phy_errors + ' errors</span>');
+  }
+  if (parts.length) {
+    el.innerHTML = parts.join(' &middot; ');
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+  }
 }
 
 async function loadHdmi() {
