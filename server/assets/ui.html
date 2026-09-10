@@ -1601,6 +1601,9 @@ if (new URLSearchParams(location.search).get('privacy') === '1') {
     q('main-grid').hidden = true;
   }
   togglePrivacy();
+  if (new URLSearchParams(location.search).get('expand') === '1') {
+    document.querySelectorAll('.pv-d').forEach(d => d.open = true);
+  }
 }
 
 if (new URLSearchParams(location.search).get('controls') === '1') {
