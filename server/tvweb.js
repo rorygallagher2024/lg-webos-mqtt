@@ -3199,7 +3199,7 @@ function setupHomeAssistant() {
          */
         type: 'sensor', id: 'tvweb_version',
         payload: {
-          name: 'tvweb Version',
+          name: 'TVWeb Version',
           state_topic: telemetryTopic,
           value_template: '{{ value_json.tvwebVersion }}',
           entity_category: 'diagnostic',

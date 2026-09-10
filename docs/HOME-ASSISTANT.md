@@ -51,7 +51,7 @@ Once connected to your MQTT broker, Home Assistant automatically discovers **42 
 | `sensor` | `sensor.lg_tv_flash_health` | Flash Storage Health | eMMC remaining health estimate (`>90% (Healthy)`) |
 | `sensor` | `sensor.lg_tv_flash_wear` | Flash Wear Level | JEDEC write-cycle consumption (`0–10%`) |
 | `sensor` | `sensor.lg_tv_uptime` | Uptime | TV uptime in seconds |
-| `sensor` | `sensor.lg_tv_tvweb_version` | tvweb Version | Version of tvweb itself, not the TV firmware (diagnostic) |
+| `sensor` | `sensor.lg_tv_tvweb_version` | TVWeb Version | Version of tvweb itself, not the TV firmware (diagnostic) |
 
 ---
 
