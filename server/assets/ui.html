@@ -450,8 +450,8 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="lbl">Total power on hours</div>
       <div class="n num" style="margin-top:10px"><span id="ph">&mdash;</span><em>hours</em></div>
       <div class="cols">
-        <div><div class="lbl" id="comp-lbl">Compensation in</div><div class="v num" id="comp">&mdash;</div><div class="sub" id="comp-sub">&mdash;</div></div>
-        <div><div class="lbl" id="refr-lbl">Refresher in</div><div class="v num" id="refr">&mdash;</div><div class="sub" id="refr-sub">&mdash;</div></div>
+        <div><div class="lbl" id="comp-lbl">Panel maintenance in</div><div class="v num" id="comp">&mdash;</div><div class="sub" id="comp-sub">&mdash;</div></div>
+        <div><div class="lbl" id="refr-lbl">Pixel refresher in</div><div class="v num" id="refr">&mdash;</div><div class="sub" id="refr-sub">&mdash;</div></div>
         <div id="lux-cell" hidden><div class="lbl">Room light</div><div class="v num" id="lux">&mdash;</div><div class="sub">Ambient sensor</div></div>
       </div>
 
@@ -1144,12 +1144,12 @@ async function tick() {
     q('panelblock').hidden = !hasOled;
     q('ph').textContent = (o.panel_hours || 0).toLocaleString();
     if (isComp) {
-      if (q('comp-lbl')) q('comp-lbl').textContent = 'Compensation';
+      if (q('comp-lbl')) q('comp-lbl').textContent = 'Panel maintenance';
       q('comp').textContent = 'In progress';
       q('comp').style.color = 'var(--cand)';
       if (q('comp-sub')) q('comp-sub').textContent = 'Completing Panel Maintenance (Short Cycle)';
     } else {
-      if (q('comp-lbl')) q('comp-lbl').textContent = 'Compensation in';
+      if (q('comp-lbl')) q('comp-lbl').textContent = 'Panel maintenance in';
       q('comp').textContent = hrs(o.hours_until_comp) + ' h';
       q('comp').style.color = '';
       if (q('comp-sub')) {
@@ -1168,7 +1168,7 @@ async function tick() {
       q('refr').style.color = 'var(--cand)';
       if (q('refr-sub')) q('refr-sub').textContent = 'Runs on next shutdown';
     } else {
-      if (q('refr-lbl')) q('refr-lbl').textContent = 'Refresher in';
+      if (q('refr-lbl')) q('refr-lbl').textContent = 'Pixel refresher in';
       q('refr').textContent = hrs(o.hours_until_refresher) + ' h';
       q('refr').style.color = '';
       if (q('refr-sub')) {
