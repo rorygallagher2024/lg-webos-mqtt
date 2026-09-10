@@ -3265,7 +3265,7 @@ function setupHomeAssistant() {
         type: 'sensor', id: 'gpu_clock',
         payload: {
           name: 'GPU Clock', state_topic: telemetryTopic,
-          value_template: '{{ value_json.gpuMhz }}',
+          value_template: '{{ value_json.gpuMhz if value_json.gpuMhz else none }}',
           unit_of_measurement: 'MHz', state_class: 'measurement', icon: 'mdi:expansion-card'
         }
       },
