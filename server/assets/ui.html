@@ -30,11 +30,14 @@
 @font-face{font-family:'Manrope';src:url('/assets/fonts/Manrope.ttf') format('truetype');font-weight:200 800;font-display:swap}
 
 :root{
-  --w06:rgba(255,255,255,.06); --w10:rgba(255,255,255,.10);
-  --w12:rgba(255,255,255,.12); --w25:rgba(255,255,255,.25);
-  --w35:rgba(255,255,255,.35); --w50:rgba(255,255,255,.50);
-  --w60:rgba(255,255,255,.60); --w80:rgba(255,255,255,.80);
-  --w100:#fff;
+  --bg:#000; --fg:255,255,255;
+  --w06:rgba(var(--fg),.06); --w10:rgba(var(--fg),.10);
+  --w12:rgba(var(--fg),.12); --w25:rgba(var(--fg),.25);
+  --w35:rgba(var(--fg),.35); --w40:rgba(var(--fg),.40);
+  --w50:rgba(var(--fg),.50);
+  --w60:rgba(var(--fg),.60); --w70:rgba(var(--fg),.70);
+  --w80:rgba(var(--fg),.80);
+  --w90:rgba(var(--fg),.90); --w100:rgba(var(--fg),1);
   /* Contrast on black: w25 is 2.0:1, w35 is 3.0:1, w50 is 5.3:1, w60 is 7.4:1.
      w50 is 5.3:1 and the floor for large text; w60 is the floor for small text
      (anything under ~14px), since 5.3:1 at 11-12px is technically AA but
@@ -50,11 +53,23 @@
      4.5:1 AA floor for small text. The solid tone stays for fills. */
   --purple-t:#B57BFF;
   --gut:clamp(20px,5vw,64px);
+  /* Active/selected button foreground - inverted against the surface. */
+  --btn-on-fg:#000;
+}
+/* ---- light theme ----
+   Swap the foreground channel to black and the background to white.
+   Accent hues darken slightly for legibility on a light surface. */
+[data-theme="light"]{
+  --bg:#f5f5f5; --fg:0,0,0;
+  --cool:#3a6fcf; --warm:#b8860b; --cand:#c27a1e;
+  --red:#d42020; --blue:#2050cc; --green:#1a9e44; --purple:#6b20cc;
+  --purple-t:#6b20cc;
+  --btn-on-fg:#fff;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html{background:#000}
+html{background:var(--bg)}
 body{
-  background:#000;color:var(--w80);
+  background:var(--bg);color:var(--w80);
   font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   font-weight:400;font-size:15px;line-height:1.5;
   padding:var(--gut) var(--gut) calc(var(--gut) * 2);
@@ -79,6 +94,17 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 /* The model number identifies the set; the name is what you are looking at.
    Setting them at one size let the longer of the two dominate. */
 .mark span{color:var(--w50);font-size:.68em;letter-spacing:.02em;margin-left:2px}
+
+/* Theme toggle */
+.theme-toggle{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:30px;height:30px;border:1px solid var(--w12);border-radius:50%;
+  background:transparent;color:var(--w60);font-size:15px;
+  cursor:pointer;transition:color .2s,border-color .2s;
+  padding:0;min-height:0;letter-spacing:0;text-transform:none;
+  margin-left:12px;flex-shrink:0;vertical-align:middle;line-height:1;
+}
+.theme-toggle:hover{color:var(--w100);border-color:var(--w35)}
 
 /* Remote peripheral badge */
 .remote-badge{
@@ -145,7 +171,7 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 
 /* ---- the spectacle ---- */
 .hero{margin:clamp(20px,4vw,34px) 0 0;display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap}
-.hero .big{font-family:'Outfit';font-weight:200;color:var(--hot,#fff);transition:color .8s ease;
+.hero .big{font-family:'Outfit';font-weight:200;color:var(--hot,var(--w100));transition:color .8s ease;
   font-size:clamp(96px,20vw,208px);line-height:.82;letter-spacing:-.025em}
 .hero .deg{font-size:.34em;color:var(--w50);vertical-align:super;letter-spacing:0}
 /* Nothing to show. The spectacle is the number, so at 208px an em dash reads
@@ -155,8 +181,8 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 .hero .side{flex:1;min-width:210px;padding-bottom:10px}
 .trace{display:flex;align-items:flex-end;gap:2px;height:46px;margin-bottom:9px}
 .trace i{flex:1;background:var(--w25);min-height:1px;display:block;transition:background .8s ease}
-.trace i.warm{background:color-mix(in srgb,var(--hot,#fff) 45%,transparent)}
-.trace i.now{background:var(--hot,#fff)}
+.trace i.warm{background:color-mix(in srgb,var(--hot,var(--w100)) 45%,transparent)}
+.trace i.now{background:var(--hot,var(--w100))}
 .trace i.void{background:transparent}
 .meta{display:flex;justify-content:space-between;font-size:13px;color:var(--w60);letter-spacing:.02em}
 
@@ -258,8 +284,8 @@ button:hover{color:var(--w100);border-color:var(--w35)}
 button:active{background:var(--w10)}
 /* Selected, not "good". Green means healthy headroom elsewhere in this UI, so
    selection is shown by inversion instead of by borrowing that meaning. */
-button.on{color:#000;background:var(--w100);border-color:var(--w100);font-weight:500}
-button.on:hover{color:#000;border-color:var(--w100)}
+button.on{color:var(--btn-on-fg);background:var(--w100);border-color:var(--w100);font-weight:500}
+button.on:hover{color:var(--btn-on-fg);border-color:var(--w100)}
 button[disabled]{opacity:.28;cursor:not-allowed}
 button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 
@@ -375,6 +401,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 <header>
   <div class="hdr-left">
     <div class="mark">LG OLED TV <span id="model">&mdash;</span></div>
+    <button class="theme-toggle" id="theme-toggle" title="Toggle light / dark theme" aria-label="Toggle theme">☾</button>
   </div>
   <div class="src">
     <div class="st" id="state"><i></i><span>&mdash;</span></div>
@@ -703,6 +730,31 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 <script>
 const K = new URLSearchParams(location.search).get('k') || '';
 const q = id => document.getElementById(id);
+
+// ---- theme toggle (light / dark) ----
+(function initTheme() {
+  const html = document.documentElement;
+  const stored = localStorage.getItem('theme');
+  const prefersDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = stored || (prefersDark ? 'dark' : 'light');
+  applyTheme(theme);
+
+  function applyTheme(t) {
+    if (t === 'light') html.setAttribute('data-theme', 'light');
+    else html.removeAttribute('data-theme');
+    const btn = q('theme-toggle');
+    if (btn) btn.textContent = t === 'light' ? '☀' : '☾';
+    const mc = document.querySelector('meta[name="theme-color"]');
+    if (mc) mc.content = t === 'light' ? '#f5f5f5' : '#000000';
+  }
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#theme-toggle')) return;
+    const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    localStorage.setItem('theme', next);
+    applyTheme(next);
+  });
+})();
 const api = p => p + (K ? (p.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(K) : '');
 const mb = k => (k / 1024).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const esc = t => String(t).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
