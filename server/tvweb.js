@@ -697,7 +697,8 @@ var SOC_ARCH = {
   O22: 'Alpha 9 Gen 5 (O22)',
   O20: 'Alpha 9 Gen 3 (O20)',
   O18: 'Alpha 9 Gen 1 (O18)',
-  M16P: 'Alpha 7 (M16P)'
+  M16P: 'Alpha 7 (M16P)',
+  M16PLUS: 'Alpha 7 (M16P)'
 };
 
 function socArchName(raw) {
@@ -707,7 +708,19 @@ function socArchName(raw) {
   return SOC_ARCH[key] || key;
 }
 
+function detectWebosVersion(sdkVersion) {
+  var raw = rd('/etc/issue') || rd('/etc/issue.net') || '';
+  var m = raw.match(/webOS(?:\s+TV)?\s+([\d\.]+)/i);
+  if (m) return m[1];
+  var sf = rd('/etc/starfish-release') || '';
+  var sm = sf.match(/release\s+([\d\.]+)/i);
+  if (sm) return sm[1];
+  if (sdkVersion) return String(sdkVersion);
+  return null;
+}
+
 var HARDWARE_INFO = {
+  webos: null,
   socArch: null,
   ram: null,
   refreshRate: null,
@@ -717,12 +730,13 @@ var HARDWARE_INFO = {
   tconModule: null
 };
 
-function detectHardwareInfo(cb) {
+function detectHardwareInfo(sdkVersion, cb) {
+  HARDWARE_INFO.webos = detectWebosVersion(sdkVersion);
   var envRaw = rd('/var/luna/preferences/environmentCondition');
   if (envRaw) {
     try {
       var env = JSON.parse(envRaw);
-      var bStr = env.boardTypeStr || rd('/proc/lg/base/chip_name') || '';
+      var bStr = env.boardTypeStr || env.socChip || rd('/proc/lg/base/chip_name') || '';
       if (bStr) {
         bStr = bStr.trim();
         HARDWARE_INFO.socArch = socArchName(bStr);
@@ -754,7 +768,7 @@ function detectHardwareInfo(cb) {
 
 function detectDeviceInfo(cb) {
   luna('com.webos.service.tv.systemproperty/getSystemProperties',
-    { keys: ['modelName', 'firmwareVersion', 'boardType'] },
+    { keys: ['modelName', 'firmwareVersion', 'boardType', 'sdkVersion'] },
     function (res) {
       if (res && res.modelName) {
         if (!CONFIG.device.model || CONFIG.device.model === 'OLED65B8SLC' || CONFIG.device.model === 'webOS TV') {
@@ -770,7 +784,7 @@ function detectDeviceInfo(cb) {
       }
       if (!CONFIG.device.name) CONFIG.device.name = 'LG webOS TV';
       if (!CONFIG.device.model) CONFIG.device.model = 'webOS TV';
-      detectHardwareInfo(function () {
+      detectHardwareInfo((res && res.sdkVersion) || null, function () {
         if (cb) cb();
       });
     }
@@ -1263,7 +1277,12 @@ function collectStats(cb) {
       name: CONFIG.device.name || 'LG webOS TV',
       model: CONFIG.device.model || 'webOS TV'
     },
+    system: {
+      webos: HARDWARE_INFO.webos,
+      firmware: CONFIG.device.sw_version || null
+    },
     hardware: {
+      webos: HARDWARE_INFO.webos,
       soc_arch: HARDWARE_INFO.socArch,
       ram: HARDWARE_INFO.ram,
       refresh_rate: HARDWARE_INFO.refreshRate,

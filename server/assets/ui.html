@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<title>LG OLED TV</title>
+<title>LG TV</title>
 <style>
 /* ---------------------------------------------------------------
    Type.
@@ -91,9 +91,7 @@ body{
 header{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap}
 .hdr-left{display:flex;align-items:baseline}
 .mark{font-family:'Outfit';font-weight:300;font-size:clamp(19px,2.4vw,26px);color:var(--w100);letter-spacing:.01em}
-/* The model number identifies the set; the name is what you are looking at.
-   Setting them at one size let the longer of the two dominate. */
-.mark span{color:var(--w50);font-size:.68em;letter-spacing:.02em;margin-left:2px}
+.mark #model{color:var(--w50);font-size:.68em;letter-spacing:.02em;margin-left:2px}
 
 /* Theme toggle */
 .theme-toggle{
@@ -398,7 +396,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
 <header>
   <div class="hdr-left">
-    <div class="mark">LG OLED TV <span id="model">&mdash;</span></div>
+    <div class="mark"><span id="brand">LG TV</span> <span id="model">&mdash;</span></div>
     <button type="button" class="theme-toggle" id="theme-toggle" title="Toggle light / dark theme" aria-label="Toggle theme">☾</button>
   </div>
   <div class="src">
@@ -505,6 +503,20 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <details class="disc" id="disc-hwinfo" hidden style="border-top:0;margin-top:0">
       <summary>System info</summary>
       <div class="prot-table" id="hw-specs">
+        <div class="prot-row" id="spec-os-item" hidden>
+          <div class="prot-main">
+            <div class="prot-title">webOS</div>
+            <div class="prot-desc">Operating system release version</div>
+          </div>
+          <div class="prot-status"><span class="pill idle" id="spec-os">&mdash;</span></div>
+        </div>
+        <div class="prot-row" id="spec-fw-item" hidden>
+          <div class="prot-main">
+            <div class="prot-title">Firmware</div>
+            <div class="prot-desc">TV software build version</div>
+          </div>
+          <div class="prot-status"><span class="pill idle" id="spec-fw">&mdash;</span></div>
+        </div>
         <div class="prot-row" id="spec-arch-item" hidden>
           <div class="prot-main">
             <div class="prot-title">Processor</div>
@@ -942,7 +954,11 @@ async function tick() {
 
     const model = (d.device && d.device.model) || '';
     q('model').textContent = model;
-    const want = model ? 'LG OLED TV · ' + model : 'LG OLED TV';
+    const isOled = !(d.capabilities && d.capabilities.oled === false) &&
+                    (d.capabilities ? d.capabilities.oled === true : (/oled/i.test(model) || !!(d.oled && d.oled.panel_hours !== undefined)));
+    const brand = isOled ? 'LG OLED TV' : 'LG TV';
+    if (q('brand')) q('brand').textContent = brand;
+    const want = model ? brand + ' · ' + model : brand;
     if (document.title !== want) document.title = want;
     // Panel state first: without it, a blanked screen still reads as though
     // something were being displayed.
@@ -1070,8 +1086,24 @@ async function tick() {
     row('draw', ma + '<small>mA</small>', Math.min(100, ma / 4),
         d.power ? ('Processor ' + d.power.cpu_ma + ' mA · Platform ' + d.power.core_ma + ' mA') : '', 101);
 
-    // Hardware Specifications
+    // Hardware & System Specifications
     let hasHw = false;
+    const osVer = (d.system && d.system.webos) || (d.hardware && d.hardware.webos);
+    if (osVer) {
+      q('spec-os-item').hidden = false;
+      q('spec-os').textContent = osVer;
+      hasHw = true;
+    } else {
+      q('spec-os-item').hidden = true;
+    }
+    const fwVer = (d.system && d.system.firmware) || (d.device && d.device.firmware);
+    if (fwVer) {
+      q('spec-fw-item').hidden = false;
+      q('spec-fw').textContent = fwVer;
+      hasHw = true;
+    } else {
+      q('spec-fw-item').hidden = true;
+    }
     if (d.hardware && d.hardware.soc_arch) {
       q('spec-arch-item').hidden = false;
       q('spec-arch').textContent = d.hardware.soc_arch;
@@ -1605,6 +1637,11 @@ if (new URLSearchParams(location.search).get('privacy') === '1') {
     document.querySelectorAll('.pv-d').forEach(d => d.open = true);
   }
 }
+
+const openSection = new URLSearchParams(location.search).get('open');
+if (openSection === 'system' && q('disc-hwinfo')) q('disc-hwinfo').open = true;
+if (openSection === 'hdmi' && q('disc-hdmi')) q('disc-hdmi').open = true;
+if (openSection === 'processes' && q('disc-proc')) q('disc-proc').open = true;
 
 if (new URLSearchParams(location.search).get('controls') === '1') {
   const tel = document.querySelector('.col-telemetry');
