@@ -170,7 +170,7 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 .track b{position:absolute;inset:0 auto 0 0;background:var(--w60);transition:width .45s cubic-bezier(.4,0,.2,1),background .5s ease}
 
 .r.hi .lbl{color:var(--w80)}
-.sub{font-size:13px;color:var(--w60);letter-spacing:.02em;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub{font-size:13px;color:var(--w60);letter-spacing:.02em;margin-top:6px;white-space:normal;line-height:1.35}
 /* Network carries the most in its sub - signal, upload rate and two lifetime
    totals - and the column is capped at 176px. Wrapping keeps the totals
    readable on a Wi-Fi set, where the dBm prefix would otherwise push them
@@ -183,7 +183,7 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 .n em{font-style:normal;color:var(--w50);font-size:.26em;letter-spacing:.14em;margin-left:12px;font-family:'Manrope';font-weight:500}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:26px;margin-top:26px}
 .cols .v{font-family:'Outfit';font-weight:300;font-size:24px;color:var(--w100);margin-top:6px}
-.cols .sub{white-space:normal;line-height:1.35;overflow:visible;text-overflow:clip}
+.cols .sub{overflow:visible;text-overflow:clip}
 
 /* ---- layout grid (2-column on desktop, single on mobile) ---- */
 .grid-wrap{display:grid;grid-template-columns:1fr;gap:clamp(32px,5vw,56px);margin-top:clamp(28px,4vw,44px)}
@@ -479,18 +479,27 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="grp">Advanced</div>
       <details class="disc" id="disc-hwinfo" hidden style="border-top:0;margin-top:0">
       <summary>System info</summary>
-      <div class="hw-specs" id="hw-specs">
-        <div class="spec-item" id="spec-arch-item" hidden>
-          <span class="spec-k">SoC Architecture</span>
-          <span class="spec-v" id="spec-arch">&mdash;</span>
+      <div class="prot-table" id="hw-specs">
+        <div class="prot-row" id="spec-arch-item" hidden>
+          <div class="prot-main">
+            <div class="prot-title">Processor</div>
+            <div class="prot-desc">SoC platform and generation</div>
+          </div>
+          <div class="prot-status"><span class="pill idle" id="spec-arch">&mdash;</span></div>
         </div>
-        <div class="spec-item" id="spec-silicon-item" hidden>
-          <span class="spec-k">OLED Panel Silicon</span>
-          <span class="spec-v" id="spec-silicon">&mdash;</span>
+        <div class="prot-row" id="spec-silicon-item" hidden>
+          <div class="prot-main">
+            <div class="prot-title">OLED Cell</div>
+            <div class="prot-desc">Panel silicon cell identifier</div>
+          </div>
+          <div class="prot-status"><span class="pill idle" id="spec-silicon">&mdash;</span></div>
         </div>
-        <div class="spec-item" id="spec-tcon-item" hidden>
-          <span class="spec-k">Timing Controller</span>
-          <span class="spec-v" id="spec-tcon">&mdash;</span>
+        <div class="prot-row" id="spec-tcon-item" hidden>
+          <div class="prot-main">
+            <div class="prot-title">TCON Firmware</div>
+            <div class="prot-desc">Timing controller driving the panel</div>
+          </div>
+          <div class="prot-status"><span class="pill idle" id="spec-tcon">&mdash;</span></div>
         </div>
       </div>
       <div class="remote-badge" id="remote-badge" hidden style="margin-top:14px">
@@ -977,7 +986,7 @@ async function tick() {
        wakes them - say how many are down rather than leaving that unexplained. */
     const live = d.cores || [];
     const parked = Math.max(0, (d.coresTotal || live.length) - live.length);
-    const cores = live.join('  ·  ') + (parked ? '  ·  ' + parked + ' parked' : '');
+    const cores = live.map(v => v + '%').join('  ·  ') + (parked ? '  ·  ' + parked + ' parked' : '');
     row('cpu', d.load + '<small>%</small>', d.load, cores, 85);
 
     const mu = d.mem.total ? 100 * (d.mem.total - d.mem.avail) / d.mem.total : 0;
@@ -1000,13 +1009,13 @@ async function tick() {
     if (d.ssid) netParts.push(esc(d.ssid));
     if (d.wifi && d.wifi.level) netParts.push(d.wifi.level + ' dBm');
     if (tx > 0) netParts.push(tx.toFixed(0) + ' kB/s up');
-    if (nt) netParts.push(bytes(nt.rx) + ' / ' + bytes(nt.tx));
+    if (nt) netParts.push('↓ ' + bytes(nt.rx) + ' ↑ ' + bytes(nt.tx));
     row('net', rx.toFixed(0) + '<small>kB/s</small>', Math.min(100, rx / 20),
         netParts.join('  ·  ') || 'Connected', 101);
 
     const ma = (d.power && d.power.current_ma) || 0;
     row('draw', ma + '<small>mA</small>', Math.min(100, ma / 4),
-        d.power ? ('cpu ' + d.power.cpu_ma + '   core ' + d.power.core_ma) : '', 101);
+        d.power ? ('Processor ' + d.power.cpu_ma + ' mA · Platform ' + d.power.core_ma + ' mA') : '', 101);
 
     // Hardware Specifications
     let hasHw = false;
@@ -1019,14 +1028,14 @@ async function tick() {
     }
     if (d.panel_silicon && d.panel_silicon.cell) {
       q('spec-silicon-item').hidden = false;
-      q('spec-silicon').textContent = 'Cell ' + d.panel_silicon.cell;
+      q('spec-silicon').textContent = d.panel_silicon.cell;
       hasHw = true;
     } else {
       q('spec-silicon-item').hidden = true;
     }
     if (d.panel_silicon && d.panel_silicon.tcon_firmware) {
       q('spec-tcon-item').hidden = false;
-      q('spec-tcon').textContent = 'FW ' + d.panel_silicon.tcon_firmware;
+      q('spec-tcon').textContent = d.panel_silicon.tcon_firmware;
       hasHw = true;
     } else {
       q('spec-tcon-item').hidden = true;
