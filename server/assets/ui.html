@@ -177,6 +177,18 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
   padding:10px 12px;min-height:38px;width:100%;cursor:pointer;transition:.16s ease;
 }
 .sub-btn:hover{color:var(--w100);border-color:var(--w40)}
+.toast-form{display:flex;gap:8px;margin-top:11px}
+.toast-form input{
+  flex:1;min-width:0;
+  font-family:'Manrope';font-weight:400;font-size:13px;letter-spacing:.03em;
+  color:var(--w100);background:transparent;
+  border:1px solid var(--w25);padding:14px 12px;
+  min-height:48px;border-radius:0;outline:none;
+  box-sizing:border-box;transition:border-color .16s ease;
+}
+.toast-form input:focus{border-color:var(--w60)}
+.toast-form input::placeholder{color:var(--w35)}
+.toast-form button{flex-shrink:0;padding:0 22px;min-height:48px}
 button{
   font-family:'Manrope';font-weight:500;font-size:13px;letter-spacing:.10em;text-transform:uppercase;
   color:var(--w80);background:transparent;border:1px solid var(--w25);
@@ -433,6 +445,13 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
         <button id="lt_standby" onclick="toggleLight('standbyLight')">Standby LED</button>
         <button id="lt_logo" onclick="toggleLight('logoLight')" hidden>Logo light</button>
       </div>
+    </div>
+
+    <div class="set"><div class="lbl">Screen notification</div>
+      <form class="toast-form" onsubmit="event.preventDefault();sendToast();">
+        <input type="text" id="toast-input" placeholder="Message to display on TV screen..." maxlength="120" autocomplete="off">
+        <button type="submit" id="btn-toast">Send</button>
+      </form>
     </div>
 
     <div class="set"><div class="lbl">Privacy &amp; data collection</div>
@@ -933,6 +952,28 @@ function toggleLight(which) {
 }
 
 function toggleMute() { c('mute', !muted); }
+async function sendToast() {
+  const inp = q('toast-input');
+  const msg = inp ? inp.value.trim() : '';
+  if (!msg) return;
+  const btn = q('btn-toast');
+  if (btn) btn.disabled = true;
+  try {
+    await c('toast', msg);
+    if (inp) inp.value = '';
+    if (btn) {
+      btn.textContent = 'Sent';
+      btn.classList.add('on');
+      setTimeout(() => {
+        btn.textContent = 'Send';
+        btn.classList.remove('on');
+        btn.disabled = false;
+      }, 1400);
+    }
+  } catch (e) {
+    if (btn) btn.disabled = false;
+  }
+}
 function pw(a) {
   const msg = a === 'reboot'
     ? 'Reboot the TV now? It will be unavailable for about a minute.'
