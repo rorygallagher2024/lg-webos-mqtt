@@ -40,7 +40,7 @@ use_ssh() {
 
 tvsh() {   # run stdin on the TV over the homebrew root telnet
   { printf '\n'; sleep 1; cat; printf '\nexit\n'; sleep "${W:-8}"; } \
-    | nc -w $(( ${W:-8} + 5 )) "$TV" 23 2>/dev/null | tr -d '\r'
+    | nc -w $(( ${W:-8} + 5 )) "$TV" 23 2>/dev/null | LC_ALL=C tr -d '\r'
 }
 
 start_http() {

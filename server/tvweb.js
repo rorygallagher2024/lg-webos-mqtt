@@ -176,7 +176,8 @@ function emmcInfo() {
    * wear counter could not be read is the same mistake as rendering 0 C for a
    * missing thermal sensor: it states as fact something never measured.
    */
-  var eol = (eolRaw && EOL_MAP[eolRaw.trim()]) || 'unknown';   // 0x00 is "not defined", not Normal
+  var eolKey = eolRaw ? eolRaw.trim().replace(/^0x/i, '') : '';
+  var eol = (eolKey && EOL_MAP[eolKey]) || 'unknown';
   if (!raw) return { life: 'unknown', wear: 'unknown', health: 'unknown', eol: eol };
 
   var parts = raw.split(/\s+/), wearList = [], minHealth = 100;
