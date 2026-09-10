@@ -2,7 +2,7 @@
 
 A telemetry server that runs **on** a rooted LG webOS TV. It serves a live
 dashboard to any browser on your network, and bridges the TV into Home
-Assistant over MQTT as a single auto-discovered device with 47 entities.
+Assistant over MQTT as a single auto-discovered device with 48 entities.
 
 There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the TV.
 
@@ -22,7 +22,7 @@ though something is playing.
 
 ### Home Assistant (Auto-Discovered Device via MQTT)
 
-All 47 entities arrive over MQTT Discovery as a single device
+All 48 entities arrive over MQTT Discovery as a single device
 <p align="center">
 <img width="1061" height="1042" alt="image" src="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235" />
 </p>
@@ -220,7 +220,7 @@ Full detail, including the MQTT ACL guidance and optional TLS, is in
 ## Documentation
 
 * [docs/SECURITY.md](docs/SECURITY.md) &mdash; threat model, SSH migration, MQTT hardening
-* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; all 47 entities, universal media player, example automations
+* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; all 48 entities, universal media player, example automations
 * [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) &mdash; architecture, `/proc/lg` reference, platform quirks
 
 ---

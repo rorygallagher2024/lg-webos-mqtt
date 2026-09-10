@@ -21,6 +21,13 @@ var child_process = require('child_process');
 var path = require('path');
 var execFile = child_process.execFile;
 
+/*
+ * Bump on release, and tag the release to match: the dashboard turns this into
+ * a link to /releases/tag/v<version>, so a value with no tag behind it gives a
+ * 404 rather than a wrong page.
+ */
+var TVWEB_VERSION = '0.9.0';
+
 // ---------------------------------------------------------------- config
 var CONFIG = {
   // The dashboard. Turn this off if you drive everything from Home Assistant:
@@ -862,6 +869,7 @@ function collectStats(cb) {
   var out = {
     ok: true,
     time: Date.now(),
+    tvwebVersion: TVWEB_VERSION,
     device: {
       id: CONFIG.device.id || 'lg_tv',
       name: CONFIG.device.name || 'LG webOS TV',
@@ -3163,6 +3171,22 @@ function setupHomeAssistant() {
           unit_of_measurement: 's',
           device_class: 'duration',
           icon: 'mdi:clock-outline'
+        }
+      },
+      {
+        /*
+         * tvweb's own version, not the TV's - the device's sw_version already
+         * carries the firmware. Named for the program so the two cannot be
+         * read as each other on a device page that shows both. Diagnostic: it
+         * belongs beside the firmware, not among the readings.
+         */
+        type: 'sensor', id: 'tvweb_version',
+        payload: {
+          name: 'tvweb Version',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.tvwebVersion }}',
+          entity_category: 'diagnostic',
+          icon: 'mdi:tag-outline'
         }
       },
       {

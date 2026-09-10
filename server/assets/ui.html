@@ -256,6 +256,10 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 #err{margin-top:18px;font-size:14px;color:var(--red);border-left:2px solid var(--red);padding:9px 13px;background:var(--w06);display:none}
 @media (max-width:620px){.src{text-align:left}.hero{gap:22px}}
 footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:uppercase;color:var(--w50);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+/* The separator rides on the link so both appear only once a version is known. */
+#version{text-transform:none;color:inherit;text-decoration:none}
+#version::before{content:'|';margin:0 .55em;opacity:.45}
+#version:hover{color:var(--w80);text-decoration:underline}
 .stale{opacity:.35;transition:opacity .3s}
 </style>
 </head>
@@ -507,7 +511,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
 <footer>
   <span id="uptime">&mdash;</span>
-  <span id="clock">&mdash;</span>
+  <span><span id="clock">&mdash;</span><a id="version" hidden target="_blank" rel="noopener noreferrer"></a></span>
 </footer>
 
 <script>
@@ -908,10 +912,23 @@ async function tick() {
     const up = d.uptime, dd = Math.floor(up / 86400), hh = Math.floor(up % 86400 / 3600), mm = Math.floor(up % 3600 / 60);
     q('uptime').textContent = 'Up ' + (dd ? dd + 'd ' : '') + hh + 'h ' + mm + 'm   ·   load ' + (d.loadavg || []).join(' ');
     q('clock').textContent = new Date().toLocaleTimeString();
+    setVersion(d.tvwebVersion);
   } catch (e) {
     document.body.classList.add('stale');
     if (Date.now() - lastOk > 6000) showErr(e.message || 'TV unreachable');
   }
+}
+
+// Releases are cut on the upstream repo, so the tag link points there.
+const REPO = 'https://github.com/rorygallagher2024/lg-webos-mqtt';
+
+function setVersion(v) {
+  const el = q('version');
+  if (!v || el.dataset.v === v) return;   // static between restarts, so set it once
+  el.dataset.v = v;
+  el.textContent = 'v' + v;
+  el.href = REPO + '/releases/tag/v' + v;
+  el.hidden = false;
 }
 
 function showErr(m) { const e = q('err'); e.textContent = m; e.style.display = 'block'; }
