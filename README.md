@@ -2,11 +2,9 @@
 
 A telemetry server that runs **on** a rooted LG webOS TV. It serves a live
 dashboard to any browser on your network, and bridges the TV into Home
-Assistant over MQTT as a single auto-discovered device with 48 entities.
+Assistant over MQTT as a single auto-discovered device with up to 61 entities.
 
 There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the TV.
-
-> **Device & webOS Support:** Built and tested for rooted LG TVs running **webOS 3.4 up to webOS 24 (webOS 9+)**, covering 2016–2024+ models across OLED, QNED, NanoCell, and LCD (including B7, B8, C9, C1, C2, and G4). Telemetry, controls, and Home Assistant MQTT entities dynamically adapt to your set's capabilities. See [Tested on](#tested-on) for verified models.
 
 ---
 
@@ -22,7 +20,7 @@ though something is playing.
 
 ### Home Assistant (Auto-Discovered Device via MQTT)
 
-All 48 entities arrive over MQTT Discovery as a single device
+Up to 61 native entities arrive over MQTT Discovery as a single unified device
 <p align="center">
 <img width="1061" height="1042" alt="image" src="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235" />
 </p>
@@ -49,9 +47,9 @@ bind-mounting over `/etc/hosts` that persists across reboots.
 2. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
    load, memory, swap, current draw, Wi-Fi signal and throughput.
 
-3. **Observing OLED panel wear.** Cumulative panel hours, where you are in the
-   4-hour compensation cycle, and how far off the 2,000-hour Pixel Refresher is.
-   You can schedule or cancel a refresher for the next power-off.
+3. **Observing OLED panel wear.** Cumulative panel hours, compensation cycle
+   progress, Pixel Refresher countdown with scheduling, completed cycle counters,
+   failure alerts, and ASBL / GSR protection status.
 
 4. **Seeing what LG collects & blocking telemetry.** Whether the content-recognition
    engine is actually running and sampling your screen, your advertising identifier,
@@ -59,11 +57,15 @@ bind-mounting over `/etc/hosts` that persists across reboots.
 
 ## Core features
 
-* **OLED panel health.** Panel hours, compensation cycle, Pixel Refresher
-  countdown and scheduling, screen shift and logo dimming state. Automatically
-  hidden on LCD/QNED sets, which have no such counters.
+* **OLED panel health.** Panel hours, compensation and Pixel Refresher countdowns
+  with scheduling, completed cycle counters, failure alerts, ASBL / GSR
+  protection status, screen shift and logo dimming. Hidden on LCD/QNED sets.
+* **HDMI 2.1 diagnostics.** Link rate, chroma format, HDCP version, cable error
+  counter, ALLM, VRR, QMS, and colorimetry. Requires `/proc/lg/hdmi20`.
+* **Magic Remote & hardware info.** Battery, model, firmware; SoC architecture,
+  OLED cell ID, and TCON firmware where the platform exposes them.
 * **Video and audio observability.** Dolby Vision / HDR / SDR detection, picture
-  mode, OLED light level, raw HDMI signal (`3840x2160 @ 60Hz`), audio output
+  mode, OLED light level, raw HDMI signal (`3840x2160 @ 120Hz`), audio output
   routing, and active app with friendly input names (`Apple TV (HDMI2)`).
 * **Hardware diagnostics.** SoC temperature and current draw, CPU and per-core
   load, GPU clock, memory and swap, Wi-Fi RSSI, network throughput, eMMC
@@ -166,25 +168,12 @@ network. Enable it deliberately.
 Recommended: Give the TV its own MQTT user with a
 restricted ACL, rather than reusing your main Home Assistant credentials. See [docs/SECURITY.md](docs/SECURITY.md)
 
-### Multiple TVs on the same network
+### Multiple TVs
 
-If you run `tvweb` on more than one TV connecting to the same MQTT broker, each TV **must** have its own unique `topicPrefix` and `device.id`. If two TVs share the default (`lgtv` / `lg_tv`), they will overwrite each other's state topics and Home Assistant device registry, and repeatedly disconnect each other from the broker due to matching client IDs.
-
-In each TV's `config.json` (or `server/config.<tv-ip>.json` on your computer before deploying):
-
-```json
-{
-  "mqtt": {
-    "topicPrefix": "lgtv_bedroom"
-  },
-  "device": {
-    "id": "lg_bedroom_tv",
-    "name": "LG Bedroom OLED"
-  }
-}
-```
-
-`deploy.sh` automatically checks for `server/config.<tv-ip>.json` first (e.g. `server/config.192.168.1.13.json`) before falling back to `server/config.json`, making multi-TV deployments straightforward.
+Each TV on the same broker needs a unique `topicPrefix` and `device.id`,
+otherwise they overwrite each other's state and disconnect each other.
+`deploy.sh` checks for `server/config.<tv-ip>.json` before falling back to
+`server/config.json`.
 
 ## 3. Install
 
@@ -240,7 +229,7 @@ Full detail, including the MQTT ACL guidance and optional TLS, is in
 ## Documentation
 
 * [docs/SECURITY.md](docs/SECURITY.md) &mdash; threat model, SSH migration, MQTT hardening
-* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; all 48 entities, universal media player, example automations
+* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; up to 61 entities, universal media player, example automations
 * [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) &mdash; architecture, `/proc/lg` reference, platform quirks
 
 ---

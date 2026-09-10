@@ -33,7 +33,7 @@ here is needed to use the project - see the [README](../README.md) for that.
                                           ▼
                   ┌─────────────────────────────────────────┐
                   │              Home Assistant             │
-                  │         (33 Auto-Discovered Entities)   │
+                  │       (Up to 61 Auto-Discovered)        │
                   └─────────────────────────────────────────┘
 ```
 
@@ -89,6 +89,10 @@ instead:
 | `/proc/lg/pm/status` | per-core load, governor, AVS currents |
 | `/sys/block/mmcblk0/device/life_time` | eMMC wear (`0x01` = 0–10% used) |
 | `/sys/block/mmcblk0/device/pre_eol_info` | `01` Normal / `02` Warning / `03` Urgent |
+| `/mnt/lg/cmn_data/mrcu/mrcu1.info` | Magic Remote battery percentage, remote model, BDAddr, and firmware |
+| `/proc/lg/hdmi20/port[0-3]/status` | Real-time HDMI receiver PHY mode (FRL 48 Gbps vs TMDS), chroma (RGB 4:4:4), HDCP, cable error counter, ALLM, VRR |
+| `/proc/lg/pe/hdr_status` | Picture engine live video format, colorimetry standard (`BT.709`, `BT.2020`), and peak nit levels |
+| `/var/luna/preferences/environmentCondition` | Hardware configuration (SoC generation `_O22_`, DDR RAM, refresh rate, eye sensor) |
 
 **Do not read `/proc/lg/pm/ts_enable`** — it segfaults the reading process.
 
@@ -120,6 +124,10 @@ to a dedicated service and changed filesystem file paths:
 | **Refresher hours (fs)**| `/mnt/lg/cmn_data/pnwash/autoPnwashTime` | `/mnt/lg/cmn_data/pnwash/autoJbLastTime` | whole panel **hours** |
 | **Off-RS interval** | `/mnt/lg/cmn_data/pnwash/autoOffRsIntervalHomeMode` (`24`) | `/mnt/lg/cmn_data/pnwash/autoOffRsInterval` (`4`) | 10-min units (older) / whole hours (newer) |
 | **Refresher cadence** | Constant (2,000h) | `/mnt/lg/cmn_data/pnwash/autoJbInterval` (`2000 ok`) | whole panel **hours** |
+| **Off-RS completed cycles** | &mdash; | `/mnt/lg/cmn_data/pnwash/completedOffRsCount` | integer count |
+| **JB refresher cycles** | &mdash; | `/mnt/lg/cmn_data/pnwash/completedJbCount` | integer count |
+| **Compensation failures** | &mdash; | `/mnt/lg/cmn_data/pnwash/failAlertCount` | integer count |
+| **Panel silicon info** | &mdash; | `com.webos.service.panelcontroller/getOledCellInfo` / `getOledTconInfo` | Cell ID & TCON FPGA FW |
 
 On older sets, the interval file reading `24` means four hours, matching LG's documented
 cumulative-viewing cycle — not twenty-four. It is expressed in the same 10-minute units as

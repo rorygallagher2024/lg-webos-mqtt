@@ -73,24 +73,75 @@ body{
 [hidden]{display:none !important}
 
 /* ---- masthead ---- */
-header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;flex-wrap:wrap}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap}
+.hdr-left{display:flex;align-items:baseline}
 .mark{font-family:'Outfit';font-weight:300;font-size:clamp(19px,2.4vw,26px);color:var(--w100);letter-spacing:.01em}
 /* The model number identifies the set; the name is what you are looking at.
    Setting them at one size let the longer of the two dominate. */
 .mark span{color:var(--w50);font-size:.68em;letter-spacing:.02em;margin-left:2px}
+
+/* Remote peripheral badge */
+.remote-badge{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:4px 9px;border:1px solid var(--w10);border-radius:3px;
+  background:var(--w06);font-size:12px;color:var(--w70);
+  cursor:default;user-select:none;
+}
+.remote-badge .rem-icon{color:var(--w60);flex-shrink:0}
+.remote-badge .rem-title{font-weight:600;color:var(--w90);letter-spacing:.02em}
+.remote-badge .rem-pct{font-weight:500;color:var(--w100)}
+.remote-badge .rem-gauge{
+  width:18px;height:8px;border:1px solid var(--w35);border-radius:2px;
+  position:relative;padding:1px;display:inline-flex;box-sizing:border-box;margin:0 2px;
+}
+.remote-badge .rem-gauge::after{
+  content:'';position:absolute;right:-3px;top:1px;width:2px;height:4px;
+  background:var(--w35);border-radius:0 1px 1px 0;
+}
+.remote-badge .rem-gauge i{
+  display:block;height:100%;border-radius:1px;background:var(--green);
+  transition:width .3s,background .3s;
+}
+.remote-badge .rem-model{
+  font-size:11px;color:var(--w50);letter-spacing:.04em;
+  border-left:1px solid var(--w12);padding-left:7px;margin-left:2px;
+}
+
 .src{text-align:right}
 .src .t{font-family:'Outfit';font-weight:300;font-size:clamp(15px,1.8vw,19px);color:var(--w80)}
-.src .m{font-size:13px;color:var(--w50);letter-spacing:.02em}
+.src.dim .t,.src.dim .stream-info{opacity:.55}
 /* Panel state. A blanked screen is a normal state, not a fault, so it is
    carried by weight rather than by an alarm colour. */
 .st{font-size:12px;letter-spacing:.10em;text-transform:uppercase;color:var(--w60);
-    display:flex;align-items:center;gap:7px;justify-content:flex-end;margin-bottom:5px}
+    display:flex;align-items:center;gap:7px;justify-content:flex-end;margin-bottom:4px}
 .st i{width:7px;height:7px;border-radius:50%;background:var(--w100);flex:none}
 .st.off i{background:transparent;box-shadow:inset 0 0 0 1px var(--w50)}
 .st.off{color:var(--w50)}
-.src.dim .t,.src.dim .m{opacity:.55}
-@media (max-width:620px){.st{justify-content:flex-start}}
-.src .m b{font-weight:400}
+
+/* Tiered stream diagnostics */
+.stream-info{margin-top:3px}
+.stream-primary{
+  font-family:'Outfit',sans-serif;font-weight:300;
+  font-size:clamp(15px,1.7vw,18px);color:var(--w100);
+  display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;
+}
+.stream-tag{
+  font-family:'Manrope',sans-serif;font-size:10.5px;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;
+  border-radius:2px;line-height:1.2;
+}
+.stream-tag.dv{color:var(--purple-t);border:1px solid rgba(181,123,255,.4);background:rgba(143,48,255,.1)}
+.stream-tag.hdr{color:var(--cand);border:1px solid rgba(255,176,79,.4);background:rgba(255,176,79,.1)}
+.stream-tag.sdr{color:var(--w60);border:1px solid var(--w25);background:var(--w06)}
+.stream-mode{
+  font-family:'Manrope',sans-serif;font-size:12px;font-weight:400;
+  color:var(--w70);letter-spacing:.02em;
+}
+@media (max-width:620px){
+  .st{justify-content:flex-start}
+  .src{text-align:left}
+  .stream-primary{justify-content:flex-start}
+}
 
 /* ---- the spectacle ---- */
 .hero{margin:clamp(20px,4vw,34px) 0 0;display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap}
@@ -132,6 +183,7 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 .n em{font-style:normal;color:var(--w50);font-size:.26em;letter-spacing:.14em;margin-left:12px;font-family:'Manrope';font-weight:500}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:26px;margin-top:26px}
 .cols .v{font-family:'Outfit';font-weight:300;font-size:24px;color:var(--w100);margin-top:6px}
+.cols .sub{white-space:normal;line-height:1.35;overflow:visible;text-overflow:clip}
 
 /* ---- layout grid (2-column on desktop, single on mobile) ---- */
 .grid-wrap{display:grid;grid-template-columns:1fr;gap:clamp(32px,5vw,56px);margin-top:clamp(28px,4vw,44px)}
@@ -150,6 +202,9 @@ header{display:flex;justify-content:space-between;align-items:baseline;gap:24px;
 .grp-sec{margin-top:clamp(30px,5vw,46px);padding-top:clamp(20px,3vw,28px);
   border-top:1px solid var(--w12)}
 .grp-sec.first{margin-top:0;padding-top:0;border-top:0}
+.col-sec-hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding-bottom:12px;border-bottom:1px solid var(--w25);margin-bottom:22px}
+.col-sec-hdr .col-sec{padding-bottom:0;border-bottom:0;margin-bottom:0}
 .col-sec{font-family:'Outfit';font-weight:300;font-size:clamp(20px,2.2vw,25px);
   letter-spacing:.005em;text-transform:none;color:var(--w100);
   padding-bottom:12px;border-bottom:1px solid var(--w25);margin-bottom:22px}
@@ -278,16 +333,55 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 #version::before{content:'|';margin:0 .55em;opacity:.45}
 #version:hover{color:var(--w80);text-decoration:underline}
 .stale{opacity:.35;transition:opacity .3s}
+
+/* ---- hardware specifications strip ---- */
+.hw-specs{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px 20px;
+  margin-top:18px;padding-top:16px;border-top:1px solid var(--w06);
+}
+.spec-item{display:flex;flex-direction:column;gap:3px}
+.spec-k{
+  font-family:'Manrope',sans-serif;font-weight:500;font-size:11px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--w50);
+}
+.spec-v{
+  font-family:'Manrope',sans-serif;font-weight:400;font-size:13.5px;
+  color:var(--w90);letter-spacing:.02em;
+}
+
+/* ---- burn-in & dimmer protections table ---- */
+.panel-protections{margin-top:24px;padding-top:18px;border-top:1px solid var(--w06)}
+.prot-head{margin-bottom:10px}
+.prot-table{display:flex;flex-direction:column}
+.prot-row{
+  display:flex;justify-content:space-between;align-items:center;gap:16px;
+  padding:12px 0;border-bottom:1px solid var(--w06);
+}
+.prot-main{flex:1;min-width:0}
+.prot-title{
+  font-family:'Manrope',sans-serif;font-weight:600;font-size:13px;
+  color:var(--w90);letter-spacing:.02em;
+}
+.prot-title .prot-sub{font-weight:400;color:var(--w50);font-size:12px}
+.prot-desc{
+  font-size:12px;color:var(--w50);margin-top:3px;line-height:1.45;
+  max-width:62ch;
+}
+.prot-status{flex-shrink:0}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="mark">LG OLED TV <span id="model">&mdash;</span></div>
+  <div class="hdr-left">
+    <div class="mark">LG OLED TV <span id="model">&mdash;</span></div>
+  </div>
   <div class="src">
     <div class="st" id="state"><i></i><span>&mdash;</span></div>
     <div class="t" id="source">&mdash;</div>
-    <div class="m num" id="signal">&mdash;</div>
+    <div class="stream-info">
+      <div class="stream-primary num" id="stream-primary">&mdash;</div>
+    </div>
   </div>
 </header>
 
@@ -324,9 +418,19 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     <div class="grp-sec">
       <div class="grp">System</div>
       <section class="readouts" id="readouts"></section>
-      <div class="cols" style="margin-top:20px">
-        <div id="gpuclk-cell" hidden><div class="lbl">GPU clock</div><div class="v num" id="gpuclk">&mdash;</div></div>
-        <div id="ssid-cell" hidden><div class="lbl">Network</div><div class="v" id="ssid">&mdash;</div><div class="sub">Connected Wi-Fi</div></div>
+      <div class="hw-specs" id="hw-specs" hidden>
+        <div class="spec-item" id="spec-arch-item" hidden>
+          <span class="spec-k">SoC Architecture</span>
+          <span class="spec-v" id="spec-arch">&mdash;</span>
+        </div>
+        <div class="spec-item" id="spec-silicon-item" hidden>
+          <span class="spec-k">OLED Panel Silicon</span>
+          <span class="spec-v" id="spec-silicon">&mdash;</span>
+        </div>
+        <div class="spec-item" id="spec-tcon-item" hidden>
+          <span class="spec-k">Timing Controller</span>
+          <span class="spec-v" id="spec-tcon">&mdash;</span>
+        </div>
       </div>
     </div>
 
@@ -335,11 +439,44 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="lbl">Total power on hours</div>
       <div class="n num" style="margin-top:10px"><span id="ph">&mdash;</span><em>hours</em></div>
       <div class="cols">
-        <div><div class="lbl">Compensation in</div><div class="v num" id="comp">&mdash;</div></div>
-        <div><div class="lbl">Refresher in</div><div class="v num" id="refr">&mdash;</div></div>
-        <div><div class="lbl">Refresher state</div><div class="v" id="rstate">&mdash;</div></div>
-        <div id="dimming-cell" hidden><div class="lbl">Dimming</div><div class="v" id="dimming">&mdash;</div><div class="sub">ABL / logo protection</div></div>
+        <div><div class="lbl">Compensation in</div><div class="v num" id="comp">&mdash;</div><div class="sub" id="comp-sub">&mdash;</div></div>
+        <div><div class="lbl">Refresher in</div><div class="v num" id="refr">&mdash;</div><div class="sub" id="refr-sub">&mdash;</div></div>
+        <div><div class="lbl">Refresher state</div><div class="v" id="rstate">&mdash;</div><div class="sub" id="fail-sub">&mdash;</div></div>
         <div id="lux-cell" hidden><div class="lbl">Room light</div><div class="v num" id="lux">&mdash;</div><div class="sub">Ambient sensor</div></div>
+      </div>
+
+      <div class="panel-protections" id="panel-protection-block" hidden>
+        <div class="prot-head lbl">Burn-in &amp; Dimmer Protections</div>
+        <div class="prot-table">
+          <div class="prot-row" id="asbl-row" hidden>
+            <div class="prot-main">
+              <div class="prot-title">ASBL <span class="prot-sub">&middot; Auto Static Brightness Limiter (TPC)</span></div>
+              <div class="prot-desc">Gradually dims sustained static scenes and paused media to prevent OLED pixel burn-in</div>
+            </div>
+            <div class="prot-status"><span class="pill" id="asbl-pill">&mdash;</span></div>
+          </div>
+          <div class="prot-row" id="gsr-row" hidden>
+            <div class="prot-main">
+              <div class="prot-title">GSR <span class="prot-sub">&middot; Global Sticky Reduction</span></div>
+              <div class="prot-desc">Dims entire screen brightness globally when persistent stationary elements (HUDs/banners) are detected</div>
+            </div>
+            <div class="prot-status"><span class="pill" id="gsr-pill">&mdash;</span></div>
+          </div>
+          <div class="prot-row" id="shift-row" hidden>
+            <div class="prot-main">
+              <div class="prot-title">Screen Shift <span class="prot-sub">&middot; Pixel Orbiting</span></div>
+              <div class="prot-desc">Subtly shifts the entire picture by micro-increments over time to disperse static edge wear</div>
+            </div>
+            <div class="prot-status"><span class="pill" id="shift-pill">&mdash;</span></div>
+          </div>
+          <div class="prot-row" id="logo-row" hidden>
+            <div class="prot-main">
+              <div class="prot-title">Adjust Logo Brightness <span class="prot-sub">&middot; Local Logo Dimming</span></div>
+              <div class="prot-desc">Selectively dims only static logo/HUD pixels locally while preserving full brightness for the rest of the picture</div>
+            </div>
+            <div class="prot-status"><span class="pill" id="logo-pill">&mdash;</span></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -357,6 +494,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <details class="disc" id="disc-hdmi" style="border-top:0;margin-top:0">
       <summary>HDMI <span class="cur" id="hdmi-cur"></span></summary>
       <div class="ports" id="hdmi-grid"></div>
+      <div class="sub" id="hdmi-diag-row" hidden style="margin-top:12px;line-height:1.5"></div>
     </details>
 
       <details class="disc" id="disc-proc">
@@ -368,7 +506,20 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
   <!-- Right Column: Interactive Controls -->
   <div class="col-controls">
-    <div class="col-sec">Control</div>
+    <div class="col-sec-hdr">
+      <div class="col-sec">Control</div>
+      <div class="remote-badge" id="remote-badge" hidden>
+        <svg class="rem-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="7" y="2" width="10" height="20" rx="3"></rect>
+          <circle cx="12" cy="6" r="1" fill="currentColor"></circle>
+          <circle cx="12" cy="14" r="2.5"></circle>
+        </svg>
+        <span class="rem-title">Magic Remote</span>
+        <span class="rem-pct num" id="remote-pct">&mdash;</span>
+        <span class="rem-gauge" aria-label="battery meter"><i id="remote-gauge-fill"></i></span>
+        <span class="rem-model" id="remote-model-sub"></span>
+      </div>
+    </div>
     <div id="err"></div>
 
     <!-- Panel first: it is the control the remote cannot do easily, and the
@@ -677,20 +828,9 @@ const SLOTS = 56;
  */
 function pruneEmptySections() {
   document.querySelectorAll('.grp-sec').forEach(function (sec) {
-    const grid = sec.querySelector('.cols');
-    if (!grid) return;
-    /*
-     * Readout rows count as content too. System puts them above its cell grid,
-     * and a set that reports neither a GPU clock nor an SSID - webOS 9+ on a
-     * wired connection - hides both of those cells, which pruned processor,
-     * memory, swap, network and current off the page along with them.
-     */
-    const cells = Array.from(grid.children)
-      .concat(Array.from(sec.querySelectorAll('.readouts .r')));
-    // Only ever manage sections this function itself hid. #panelblock is
-    // hidden wholesale on a non-OLED set while its cells stay visible, so a
-    // plain assignment here would put it back on screen.
-    if (cells.length > 0 && cells.every(function (c) { return c.hidden; })) {
+    const cells = Array.from(sec.querySelectorAll('.cols > *, .readouts .r, .hw-specs > *'));
+    if (cells.length === 0) return;
+    if (cells.every(function (c) { return c.hidden; })) {
       sec.hidden = true;
       sec.dataset.pruned = '1';
     } else if (sec.dataset.pruned) {
@@ -776,13 +916,33 @@ async function tick() {
       q('ds-cur').textContent = pic.mode || '';
       if (q('snd-cur')) q('snd-cur').textContent = audioLabel(d.audio_output) || '';
     }
+
+    const rem = d.remote;
+    if (rem && rem.battery !== null && rem.battery !== undefined) {
+      q('remote-badge').hidden = false;
+      q('remote-pct').textContent = rem.battery + '%';
+      const gFill = q('remote-gauge-fill');
+      gFill.style.width = Math.max(5, Math.min(100, rem.battery)) + '%';
+      gFill.style.background = rem.battery <= 15 ? 'var(--red)' : rem.battery <= 30 ? 'var(--cand)' : 'var(--green)';
+      q('remote-model-sub').textContent = rem.model ? rem.model.replace(/^LGE\s*/i, '') : 'MR22';
+      q('remote-badge').title = (rem.model || 'Magic Remote') + (rem.firmware ? ' · Firmware: ' + rem.firmware : '') + (rem.mac ? ' · Bluetooth: ' + rem.mac : '');
+    } else {
+      q('remote-badge').hidden = true;
+    }
+
     const dr = pic.dynamicRange || '';
-    const drCol = /dolby/i.test(dr) ? 'var(--purple-t)' : /hdr/i.test(dr) ? 'var(--cand)' : 'var(--w60)';
-    q('signal').innerHTML = [
-      d.signal ? esc(d.signal) : '',
-      dr ? `<b style="color:${drCol}">${esc(dr)}</b>` : '',
-      pic.mode ? esc(pic.mode) : ''
-    ].filter(Boolean).join('  ·  ');
+    let drBadge = '';
+    if (dr) {
+      const drClass = /dolby/i.test(dr) ? 'dv' : /hdr/i.test(dr) ? 'hdr' : 'sdr';
+      drBadge = `<span class="stream-tag ${drClass}">${esc(dr)}</span>`;
+    }
+    const modeBadge = pic.mode ? `<span class="stream-mode">${esc(pic.mode)}</span>` : '';
+    const resStr = d.signal ? esc(d.signal) : '';
+
+    const primList = [resStr, drBadge, modeBadge].filter(Boolean);
+    q('stream-primary').innerHTML = primList.length ? primList.join('  ') : '&mdash;';
+
+    renderHdmiDiag(d.hdmi_diag, d.colorimetry || (d.picture_engine && d.picture_engine.colorimetry) || '');
 
     // temp is null in two different situations: the sensor is warming up
     // (~80s after boot, file exists but reads 0), or the platform has no
@@ -834,15 +994,42 @@ async function tick() {
     /* Totals are per-interface and come from whichever link the rate was
        measured on, so a Wi-Fi set reads its own counters, not a dormant eth0. */
     const nt = d.netTotal;
+    const netParts = [];
+    if (d.ssid) netParts.push(esc(d.ssid));
+    if (d.wifi && d.wifi.level) netParts.push(d.wifi.level + ' dBm');
+    if (tx > 0) netParts.push(tx.toFixed(0) + ' up');
+    if (nt) netParts.push(bytes(nt.rx) + ' / ' + bytes(nt.tx));
     row('net', rx.toFixed(0) + '<small>kB/s</small>', Math.min(100, rx / 20),
-        [d.wifi ? d.wifi.level + ' dBm' : null,
-         tx.toFixed(0) + ' up',
-         nt ? bytes(nt.rx) + ' / ' + bytes(nt.tx) : null
-        ].filter(Boolean).join('  ·  '), 101);
+        netParts.join('  ·  ') || 'Connected', 101);
 
     const ma = (d.power && d.power.current_ma) || 0;
     row('draw', ma + '<small>mA</small>', Math.min(100, ma / 4),
         d.power ? ('cpu ' + d.power.cpu_ma + '   core ' + d.power.core_ma) : '', 101);
+
+    // Hardware Specifications
+    let hasHw = false;
+    if (d.hardware && d.hardware.soc_arch) {
+      q('spec-arch-item').hidden = false;
+      q('spec-arch').textContent = d.hardware.soc_arch;
+      hasHw = true;
+    } else {
+      q('spec-arch-item').hidden = true;
+    }
+    if (d.panel_silicon && d.panel_silicon.cell) {
+      q('spec-silicon-item').hidden = false;
+      q('spec-silicon').textContent = 'Cell ' + d.panel_silicon.cell;
+      hasHw = true;
+    } else {
+      q('spec-silicon-item').hidden = true;
+    }
+    if (d.panel_silicon && d.panel_silicon.tcon_firmware) {
+      q('spec-tcon-item').hidden = false;
+      q('spec-tcon').textContent = 'FW ' + d.panel_silicon.tcon_firmware;
+      hasHw = true;
+    } else {
+      q('spec-tcon-item').hidden = true;
+    }
+    q('hw-specs').hidden = !hasHw;
 
     /* Capability-driven: an LCD/QNED set has no panel-hours counter, no
        compensation cycle and no Pixel Refresher, so hide the block entirely
@@ -853,17 +1040,76 @@ async function tick() {
     const o = d.oled || {};
     q('ph').textContent = (o.panel_hours || 0).toLocaleString();
     q('comp').textContent = hrs(o.hours_until_comp) + ' h';
+    if (q('comp-sub')) {
+      q('comp-sub').textContent = (o.comp_cycles !== undefined && o.comp_cycles !== null) ?
+        o.comp_cycles + ' cycles completed (Off-RS)' : '4-hour short cycle';
+    }
     q('refr').textContent = hrs(o.hours_until_refresher) + ' h';
+    if (q('refr-sub')) {
+      q('refr-sub').textContent = (o.refresher_cycles !== undefined && o.refresher_cycles !== null) ?
+        o.refresher_cycles + ' deep cycles completed (JB)' : '2,000-hour calibration';
+    }
     q('rstate').textContent = o.refresher_status || '—';
-    // GPU clock, panel dimming, app storage and the ambient sensor. Each is
-    // hidden when the set does not report it rather than showing a dash.
-    q('gpuclk-cell').hidden = !d.gpuMhz;
-    if (d.gpuMhz) q('gpuclk').textContent = d.gpuMhz + ' MHz';
-    q('ssid-cell').hidden = !d.ssid;      // wired sets report none
-    if (d.ssid) q('ssid').textContent = d.ssid;
+    if (q('fail-sub')) {
+      if (o.failure_alerts !== undefined && o.failure_alerts !== null) {
+        q('fail-sub').innerHTML = o.failure_alerts === 0 ?
+          '0 failures recorded (Healthy)' :
+          '<span style="color:var(--cand)">' + o.failure_alerts + ' failures recorded</span>';
+      } else {
+        q('fail-sub').textContent = 'Calibration status';
+      }
+    }
+
+    // Burn-in & Dimmer Protections
+    let hasProt = false;
+    if (o.asbl_protection) {
+      q('asbl-row').hidden = false;
+      const pill = q('asbl-pill');
+      const active = /active|on|enabled/i.test(o.asbl_protection);
+      pill.textContent = o.asbl_protection;
+      pill.className = 'pill ' + (active ? 'good' : 'idle');
+      hasProt = true;
+    } else {
+      q('asbl-row').hidden = true;
+    }
+
+    if (o.gsr_protection) {
+      q('gsr-row').hidden = false;
+      const pill = q('gsr-pill');
+      const active = /active|on|enabled/i.test(o.gsr_protection);
+      pill.textContent = o.gsr_protection;
+      pill.className = 'pill ' + (active ? 'good' : 'idle');
+      hasProt = true;
+    } else {
+      q('gsr-row').hidden = true;
+    }
+
+    if (o.screen_shift) {
+      q('shift-row').hidden = false;
+      const pill = q('shift-pill');
+      const on = /on/i.test(o.screen_shift);
+      pill.textContent = on ? 'On' : 'Off';
+      pill.className = 'pill ' + (on ? 'good' : 'idle');
+      hasProt = true;
+    } else {
+      q('shift-row').hidden = true;
+    }
+
+    if (o.logo_dimming) {
+      q('logo-row').hidden = false;
+      const pill = q('logo-pill');
+      const val = String(o.logo_dimming).toLowerCase();
+      let label = val.charAt(0).toUpperCase() + val.slice(1);
+      if (val === 'strong') label = 'High';
+      pill.textContent = label;
+      pill.className = 'pill ' + (/off/i.test(val) ? 'idle' : 'good');
+      hasProt = true;
+    } else {
+      q('logo-row').hidden = true;
+    }
+    q('panel-protection-block').hidden = !hasProt;
     const dim = d.dimming;
-    q('dimming-cell').hidden = !dim;
-    if (dim) q('dimming').textContent = dim.charAt(0).toUpperCase() + dim.slice(1);
+    if (dim && q('dimming')) q('dimming').textContent = dim.charAt(0).toUpperCase() + dim.slice(1);
     const st_ = d.appStorage;
     q('appstore-cell').hidden = !st_;
     if (st_) {
@@ -1141,6 +1387,30 @@ async function loadPrivacy() {
 async function toggleAdBlock() {
   await c('toggleAdBlock', 'toggle');
   setTimeout(loadPrivacy, 600);
+}
+
+function renderHdmiDiag(diag, colSpace) {
+  const el = q('hdmi-diag-row');
+  if (!el) return;
+  const parts = [];
+  if (diag) {
+    if (diag.phy_mode) parts.push(esc(diag.phy_mode));
+    if (diag.chroma) parts.push(esc(diag.chroma));
+    if (diag.hdcp && diag.hdcp !== 'None') parts.push('HDCP ' + esc(diag.hdcp.replace(/^HDCP\s*/i, '')));
+  }
+  if (colSpace) parts.push(esc(colSpace));
+  if (diag) {
+    if (diag.allm) parts.push('ALLM');
+    if (diag.vrr) parts.push('VRR');
+    if (diag.qms) parts.push('QMS');
+    if (diag.phy_errors > 0) parts.push('<span style="color:var(--cand)">' + diag.phy_errors + ' errors</span>');
+  }
+  if (parts.length) {
+    el.innerHTML = parts.join(' &middot; ');
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+  }
 }
 
 async function loadHdmi() {
