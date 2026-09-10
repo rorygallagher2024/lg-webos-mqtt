@@ -109,32 +109,36 @@ figure to trust; `/proc/stat` is only used when every delta is non-negative.
 ## OLED panel counters, and their units
 
 The panel timers do not share a unit, which is the single easiest thing to get
-wrong here:
+wrong here. Furthermore, webOS 9+ (webOS 22+, e.g. LG C2) moved several counters
+to a dedicated service and changed filesystem file paths:
 
-| Value | Unit |
-| :--- | :--- |
-| `panelUsageTime` (Luna) | 10-minute units — divide by 6 for hours |
-| `lastCompensationTimestamp` (Luna) | 10-minute units |
-| `/mnt/lg/cmn_data/pnwash/autoOffRsTime` | whole panel **hours** |
-| `/mnt/lg/cmn_data/pnwash/autoPnwashTime` | whole panel **hours** |
-| `/mnt/lg/cmn_data/pnwash/autoOffRsIntervalHomeMode` | 10-minute units (`24` = **4 hours**) |
+| Value | Older webOS (B8, 4.x–8.x) | Modern webOS (C2, 9.x / 22+) | Unit |
+| :--- | :--- | :--- | :--- |
+| **Panel usage time** | `com.webos.service.tv.systemproperty/getSystemProperties` (`panelUsageTime`) | `com.webos.service.panelcontroller/getPanelUsageTime` (`panelUsageTime`) | 10-minute units — divide by 6 for hours |
+| **Last compensation** | `lastCompensationTimestamp` (Luna) | `/mnt/lg/cmn_data/pnwash/autoOffRsLastTime` | 10-minute units (Luna) / whole hours (fs) |
+| **Off-RS hours (fs)** | `/mnt/lg/cmn_data/pnwash/autoOffRsTime` | `/mnt/lg/cmn_data/pnwash/autoOffRsLastTime` | whole panel **hours** |
+| **Refresher hours (fs)**| `/mnt/lg/cmn_data/pnwash/autoPnwashTime` | `/mnt/lg/cmn_data/pnwash/autoJbLastTime` | whole panel **hours** |
+| **Off-RS interval** | `/mnt/lg/cmn_data/pnwash/autoOffRsIntervalHomeMode` (`24`) | `/mnt/lg/cmn_data/pnwash/autoOffRsInterval` (`4`) | 10-min units (older) / whole hours (newer) |
+| **Refresher cadence** | Constant (2,000h) | `/mnt/lg/cmn_data/pnwash/autoJbInterval` (`2000 ok`) | whole panel **hours** |
 
-The interval file reading `24` means four hours, matching LG's documented
-cumulative-viewing cycle — not twenty-four. It is expressed in the same units as
-the counters it gets compared against, while `autoOffRsTime` alongside it is in
+On older sets, the interval file reading `24` means four hours, matching LG's documented
+cumulative-viewing cycle — not twenty-four. It is expressed in the same 10-minute units as
+the Luna counters it gets compared against, while `autoOffRsTime` alongside it is in
 hours. Confirmed on a live set: `autoOffRsTime` 3426 against a `panelUsageTime`
 of 20576 (÷6 = 3429).
 
-The 2,000-hour Pixel Refresher cadence is not exposed anywhere on the set and
-remains an assumption, named as a constant rather than buried in an expression.
+On webOS 9+ sets, `autoOffRsInterval` is expressed directly in whole hours (`4`),
+`autoJbInterval` reports `2000 ok`, and `panelcontroller/getPanelUsageTime` provides
+the live usage counter in 10-minute units. Confirmed on an LG C2: `autoOffRsLastTime` 4767
+against a `panelUsageTime` of 28614 (÷6 = 4769).
 
 ## Panel detection
 
 Panel-lifecycle features are gated on panel type, detected once via
-`/var/luna/preferences/paneltype_oled` or a `panelUsageTime` that actually
-responds. On an LCD/QNED set they are omitted from the dashboard and withheld
-from MQTT discovery, with retained discovery configs cleared so they do not
-linger in Home Assistant as orphans. Reporting `0 hours` would read as a real
+model name matching (`OLED...`), `/var/luna/preferences/paneltype_oled`, pnwash filesystem
+records, or a `panelUsageTime` query that actually responds. On an LCD/QNED set they are
+omitted from the dashboard and withheld from MQTT discovery, with retained discovery configs
+cleared so they do not linger in Home Assistant as orphans. Reporting `0 hours` would read as a real
 measurement.
 
 ## Deploying over ssh
