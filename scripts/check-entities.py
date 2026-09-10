@@ -12,20 +12,61 @@ at "unknown", which nobody notices for weeks.
 This walks every discovery entity in tvweb.js, extracts the value_json paths
 its template references, and resolves each against a live /api/stats response.
 
-    ./scripts/check-entities.py [tv-ip]
+    ./scripts/check-entities.py [tv-ip] [--token TOKEN] [--stats FILE]
+
+A set with `token` configured - which the README recommends - answers /api/
+with 401, so pass the same token here. TVWEB_TOKEN works too, and is the
+better place for it: an argument is visible to every other process on the
+machine for as long as the run takes.
+
+--stats reads a saved /api/stats response instead of fetching one, so the
+check can run against a recorded payload with no TV on the network.
 
 Exits non-zero if any path fails to resolve.
 """
-import json, re, sys, urllib.request, pathlib
+import json, os, re, sys, urllib.request, urllib.error, urllib.parse, pathlib
 
-tv = sys.argv[1] if len(sys.argv) > 1 else '192.168.1.134'
+args = sys.argv[1:]
+
+
+def take(flag):
+    """Pull `--flag value` out of args, returning the value."""
+    if flag not in args:
+        return None
+    i = args.index(flag)
+    if i + 1 >= len(args):
+        sys.exit(f'{flag} needs a value')
+    args.pop(i)
+    return args.pop(i)
+
+
+stats_file = take('--stats')
+token = take('--token') or os.environ.get('TVWEB_TOKEN')
+tv = args[0] if args else '192.168.1.134'
 src = (pathlib.Path(__file__).parent.parent / 'server' / 'tvweb.js').read_text(encoding='utf-8')
 
-try:
-    with urllib.request.urlopen(f'http://{tv}:8080/api/stats', timeout=10) as r:
-        stats = json.load(r)
-except Exception as e:
-    sys.exit(f'could not reach {tv}: {e}')
+if stats_file:
+    try:
+        stats = json.loads(pathlib.Path(stats_file).read_text(encoding='utf-8'))
+    except Exception as e:
+        sys.exit(f'could not read {stats_file}: {e}')
+else:
+    url = f'http://{tv}:8080/api/stats'
+    if token:
+        url += '?k=' + urllib.parse.quote(token, safe='')
+    try:
+        with urllib.request.urlopen(url, timeout=10) as r:
+            stats = json.load(r)
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            sys.exit(f'{tv} rejected the request: pass --token, or set TVWEB_TOKEN, '
+                     'to match `token` in its config.json')
+        sys.exit(f'could not reach {tv}: {e}')
+    except Exception as e:
+        sys.exit(f'could not reach {tv}: {e}')
+
+if not isinstance(stats, dict) or not stats.get('ok'):
+    sys.exit(f'not a usable /api/stats payload: {str(stats)[:120]}')
 
 
 def resolve(path):
