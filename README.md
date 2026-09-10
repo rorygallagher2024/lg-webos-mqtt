@@ -24,7 +24,12 @@ Live telemetry and full local control in a two-column layout.
 
 Up to 61 native entities arrive over MQTT Discovery as a single unified device
 <p align="center">
-<img width="1061" height="1042" alt="image" src="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235" />
+<img width="1061" height="1042" alt="Home Assistant MQTT entities" src="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235" />
+</p>
+
+A custom Home Assistant dashboard for an LG TV:
+<p align="center">
+<img width="1800" height="1042" alt="Custom dashboard leveraging MQTT data" src="https://github.com/user-attachments/assets/737b3106-e8a4-4c6b-ba96-b0bad130b600" />
 </p>
 
 ### Privacy Panel & On-TV Ad Blocker
