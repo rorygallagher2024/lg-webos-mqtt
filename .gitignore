@@ -1,5 +1,5 @@
 .DS_Store
-server/config.json
+server/config*.json
 *.log
 .tvweb_httpd
 lg-webos-mqtt/

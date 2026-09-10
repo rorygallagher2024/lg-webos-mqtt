@@ -60,11 +60,20 @@ deploy_ssh() {
   for f in $FILES; do
     scp "${SSH_OPTS[@]}" -q "$DIR/$f" "root@$TV:/var/lib/tvweb/$f"
   done
-  # Only copy config.json if the TV does not already have one: overwriting
-  # an existing config wipes out that TV's unique device id and topic prefix.
-  if [ -f "$DIR/config.json" ]; then
+  # Locate target-specific config (e.g. config.192.168.1.13.json) or fall back to config.json.
+  # Only copy if the TV does not already have one: overwriting an existing
+  # config wipes out that TV's unique device id and topic prefix.
+  CONFIG_FILE=""
+  if [ -f "$DIR/config.$TV.json" ]; then
+    CONFIG_FILE="$DIR/config.$TV.json"
+  elif [ -f "$DIR/config.json" ]; then
+    CONFIG_FILE="$DIR/config.json"
+  fi
+  if [ -n "$CONFIG_FILE" ]; then
     if ! ssh "${SSH_OPTS[@]}" "root@$TV" '[ -f /var/lib/tvweb/config.json ]'; then
-      scp "${SSH_OPTS[@]}" -q "$DIR/config.json" "root@$TV:/var/lib/tvweb/config.json"
+      echo "initializing config from $(basename "$CONFIG_FILE") ..."
+      scp "${SSH_OPTS[@]}" -q "$CONFIG_FILE" "root@$TV:/var/lib/tvweb/config.json"
+      ssh "${SSH_OPTS[@]}" "root@$TV" 'chmod 600 /var/lib/tvweb/config.json'
     fi
   fi
 
@@ -119,6 +128,15 @@ deploy_telnet() {
   start_http
   trap stop_http EXIT
 
+  CONFIG_FILE=""
+  if [ -f "$DIR/config.$TV.json" ]; then
+    CONFIG_FILE="$DIR/config.$TV.json"
+  elif [ -f "$DIR/config.json" ]; then
+    CONFIG_FILE="$DIR/config.json"
+  fi
+  CONFIG_NAME=""
+  [ -n "$CONFIG_FILE" ] && CONFIG_NAME="$(basename "$CONFIG_FILE")"
+
   # NOTE: this heredoc is unquoted so $MYIP/$PORT expand HERE. Anything that
   # must run on the TV has to be escaped (\$f, \$(...)).
   W=16 tvsh <<TVCMDS
@@ -130,7 +148,7 @@ for f in Outfit.ttf Manrope.ttf OFL-Outfit.txt OFL-Manrope.txt; do
   wget -q -O /var/lib/tvweb/assets/fonts/\$f http://$MYIP:$PORT/assets/fonts/\$f
 done
 echo "fonts: \$(ls /var/lib/tvweb/assets/fonts | wc -l) files"
-$([ -f "$DIR/config.json" ] && echo "[ -f /var/lib/tvweb/config.json ] || wget -q -O /var/lib/tvweb/config.json http://$MYIP:$PORT/config.json")
+$([ -n "$CONFIG_NAME" ] && echo "[ -f /var/lib/tvweb/config.json ] || (wget -q -O /var/lib/tvweb/config.json http://$MYIP:$PORT/$CONFIG_NAME && echo 'config initialized from $CONFIG_NAME')")
 chmod 600 /var/lib/tvweb/config.json 2>/dev/null
 $([ -n "$PERSIST" ] && echo "mkdir -p /var/lib/webosbrew/init.d && wget -q -O /var/lib/webosbrew/init.d/50-tvweb http://$MYIP:$PORT/50-tvweb.sh && chmod +x /var/lib/webosbrew/init.d/50-tvweb && echo 'boot hook installed'")
 chmod +x /var/lib/tvweb/tvwebctl

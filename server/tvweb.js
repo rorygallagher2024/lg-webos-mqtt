@@ -2957,6 +2957,7 @@ function setupHomeAssistant() {
   var pfx = CONFIG.mqtt.topicPrefix || 'lgtv';
   var discPfx = CONFIG.mqtt.discoveryPrefix || 'homeassistant';
   var devId = (CONFIG.device && CONFIG.device.id) || 'lg_b8_tv';
+  console.log('mqtt: device id "' + devId + '", topic prefix "' + pfx + '"');
   var statusTopic = pfx + '/status';
   var telemetryTopic = pfx + '/telemetry';
   var stateScreenTopic = pfx + '/state/screen';
@@ -3639,13 +3640,6 @@ function setupHomeAssistant() {
 
       var discTopic = discPfx + '/' + item.type + '/' + devId + '/' + item.id + '/config';
       mqttClient.publish(discTopic, JSON.stringify(conf), true);
-    }
-
-    if (devId !== 'lg_b8_tv') {
-      for (var k = 0; k < entities.length; k++) {
-        var oldDisc = discPfx + '/' + entities[k].type + '/lg_b8_tv/' + entities[k].id + '/config';
-        mqttClient.publish(oldDisc, '', true);
-      }
     }
     console.log('mqtt: published ' + entities.length + ' Home Assistant discovery entities');
   }

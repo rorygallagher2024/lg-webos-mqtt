@@ -166,6 +166,26 @@ network. Enable it deliberately.
 Recommended: Give the TV its own MQTT user with a
 restricted ACL, rather than reusing your main Home Assistant credentials. See [docs/SECURITY.md](docs/SECURITY.md)
 
+### Multiple TVs on the same network
+
+If you run `tvweb` on more than one TV connecting to the same MQTT broker, each TV **must** have its own unique `topicPrefix` and `device.id`. If two TVs share the default (`lgtv` / `lg_tv`), they will overwrite each other's state topics and Home Assistant device registry, and repeatedly disconnect each other from the broker due to matching client IDs.
+
+In each TV's `config.json` (or `server/config.<tv-ip>.json` on your computer before deploying):
+
+```json
+{
+  "mqtt": {
+    "topicPrefix": "lgtv_bedroom"
+  },
+  "device": {
+    "id": "lg_bedroom_tv",
+    "name": "LG Bedroom OLED"
+  }
+}
+```
+
+`deploy.sh` automatically checks for `server/config.<tv-ip>.json` first (e.g. `server/config.192.168.1.13.json`) before falling back to `server/config.json`, making multi-TV deployments straightforward.
+
 ## 3. Install
 
 ```bash
