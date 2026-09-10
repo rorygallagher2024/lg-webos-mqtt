@@ -246,14 +246,27 @@ function netBytes() {
 function getVideoSignal() {
   for (var p = 0; p < 4; p++) {
     var raw = rd('/proc/lg/hdmi20/port' + p + '/status');
-    if (raw && raw.indexOf('connected: on') !== -1) {
-      var wMatch = raw.match(/horizontal-active:\s*(\d+)/);
-      var hMatch = raw.match(/vertical-active:\s*(\d+)/);
-      var hzMatch = raw.match(/pixel-clock-V:\s*(\d+)\s*Hz/);
-      if (wMatch && hMatch) {
-        var hz = hzMatch ? (' @ ' + hzMatch[1] + 'Hz') : '';
-        return wMatch[1] + 'x' + hMatch[1] + hz;
+    if (!raw) continue;
+    var isConn = /connected:\s*on/i.test(raw) || /PHY\s+Lock\[1\]/i.test(raw);
+    var w = null, h = null, hz = '';
+    var wMatch = raw.match(/horizontal-active:\s*(\d+)/);
+    var hMatch = raw.match(/vertical-active:\s*(\d+)/);
+    var hzMatch = raw.match(/pixel-clock-V:\s*(\d+)\s*Hz/);
+    if (wMatch && hMatch) {
+      w = wMatch[1];
+      h = hMatch[1];
+      if (hzMatch) hz = ' @ ' + hzMatch[1] + 'Hz';
+    } else {
+      var sigM = raw.match(/Sig:\s*\[(\d+)\](?:\(\d+\))?x\[(\d+)\](?:\(\d+\))?@\[(\d+)\]\s*Hz/i);
+      if (sigM && parseInt(sigM[1], 10) > 0) {
+        w = sigM[1];
+        h = sigM[2];
+        hz = ' @ ' + sigM[3] + 'Hz';
+        isConn = true;
       }
+    }
+    if (isConn) {
+      if (w && h) return w + 'x' + h + hz;
       return 'Connected';
     }
   }
@@ -1132,21 +1145,40 @@ function hdmiPorts() {
     function f(re) { var m = raw.match(re); return m ? m[1].trim() : null; }
     var hact = parseInt(f(/horizontal-active:\s*(\d+)/) || '0', 10);
     var vact = parseInt(f(/vertical-active:\s*(\d+)/) || '0', 10);
-    /*
-     * Refresh rate comes from pixel-clock-V, not the field labelled
-     * refresh-rate: that reports 793 "(0.01Hz)" on a 4K60 source. pixel-clock-V
-     * reads 60 and checks out against the timings.
-     */
     var rate = parseInt(f(/pixel-clock-V:\s*(\d+)/) || '0', 10);
     var pclk = parseInt(f(/pixel-clock:\s*(\d+)/) || '0', 10);
+
+    // Format 2 (webOS 9+ / HDMI 2.1 driver): Sig:[3840](4400)x[2160](2250)@[120]Hz
+    if (!hact || !vact) {
+      var sigM = raw.match(/Sig:\s*\[(\d+)\](?:\(\d+\))?x\[(\d+)\](?:\(\d+\))?@\[(\d+)\]\s*Hz/i);
+      if (sigM) {
+        hact = parseInt(sigM[1], 10);
+        vact = parseInt(sigM[2], 10);
+        if (!rate) rate = parseInt(sigM[3], 10);
+      }
+    }
+    if (!pclk) {
+      var pclkStr = f(/Pixel Clk\[0*([1-9]\d*)\]/i);
+      if (pclkStr) {
+        var pclkNum = parseInt(pclkStr, 10);
+        pclk = (pclkNum < 100000) ? pclkNum * 10 : Math.round(pclkNum / 1000);
+      }
+    }
+    var isConnected = /connected:\s*on/i.test(raw) ||
+                      /PHY\s+Lock\[1\]/i.test(raw) ||
+                      (hact > 0 && vact > 0);
+    var colorDepth = f(/deep-color-mode:\s*(\S+ \S+)/) || f(/DeepColorMode\[\s*([^\]]+)\]/);
+    if (colorDepth) colorDepth = colorDepth.replace(/^[.\s]+/, '');
+    var isInterlaced = /interlaced:\s*yes/i.test(raw) || /Interlaced\[1\]/i.test(raw);
+
     ports.push({
       port: i,
-      connected: /connected:\s*on/i.test(raw),
-      resolution: (hact && vact) ? (hact + 'x' + vact) : null,
-      refreshHz: rate || null,
-      pixelClockMhz: pclk ? Math.round(pclk / 1000 * 10) / 10 : null,
-      colorDepth: f(/deep-color-mode:\s*(\S+ \S+)/),
-      interlaced: /interlaced:\s*yes/i.test(raw)
+      connected: isConnected,
+      resolution: (isConnected && hact && vact) ? (hact + 'x' + vact) : null,
+      refreshHz: (isConnected && rate) ? rate : null,
+      pixelClockMhz: (isConnected && pclk) ? Math.round(pclk / 1000 * 10) / 10 : null,
+      colorDepth: isConnected ? colorDepth : null,
+      interlaced: isConnected ? isInterlaced : false
     });
   }
   return ports;
@@ -1169,14 +1201,19 @@ function hdmiInputs(cb) {
     for (var d = 0; d < devs.length; d++) {
       if (!devs[d].id || String(devs[d].id).indexOf('HDMI') !== 0) continue;
       if (devs[d].activate) activeIdx = inputs.length;
+      // On webOS <= 8, lastUniqueId 255 means nothing ever identified over CEC.
+      // On webOS 9+, lastUniqueId is -1 when empty.
+      var hasCec = devs[d].lastUniqueId !== undefined &&
+                   devs[d].lastUniqueId !== 255 &&
+                   devs[d].lastUniqueId !== -1;
+      var seen = !!(hasCec || devs[d].hdmiPlugIn || devs[d].connected || (devs[d].subCount > 0));
       inputs.push({
         id: devs[d].id,
         port: devs[d].port,
         label: devs[d].label || devs[d].id,
         appId: devs[d].appId,
         active: !!devs[d].activate,
-        // lastUniqueId 255 means nothing has ever identified itself over CEC
-        deviceSeen: devs[d].lastUniqueId !== undefined && devs[d].lastUniqueId !== 255,
+        deviceSeen: seen,
         signal: null
       });
     }
