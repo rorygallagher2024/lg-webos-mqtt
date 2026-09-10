@@ -74,7 +74,7 @@ body{
 
 /* ---- masthead ---- */
 header{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap}
-.hdr-left{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.hdr-left{display:flex;align-items:baseline}
 .mark{font-family:'Outfit';font-weight:300;font-size:clamp(19px,2.4vw,26px);color:var(--w100);letter-spacing:.01em}
 /* The model number identifies the set; the name is what you are looking at.
    Setting them at one size let the longer of the two dominate. */
@@ -201,6 +201,9 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 .grp-sec{margin-top:clamp(30px,5vw,46px);padding-top:clamp(20px,3vw,28px);
   border-top:1px solid var(--w12)}
 .grp-sec.first{margin-top:0;padding-top:0;border-top:0}
+.col-sec-hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding-bottom:12px;border-bottom:1px solid var(--w25);margin-bottom:22px}
+.col-sec-hdr .col-sec{padding-bottom:0;border-bottom:0;margin-bottom:0}
 .col-sec{font-family:'Outfit';font-weight:300;font-size:clamp(20px,2.2vw,25px);
   letter-spacing:.005em;text-transform:none;color:var(--w100);
   padding-bottom:12px;border-bottom:1px solid var(--w25);margin-bottom:22px}
@@ -371,17 +374,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 <header>
   <div class="hdr-left">
     <div class="mark">LG OLED TV <span id="model">&mdash;</span></div>
-    <div class="remote-badge" id="remote-badge" hidden>
-      <svg class="rem-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="7" y="2" width="10" height="20" rx="3"></rect>
-        <circle cx="12" cy="6" r="1" fill="currentColor"></circle>
-        <circle cx="12" cy="14" r="2.5"></circle>
-      </svg>
-      <span class="rem-title">Magic Remote</span>
-      <span class="rem-pct num" id="remote-pct">&mdash;</span>
-      <span class="rem-gauge" aria-label="battery meter"><i id="remote-gauge-fill"></i></span>
-      <span class="rem-model" id="remote-model-sub"></span>
-    </div>
   </div>
   <div class="src">
     <div class="st" id="state"><i></i><span>&mdash;</span></div>
@@ -513,7 +505,20 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
   <!-- Right Column: Interactive Controls -->
   <div class="col-controls">
-    <div class="col-sec">Control</div>
+    <div class="col-sec-hdr">
+      <div class="col-sec">Control</div>
+      <div class="remote-badge" id="remote-badge" hidden>
+        <svg class="rem-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="7" y="2" width="10" height="20" rx="3"></rect>
+          <circle cx="12" cy="6" r="1" fill="currentColor"></circle>
+          <circle cx="12" cy="14" r="2.5"></circle>
+        </svg>
+        <span class="rem-title">Magic Remote</span>
+        <span class="rem-pct num" id="remote-pct">&mdash;</span>
+        <span class="rem-gauge" aria-label="battery meter"><i id="remote-gauge-fill"></i></span>
+        <span class="rem-model" id="remote-model-sub"></span>
+      </div>
+    </div>
     <div id="err"></div>
 
     <!-- Panel first: it is the control the remote cannot do easily, and the
