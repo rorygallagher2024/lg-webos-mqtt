@@ -931,6 +931,12 @@ function collectStats(cb) {
     loadavg: (rd('/proc/loadavg') || '').split(' ').slice(0, 3),
     wifi: wifi(),
     net: rate,
+    /*
+     * Cumulative counters for the interface the rate came from, so the two
+     * always describe the same link. Kernel counters, so they reset at boot
+     * and start from zero on whichever interface is in use - Wi-Fi or wired.
+     */
+    netTotal: n ? { rx: n.rx, tx: n.tx, iface: n.iface } : null,
     emmc: emmcInfo(),
     signal: getVideoSignal(),
     power: {
