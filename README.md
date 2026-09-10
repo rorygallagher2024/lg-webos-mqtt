@@ -106,6 +106,7 @@ versions and panel types.
 | OLED55C1PUB | 6.x (6.3+) | 03.53.45 | OLED | SSH install and MQTT bridge confirmed |
 | 55UH6030-UC | 3.4.3 | &mdash; | LCD | |
 | OLED55G42LW | 24 | 33.31.68 | OLED | Rooted with slopbro, not the Homebrew Channel |
+| OLED42C24LA | 9.2.2 (22+) | 23.25.55 | OLED | Rooted with jsbro-autoroot |
 | OLED65B7V-Z | 3.9.3 | 06.10.65 | OLED | No SoC temperature or eMMC wear readings |
 
 **If you run it on anything else, please open an issue whether it's working or not**

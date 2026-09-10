@@ -304,7 +304,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="grp">System</div>
       <section class="readouts" id="readouts"></section>
       <div class="cols" style="margin-top:20px">
-        <div><div class="lbl">GPU clock</div><div class="v num" id="gpuclk">&mdash;</div></div>
+        <div id="gpuclk-cell" hidden><div class="lbl">GPU clock</div><div class="v num" id="gpuclk">&mdash;</div></div>
         <div id="ssid-cell" hidden><div class="lbl">Network</div><div class="v" id="ssid">&mdash;</div><div class="sub">Connected Wi-Fi</div></div>
       </div>
     </div>
@@ -801,7 +801,8 @@ async function tick() {
     q('rstate').textContent = o.refresher_status || '—';
     // GPU clock, panel dimming, app storage and the ambient sensor. Each is
     // hidden when the set does not report it rather than showing a dash.
-    q('gpuclk').textContent = d.gpuMhz ? d.gpuMhz + ' MHz' : '—';
+    q('gpuclk-cell').hidden = !d.gpuMhz;
+    if (d.gpuMhz) q('gpuclk').textContent = d.gpuMhz + ' MHz';
     q('ssid-cell').hidden = !d.ssid;      // wired sets report none
     if (d.ssid) q('ssid').textContent = d.ssid;
     const dim = d.dimming;
