@@ -13,7 +13,7 @@ There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the T
 Live telemetry and full local control in a two-column layout.
 
 <p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="LG webOS TV live dashboard: dark theme (OLED42C24LA)" width="900">
+  <img src="docs/screenshots/dashboard.png" alt="LG webOS TV live dashboard: dark theme (OLED65B8SLC)" width="900">
 </p>
 
 <p align="center">
