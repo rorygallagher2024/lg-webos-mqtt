@@ -292,6 +292,7 @@ var PIC_MODE_MAP = {
   hdrStandard: 'HDR Standard',
   hdrGame: 'HDR Game',
   cinema: 'Cinema',
+  personalized: 'Personalized',   // reported by webOS 22 sets
   expert1: 'ISF Expert (Bright)',
   expert2: 'ISF Expert (Dark)',
   game: 'Game',
