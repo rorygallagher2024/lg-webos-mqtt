@@ -915,6 +915,7 @@ function collectStats(cb) {
   lunaCached('com.webos.service.tv.display/getDimmingStatus', {}, 15000, function (dim) {
     // ABL / logo dimming activity. OLED only in practice.
     out.dimming = (dim && dim.status) || null;
+    if (out.dimming) hasDimming = true;
   lunaCached('com.webos.service.tv.display/getLightSensorData', {}, 30000, function (ls) {
     /*
      * Ambient light sensor. Not every set has one: a model without it still
@@ -1340,6 +1341,7 @@ var INPUTS = { hdmi1: 1, hdmi2: 1, hdmi3: 1, hdmi4: 1, livetv: 1 };
 // Verified against the settings service: 15 is rejected, 10 and 90 are not.
 // Set from collectStats: sets without the hardware report 65535 and get null.
 var hasLightSensor = false;
+var hasDimming = false;
 
 /*
  * Front-panel lights. The "option" settings category carries standByLight,
@@ -3308,8 +3310,6 @@ function setupHomeAssistant() {
         payload: {
           name: 'Launch App',
           command_topic: pfx + '/command/launch_app',
-          state_topic: telemetryTopic,
-          value_template: '{{ value_json.app }}',
           options: (function () {
             var opts = ['livetv', 'youtube.leanback.v4', 'netflix', 'amazon', 'spotify-beehive', 'com.apple.appletv'];
             if (installedApps && installedApps.length) {
@@ -3545,6 +3545,35 @@ function setupHomeAssistant() {
         } else { keptAmb.push(entities[a]); }
       }
       entities = keptAmb;
+    }
+
+    /*
+     * GPU clock. Withheld on sets whose kernel does not expose the PLL output
+     * in /proc/lg/sys/status (such as webOS 9+ / C2).
+     */
+    if (gpuClockMhz() === null) {
+      var keptGpu = [];
+      for (var gi = 0; gi < entities.length; gi++) {
+        if (entities[gi].id === 'gpu_clock') {
+          mqttClient.publish(discPfx + '/sensor/' + devId + '/gpu_clock/config', '', true);
+        } else { keptGpu.push(entities[gi]); }
+      }
+      entities = keptGpu;
+    }
+
+    /*
+     * Panel dimming. OLED sets control light per subpixel rather than via
+     * backlight zones, and webOS 9+ has no com.webos.service.tv.display service.
+     * Withhold on OLEDs and any set where dimming is unmeasured.
+     */
+    if (isOled === true || !hasDimming) {
+      var keptDim = [];
+      for (var di = 0; di < entities.length; di++) {
+        if (entities[di].id === 'panel_dimming') {
+          mqttClient.publish(discPfx + '/sensor/' + devId + '/panel_dimming/config', '', true);
+        } else { keptDim.push(entities[di]); }
+      }
+      entities = keptDim;
     }
 
     if (isOled === false) {
