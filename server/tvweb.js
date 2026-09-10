@@ -973,6 +973,7 @@ function collectStats(cb) {
           if (app && app.appId) {
             var shortApp = String(app.appId).replace('com.webos.app.', '');
             out.app = shortApp;
+            out.app_id = app.appId;
             out.app_name = inputNameMap[shortApp] || shortApp;
             out.display_title = (inputNameMap[shortApp] && inputNameMap[shortApp] !== shortApp) ?
               (inputNameMap[shortApp] + ' (' + shortApp.toUpperCase() + ')') : shortApp;
@@ -2956,6 +2957,20 @@ MiniMQTT.prototype.disconnect = function() {
 };
 
 // ---------------------------------------------------------------- Home Assistant Integration
+/*
+ * Home Assistant logs an error for every select state outside that entity's
+ * own option list, and the TV reports plenty a list cannot hold: a launched
+ * app where an input is expected, an HDR picture mode, an input where an app
+ * is expected. Anything not offered is published as "None", which the MQTT
+ * select reads as unknown (it resets on a case-insensitive "none") instead
+ * of logging.
+ */
+function selectState(expr, options) {
+  var quoted = [];
+  for (var i = 0; i < options.length; i++) quoted.push('\'' + options[i] + '\'');
+  return '{{ (' + expr + ') if (' + expr + ') in [' + quoted.join(', ') + '] else \'None\' }}';
+}
+
 function setupHomeAssistant() {
   if (!CONFIG.mqtt || !CONFIG.mqtt.enabled || !CONFIG.mqtt.host) {
     console.log('mqtt: disabled (no host configured)');
@@ -3232,8 +3247,8 @@ function setupHomeAssistant() {
           name: 'Input Source',
           command_topic: cmdInputTopic,
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.app }}',
-          options: ['hdmi1', 'hdmi2', 'hdmi3', 'hdmi4', 'livetv'],
+          value_template: selectState('value_json.app', Object.keys(INPUTS)),
+          options: Object.keys(INPUTS),
           icon: 'mdi:video-input-hdmi'
         }
       },
@@ -3362,28 +3377,34 @@ function setupHomeAssistant() {
           name: 'Sound Output',
           command_topic: pfx + '/command/sound_output',
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.sound.output_raw if value_json.sound else "tv_speaker" }}',
-          options: ['tv_speaker', 'external_arc', 'optical', 'headphone', 'bt_soundbar'],
+          value_template: selectState('value_json.sound.output_raw if value_json.sound else "tv_speaker"',
+                                      Object.keys(SOUND_OUTPUT_MAP)),
+          options: Object.keys(SOUND_OUTPUT_MAP),
           icon: 'mdi:speaker'
         }
       },
       {
         type: 'select', id: 'app',
-        payload: {
-          name: 'Launch App',
-          command_topic: pfx + '/command/launch_app',
-          options: (function () {
-            var opts = ['livetv', 'youtube.leanback.v4', 'netflix', 'amazon', 'spotify-beehive', 'com.apple.appletv'];
-            if (installedApps && installedApps.length) {
-              var merged = {};
-              for (var o = 0; o < opts.length; o++) merged[opts[o]] = 1;
-              for (var a = 0; a < installedApps.length; a++) merged[installedApps[a].id] = 1;
-              return Object.keys(merged);
-            }
-            return opts;
-          })(),
-          icon: 'mdi:apps'
-        }
+        payload: (function () {
+          /*
+           * Full app ids on both sides: listApps and telemetry's app_id report
+           * com.webos.app.livetv, and launch wants that same id back, so the
+           * option list needs no translation in either direction.
+           */
+          var opts = ['com.webos.app.livetv', 'youtube.leanback.v4', 'netflix', 'amazon', 'spotify-beehive', 'com.apple.appletv'];
+          var merged = {};
+          for (var o = 0; o < opts.length; o++) merged[opts[o]] = 1;
+          for (var a = 0; a < installedApps.length; a++) merged[installedApps[a].id] = 1;
+          var appOptions = Object.keys(merged);
+          return {
+            name: 'Launch App',
+            command_topic: pfx + '/command/launch_app',
+            state_topic: telemetryTopic,
+            value_template: selectState('value_json.app_id', appOptions),
+            options: appOptions,
+            icon: 'mdi:apps'
+          };
+        })()
       },
       {
         /*
@@ -3713,7 +3734,13 @@ function setupHomeAssistant() {
     // reconnect meant a restart silently flipped Home Assistant back to on.
     // Resolve the panel type first: publishDiscovery filters on it, and on a
     // first connect it would otherwise still be undetermined.
-    detectOled(function () { detectLogoLight(function () { publishDiscovery(); }); });
+    // The app select's options come from listApps, which on a first connect
+    // has not been scanned yet - without this it publishes the fallback list.
+    detectOled(function () {
+      detectLogoLight(function () {
+        refreshInstalledApps(function () { publishDiscovery(); });
+      });
+    });
     mqttClient.subscribe(pfx + '/command/#');
     publishTelemetry();
   });
