@@ -227,12 +227,17 @@ function emmcInfo() {
 /*
  * webOS 4.x reports this in kHz (1200000), webOS 9+ in MHz (1200), so a fixed
  * divisor turns a 1.2 GHz SoC into "1 MHz" on the newer sets. No TV SoC runs
- * anywhere near 10 GHz, so a value above that can only be the kHz form.
+ * anywhere near 10 GHz, so a value above that is taken as the kHz form.
+ *
+ * Only those two conventions have been seen, so the result is bounded rather
+ * than trusted: a set reporting Hz would land far outside a plausible clock,
+ * and nothing is better than a confident wrong figure.
  */
 function socMhz() {
   var v = num(rd('/proc/lg/pm/frequency'), 0);
   if (!v || v < 0) return null;
-  return Math.round(v > 10000 ? v / 1000 : v);
+  var mhz = Math.round(v > 10000 ? v / 1000 : v);
+  return (mhz >= 100 && mhz <= 10000) ? mhz : null;
 }
 
 /*
@@ -280,10 +285,32 @@ function wifi() {
 }
 
 /*
+ * Live first, then busiest. Ranking on byte count alone would keep choosing a
+ * link that has since been unplugged: a set moved from Wi-Fi to ethernet has
+ * a dormant wlan0 holding more lifetime bytes than eth0 will accumulate for
+ * days, and its idle counters would report zero throughput on a busy TV -
+ * which is the fault this replaced, in a new form.
+ *
+ * A kernel too old to publish operstate or carrier leaves every interface
+ * unranked, and the busiest still wins.
+ */
+function ifaceRank(name) {
+  var st = rd('/sys/class/net/' + name + '/operstate');
+  if (st) {
+    st = st.trim();
+    if (st === 'up') return 2;
+    if (st === 'down') return 0;
+    return 1;                                       // "unknown" is not "down"
+  }
+  var car = rd('/sys/class/net/' + name + '/carrier');
+  if (!car) return 1;
+  return car.trim() === '1' ? 2 : 0;
+}
+
+/*
  * Whichever interface is actually carrying traffic. This matched wlan0 alone,
  * so every wired set reported zero throughput forever - the counters it wanted
- * were on eth0. Loopback is excluded; of the rest the busiest wins, which on a
- * TV is the one link in use.
+ * were on eth0. Loopback is excluded.
  */
 function netBytes() {
   var raw = rd('/proc/net/dev');
@@ -299,7 +326,10 @@ function netBytes() {
     var f = lines[i].slice(idx + 1).replace(/\s+/g, ' ').trim().split(' ');
     var rx = parseInt(f[0], 10), tx = parseInt(f[8], 10);
     if (isNaN(rx) || isNaN(tx)) continue;
-    if (!best || rx > best.rx) best = { iface: name, rx: rx, tx: tx, t: Date.now() };
+    var rank = ifaceRank(name);
+    if (!best || rank > best.rank || (rank === best.rank && rx > best.rx)) {
+      best = { iface: name, rank: rank, rx: rx, tx: tx, t: Date.now() };
+    }
   }
   return best;
 }
