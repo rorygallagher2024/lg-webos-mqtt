@@ -36,9 +36,9 @@
   --w60:rgba(255,255,255,.60); --w80:rgba(255,255,255,.80);
   --w100:#fff;
   /* Contrast on black: w25 is 2.0:1, w35 is 3.0:1, w50 is 5.3:1, w60 is 7.4:1.
-     Only w50 and above may carry text - w60 where it is under ~13px, since the
-     4.5:1 floor applies to anything that is not large. The steps below w50 are
-     for rules, borders and fills. */
+     w50 is 5.3:1 and the floor for large text; w60 is the floor for small text
+     (anything under ~14px), since 5.3:1 at 11-12px is technically AA but
+     perceptually dim. Steps below w50 are for rules, borders and fills. */
   /* Accents, taken from the Velo light-scene swatches (Nanoleaf/Hue/LIFX).
      Colour is only ever applied to something that CHANGES it: level, thermal
      state, signal format, a privacy pill. If a thing would be the same colour
@@ -66,7 +66,7 @@ body{
    distracting than the numbers themselves. */
 .num{font-variant-numeric:tabular-nums;font-feature-settings:'tnum' 1}
 
-.lbl{font-weight:500;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--w50)}
+.lbl{font-weight:500;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--w60)}
 .rule{height:1px;background:var(--w10);border:0}
 /* `hidden` loses to any author display rule - .cols and .r are grids - so
    restate it with priority. Without this, hiding those blocks silently fails. */
@@ -218,9 +218,9 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 .disc{border-top:1px solid var(--w06);margin-top:20px}
 .disc>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;
   align-items:center;font-family:'Manrope';font-weight:500;font-size:12px;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--w50);padding:14px 0 4px;min-height:44px;box-sizing:border-box}
+  text-transform:uppercase;color:var(--w60);padding:14px 0 4px;min-height:44px;box-sizing:border-box}
 .disc>summary::-webkit-details-marker{display:none}
-.disc>summary::after{content:'+';font-size:17px;line-height:1;color:var(--w50)}
+.disc>summary::after{content:'+';font-size:17px;line-height:1;color:var(--w60)}
 .disc[open]>summary::after{content:'\2212'}
 .disc>summary:hover{color:var(--w80)}
 .disc>summary .cur{font-weight:400;letter-spacing:.02em;text-transform:none;color:var(--w60);margin-left:auto;margin-right:12px}
@@ -286,10 +286,10 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
   font-family:'Outfit';font-weight:300;font-size:clamp(20px,2.4vw,26px);color:var(--w100);
   margin:22px 0 4px;min-height:44px}
 .pv-d>summary::-webkit-details-marker{display:none}
-.pv-d>summary::after{content:'+';font-family:'Manrope';font-size:20px;line-height:1;color:var(--w50)}
+.pv-d>summary::after{content:'+';font-family:'Manrope';font-size:20px;line-height:1;color:var(--w60)}
 .pv-d[open]>summary::after{content:'\2212'}
 .pv-d>summary .cur{margin-left:auto;font-family:'Manrope';font-weight:500;font-size:12px;
-  letter-spacing:.12em;text-transform:uppercase;color:var(--w50);white-space:nowrap}
+  letter-spacing:.12em;text-transform:uppercase;color:var(--w60);white-space:nowrap}
 .pv-note{font-size:13px;color:var(--w60);border-left:2px solid var(--w25);padding:10px 14px;margin:16px 0;max-width:64ch}
 .proc{display:grid;grid-template-columns:1fr auto;gap:14px;padding:9px 0;
   border-bottom:1px solid var(--w06);font-size:14px}
@@ -342,7 +342,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 .spec-item{display:flex;flex-direction:column;gap:3px}
 .spec-k{
   font-family:'Manrope',sans-serif;font-weight:500;font-size:11px;
-  letter-spacing:.12em;text-transform:uppercase;color:var(--w50);
+  letter-spacing:.12em;text-transform:uppercase;color:var(--w60);
 }
 .spec-v{
   font-family:'Manrope',sans-serif;font-weight:400;font-size:13.5px;
@@ -362,9 +362,9 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   font-family:'Manrope',sans-serif;font-weight:600;font-size:13px;
   color:var(--w90);letter-spacing:.02em;
 }
-.prot-title .prot-sub{font-weight:400;color:var(--w50);font-size:12px}
+.prot-title .prot-sub{font-weight:400;color:var(--w60);font-size:12px}
 .prot-desc{
-  font-size:12px;color:var(--w50);margin-top:3px;line-height:1.45;
+  font-size:12px;color:var(--w60);margin-top:3px;line-height:1.45;
   max-width:62ch;
 }
 .prot-status{flex-shrink:0}
@@ -418,20 +418,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     <div class="grp-sec">
       <div class="grp">System</div>
       <section class="readouts" id="readouts"></section>
-      <div class="hw-specs" id="hw-specs" hidden>
-        <div class="spec-item" id="spec-arch-item" hidden>
-          <span class="spec-k">SoC Architecture</span>
-          <span class="spec-v" id="spec-arch">&mdash;</span>
-        </div>
-        <div class="spec-item" id="spec-silicon-item" hidden>
-          <span class="spec-k">OLED Panel Silicon</span>
-          <span class="spec-v" id="spec-silicon">&mdash;</span>
-        </div>
-        <div class="spec-item" id="spec-tcon-item" hidden>
-          <span class="spec-k">Timing Controller</span>
-          <span class="spec-v" id="spec-tcon">&mdash;</span>
-        </div>
-      </div>
     </div>
 
     <div class="grp-sec" id="panelblock" hidden>
@@ -445,8 +431,8 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
         <div id="lux-cell" hidden><div class="lbl">Room light</div><div class="v num" id="lux">&mdash;</div><div class="sub">Ambient sensor</div></div>
       </div>
 
-      <div class="panel-protections" id="panel-protection-block" hidden>
-        <div class="prot-head lbl">Burn-in &amp; Dimmer Protections</div>
+      <details class="disc" id="panel-protection-block" hidden style="margin-top:24px">
+        <summary>Burn-in &amp; dimmer protections <span class="cur" id="prot-cur"></span></summary>
         <div class="prot-table">
           <div class="prot-row" id="asbl-row" hidden>
             <div class="prot-main">
@@ -477,7 +463,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
             <div class="prot-status"><span class="pill" id="logo-pill">&mdash;</span></div>
           </div>
         </div>
-      </div>
+      </details>
     </div>
 
     <div class="grp-sec">
@@ -491,7 +477,36 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
     <div class="grp-sec">
       <div class="grp">Advanced</div>
-      <details class="disc" id="disc-hdmi" style="border-top:0;margin-top:0">
+      <details class="disc" id="disc-hwinfo" hidden style="border-top:0;margin-top:0">
+      <summary>System info</summary>
+      <div class="hw-specs" id="hw-specs">
+        <div class="spec-item" id="spec-arch-item" hidden>
+          <span class="spec-k">SoC Architecture</span>
+          <span class="spec-v" id="spec-arch">&mdash;</span>
+        </div>
+        <div class="spec-item" id="spec-silicon-item" hidden>
+          <span class="spec-k">OLED Panel Silicon</span>
+          <span class="spec-v" id="spec-silicon">&mdash;</span>
+        </div>
+        <div class="spec-item" id="spec-tcon-item" hidden>
+          <span class="spec-k">Timing Controller</span>
+          <span class="spec-v" id="spec-tcon">&mdash;</span>
+        </div>
+      </div>
+      <div class="remote-badge" id="remote-badge" hidden style="margin-top:14px">
+        <svg class="rem-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="7" y="2" width="10" height="20" rx="3"></rect>
+          <circle cx="12" cy="6" r="1" fill="currentColor"></circle>
+          <circle cx="12" cy="14" r="2.5"></circle>
+        </svg>
+        <span class="rem-title">Magic Remote</span>
+        <span class="rem-pct num" id="remote-pct">&mdash;</span>
+        <span class="rem-gauge" aria-label="battery meter"><i id="remote-gauge-fill"></i></span>
+        <span class="rem-model" id="remote-model-sub"></span>
+      </div>
+    </details>
+
+      <details class="disc" id="disc-hdmi">
       <summary>HDMI <span class="cur" id="hdmi-cur"></span></summary>
       <div class="ports" id="hdmi-grid"></div>
       <div class="sub" id="hdmi-diag-row" hidden style="margin-top:12px;line-height:1.5"></div>
@@ -506,20 +521,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
   <!-- Right Column: Interactive Controls -->
   <div class="col-controls">
-    <div class="col-sec-hdr">
-      <div class="col-sec">Control</div>
-      <div class="remote-badge" id="remote-badge" hidden>
-        <svg class="rem-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="7" y="2" width="10" height="20" rx="3"></rect>
-          <circle cx="12" cy="6" r="1" fill="currentColor"></circle>
-          <circle cx="12" cy="14" r="2.5"></circle>
-        </svg>
-        <span class="rem-title">Magic Remote</span>
-        <span class="rem-pct num" id="remote-pct">&mdash;</span>
-        <span class="rem-gauge" aria-label="battery meter"><i id="remote-gauge-fill"></i></span>
-        <span class="rem-model" id="remote-model-sub"></span>
-      </div>
-    </div>
+    <div class="col-sec">Control</div>
     <div id="err"></div>
 
     <!-- Panel first: it is the control the remote cannot do easily, and the
@@ -1029,7 +1031,8 @@ async function tick() {
     } else {
       q('spec-tcon-item').hidden = true;
     }
-    q('hw-specs').hidden = !hasHw;
+    const hasRemote = !q('remote-badge').hidden;
+    if (q('disc-hwinfo')) q('disc-hwinfo').hidden = !hasHw && !hasRemote;
 
     /* Capability-driven: an LCD/QNED set has no panel-hours counter, no
        compensation cycle and no Pixel Refresher, so hide the block entirely
@@ -1108,6 +1111,14 @@ async function tick() {
       q('logo-row').hidden = true;
     }
     q('panel-protection-block').hidden = !hasProt;
+    if (q('prot-cur')) {
+      let protOn = 0, protOf = 0;
+      if (o.asbl_protection) { protOf++; if (/active|on|enabled/i.test(o.asbl_protection)) protOn++; }
+      if (o.gsr_protection) { protOf++; if (/active|on|enabled/i.test(o.gsr_protection)) protOn++; }
+      if (o.screen_shift) { protOf++; if (/on/i.test(o.screen_shift)) protOn++; }
+      if (o.logo_dimming) { protOf++; if (!/off/i.test(o.logo_dimming)) protOn++; }
+      q('prot-cur').textContent = protOf ? protOn + ' of ' + protOf + ' active' : '';
+    }
     const dim = d.dimming;
     if (dim && q('dimming')) q('dimming').textContent = dim.charAt(0).toUpperCase() + dim.slice(1);
     const st_ = d.appStorage;
