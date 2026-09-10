@@ -664,7 +664,14 @@ function pruneEmptySections() {
   document.querySelectorAll('.grp-sec').forEach(function (sec) {
     const grid = sec.querySelector('.cols');
     if (!grid) return;
-    const cells = Array.from(grid.children);
+    /*
+     * Readout rows count as content too. System puts them above its cell grid,
+     * and a set that reports neither a GPU clock nor an SSID - webOS 9+ on a
+     * wired connection - hides both of those cells, which pruned processor,
+     * memory, swap, network and current off the page along with them.
+     */
+    const cells = Array.from(grid.children)
+      .concat(Array.from(sec.querySelectorAll('.readouts .r')));
     // Only ever manage sections this function itself hid. #panelblock is
     // hidden wholesale on a non-OLED set while its cells stay visible, so a
     // plain assignment here would put it back on screen.
