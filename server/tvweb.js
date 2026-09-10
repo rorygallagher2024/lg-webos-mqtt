@@ -224,6 +224,39 @@ function emmcInfo() {
   };
 }
 
+/*
+ * Which CPUs are actually running. The TV parks cores under light load, but
+ * /proc/lg/pm/status keeps a slot in its load vector for every core whether
+ * or not it is online - a parked one reads 0, or holds whatever it last
+ * reported before it went down. Observed on a G4: "load: 13 11 11 29" while
+ * only cpu0-2 were online, so that trailing 29 belonged to a core that had
+ * stopped. Publishing those next to live figures invents cores.
+ *
+ * /sys/devices/system/cpu/online is the authoritative list and gives indices
+ * ("0-1", "0,2-3"), which matters because a slot's position is its core
+ * number. cpu_num in the LG file is only a count, so it stands in when sysfs
+ * is unavailable and the cores are assumed to be the lowest indices.
+ */
+function onlineCpus(status) {
+  var raw = rd('/sys/devices/system/cpu/online');
+  if (raw) {
+    var idx = [], parts = raw.trim().split(',');
+    for (var i = 0; i < parts.length; i++) {
+      var range = parts[i].split('-');
+      var lo = parseInt(range[0], 10);
+      var hi = range.length > 1 ? parseInt(range[1], 10) : lo;
+      if (isNaN(lo) || isNaN(hi)) continue;
+      for (var c = lo; c <= hi; c++) idx.push(c);
+    }
+    if (idx.length) return idx;
+  }
+  var m = (status || '').match(/cpu_num:\s*(\d+)/);
+  if (!m) return null;                      // no idea which are live
+  var n = parseInt(m[1], 10), out = [];
+  for (var k = 0; k < n; k++) out.push(k);
+  return out;
+}
+
 function wifi() {
   var raw = rd('/proc/net/wireless');
   if (!raw) return null;
@@ -853,6 +886,16 @@ function collectStats(cb) {
   var mi = meminfo();
   var status = rd('/proc/lg/pm/status') || '';
   var coreMatch = status.match(/load:\s*([\d\s]+)/);
+  var coreSlots = coreMatch ? coreMatch[1].trim().split(/\s+/).map(Number) : [];
+  var liveCpus = onlineCpus(status);
+  var coreLoads = [];
+  if (liveCpus) {
+    for (var ci = 0; ci < liveCpus.length; ci++) {
+      if (liveCpus[ci] < coreSlots.length) coreLoads.push(coreSlots[liveCpus[ci]]);
+    }
+  } else {
+    coreLoads = coreSlots;
+  }
   var cpuAvsMatch = status.match(/cpuavs_current\(mA\):\s*(\d+)/);
   var coreAvsMatch = status.match(/coreavs_current\(mA\):\s*(\d+)/);
   var cpuMa = cpuAvsMatch ? parseInt(cpuAvsMatch[1], 10) : null;
@@ -891,7 +934,10 @@ function collectStats(cb) {
     temps: null,   // filled in below from the ring buffer
     load: num(rd('/proc/lg/pm/current_load'), null),
     mhz: Math.round(num(rd('/proc/lg/pm/frequency'), 0) / 1000),
-    cores: coreMatch ? coreMatch[1].trim().split(/\s+/).map(Number) : [],
+    cores: coreLoads,
+    // Total slots, so the dashboard can say how many are parked rather than
+    // leaving the figure count changing with no explanation.
+    coresTotal: coreSlots.length,
     mem: { total: mi.MemTotal || 0, avail: mi.MemAvailable || 0 },
     swap: { total: mi.SwapTotal || 0, free: mi.SwapFree || 0 },
     uptime: Math.floor(parseFloat(rd('/proc/uptime') || '0')),
