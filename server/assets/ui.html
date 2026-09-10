@@ -791,7 +791,7 @@ async function tick() {
     q('trange').textContent = noThermal ? 'NO THERMAL SENSOR'
       : hist.length ? ('MIN ' + Math.min(...hist) + '   MAX ' + Math.max(...hist))
       : 'WARMING UP';
-    q('mhz').textContent = d.mhz + ' MHZ';
+    q('mhz').textContent = d.mhz ? d.mhz + ' MHZ' : '';
 
     /* The core figures are positional, so the c0/c1 prefixes were four
        redundant labels competing for a 132px column - at three digits each the

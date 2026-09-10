@@ -224,6 +224,17 @@ function emmcInfo() {
   };
 }
 
+/*
+ * webOS 4.x reports this in kHz (1200000), webOS 9+ in MHz (1200), so a fixed
+ * divisor turns a 1.2 GHz SoC into "1 MHz" on the newer sets. No TV SoC runs
+ * anywhere near 10 GHz, so a value above that can only be the kHz form.
+ */
+function socMhz() {
+  var v = num(rd('/proc/lg/pm/frequency'), 0);
+  if (!v || v < 0) return null;
+  return Math.round(v > 10000 ? v / 1000 : v);
+}
+
 function wifi() {
   var raw = rd('/proc/net/wireless');
   if (!raw) return null;
@@ -231,23 +242,43 @@ function wifi() {
   for (var i = 0; i < lines.length; i++) {
     if (lines[i].indexOf('wlan0') !== -1) {
       var f = lines[i].replace(/\s+/g, ' ').trim().split(' ');
-      return { link: parseFloat(f[2]), level: parseFloat(f[3]) };
+      var link = parseFloat(f[2]), level = parseFloat(f[3]);
+      /*
+       * A wired set still has a wlan0 row, reading zero across the board
+       * because the radio is not associated. Reporting that as 0 dBm states a
+       * measurement that was never taken - the same mistake as 0 C for a
+       * missing thermal sensor.
+       */
+      if (!link && !level) return null;
+      return { link: link, level: level };
     }
   }
   return null;
 }
 
+/*
+ * Whichever interface is actually carrying traffic. This matched wlan0 alone,
+ * so every wired set reported zero throughput forever - the counters it wanted
+ * were on eth0. Loopback is excluded; of the rest the busiest wins, which on a
+ * TV is the one link in use.
+ */
 function netBytes() {
   var raw = rd('/proc/net/dev');
   if (!raw) return null;
-  var lines = raw.split('\n');
+  var lines = raw.split('\n'), best = null;
   for (var i = 0; i < lines.length; i++) {
-    if (lines[i].indexOf('wlan0') !== -1) {
-      var f = lines[i].replace(/\s+/g, ' ').trim().split(' ');
-      return { rx: parseInt(f[1], 10), tx: parseInt(f[9], 10), t: Date.now() };
-    }
+    // Split on the first colon only: the counters follow it, and a long byte
+    // count can run straight up against it with no space.
+    var idx = lines[i].indexOf(':');
+    if (idx === -1) continue;                       // the two header rows
+    var name = lines[i].slice(0, idx).replace(/\s+/g, '');
+    if (!name || name === 'lo') continue;
+    var f = lines[i].slice(idx + 1).replace(/\s+/g, ' ').trim().split(' ');
+    var rx = parseInt(f[0], 10), tx = parseInt(f[8], 10);
+    if (isNaN(rx) || isNaN(tx)) continue;
+    if (!best || rx > best.rx) best = { iface: name, rx: rx, tx: tx, t: Date.now() };
   }
-  return null;
+  return best;
 }
 
 function getVideoSignal() {
@@ -861,7 +892,9 @@ function collectStats(cb) {
 
   var n = netBytes();
   var rate = null;
-  if (n && prevNet && n.t > prevNet.t && n.rx >= prevNet.rx) {
+  // Same interface both samples, or the delta is between two different NICs -
+  // switching from Wi-Fi to ethernet would otherwise report one huge burst.
+  if (n && prevNet && n.iface === prevNet.iface && n.t > prevNet.t && n.rx >= prevNet.rx) {
     var dt = (n.t - prevNet.t) / 1000;
     rate = { rx: Math.round((n.rx - prevNet.rx) / dt), tx: Math.round((n.tx - prevNet.tx) / dt) };
   }
@@ -890,7 +923,7 @@ function collectStats(cb) {
     })(),
     temps: null,   // filled in below from the ring buffer
     load: num(rd('/proc/lg/pm/current_load'), null),
-    mhz: Math.round(num(rd('/proc/lg/pm/frequency'), 0) / 1000),
+    mhz: socMhz(),
     cores: coreMatch ? coreMatch[1].trim().split(/\s+/).map(Number) : [],
     mem: { total: mi.MemTotal || 0, avail: mi.MemAvailable || 0 },
     swap: { total: mi.SwapTotal || 0, free: mi.SwapFree || 0 },
@@ -3064,7 +3097,9 @@ function setupHomeAssistant() {
         payload: {
           name: 'Wi-Fi Signal',
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.wifi.level if value_json.wifi else 0 }}',
+          // none, not 0: a wired set has no signal to report, and 0 dBm would
+          // enter the history as though it had been measured.
+          value_template: '{{ value_json.wifi.level if value_json.wifi else none }}',
           unit_of_measurement: 'dBm',
           device_class: 'signal_strength',
           state_class: 'measurement'
