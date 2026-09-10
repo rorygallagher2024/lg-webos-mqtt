@@ -65,6 +65,13 @@ bind-mounting over `/etc/hosts` that persists across reboots.
    engine is actually running and sampling your screen, your advertising identifier,
    data agreements, and an on-TV `/etc/hosts` blackhole for LG ad and telemetry domains.
 
+5. **Integrating the TV into Home Assistant.** Optional, over MQTT: up to 61
+   entities arrive as a single auto-discovered device &mdash; no YAML, no LG
+   account &mdash; so the TV can be automated and its telemetry recorded
+   alongside everything else in the house.
+   [Step 3](#3-home-assistant--mqtt-optional) explains what MQTT is and how to
+   decide whether it is wanted.
+
 ## Core features
 
 * **OLED panel health.** Panel hours, compensation and Pixel Refresher countdowns
