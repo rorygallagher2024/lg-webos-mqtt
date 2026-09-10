@@ -622,12 +622,26 @@ function detectOled(cb) {
         isOled = /oled/i.test(model);
         console.log('panel: ' + (isOled ? 'OLED' : 'not OLED - panel features disabled') +
                     ' (model ' + model + ')');
-      } else {
-        isOled = !!(res && res.panelUsageTime);
-        console.log('panel: no model name; falling back to panelUsageTime -> ' +
-                    (isOled ? 'OLED' : 'not OLED - panel features disabled'));
+        return cb(isOled);
       }
-      cb(isOled);
+      if (res && res.panelUsageTime) {
+        isOled = true;
+        console.log('panel: OLED (detected via systemproperty panelUsageTime)');
+        return cb(true);
+      }
+      // webOS 9+ (C2/G2/etc.): check pnwash filesystem records or panelcontroller service
+      if (fs.existsSync('/mnt/lg/cmn_data/pnwash/autoOffRsLastTime') ||
+          fs.existsSync('/mnt/lg/cmn_data/pnwash/autoOffRsTime')) {
+        isOled = true;
+        console.log('panel: OLED (detected via pnwash records)');
+        return cb(true);
+      }
+      luna('com.webos.service.panelcontroller/getPanelUsageTime', { subscribe: false }, function (pcRes) {
+        isOled = !!(pcRes && pcRes.panelUsageTime);
+        console.log('panel: fallback to panelcontroller -> ' +
+                    (isOled ? 'OLED' : 'not OLED - panel features disabled'));
+        cb(isOled);
+      });
     });
 }
 
@@ -642,78 +656,129 @@ function refreshOledStats(picSettings, cb) {
   }
 
   /*
-   * Both of these are counters in PANEL HOURS, not the 10-minute units that
-   * panelUsageTime uses - confirmed by autoOffRsTime tracking panelUsageTime/6
-   * almost exactly on a live set.
+   * Deep Pixel Refresher ("Panel Wash") last run counter in PANEL HOURS:
+   * autoPnwashTime on webOS <= 8 (B8), autoJbLastTime on webOS 9+ (C2).
    */
-  var autoPnwashRaw = rd('/mnt/lg/cmn_data/pnwash/autoPnwashTime');
+  var autoPnwashRaw = rd('/mnt/lg/cmn_data/pnwash/autoPnwashTime') ||
+                      rd('/mnt/lg/cmn_data/pnwash/autoJbLastTime');
   var lastRefresher = autoPnwashRaw ? parseInt(autoPnwashRaw, 10) : 0;
 
   /*
-   * Short Off-RS compensation interval. The file reads 24 on this set, which
-   * is NOT 24 hours: it is expressed in the same 10-minute units as
-   * panelUsageTime and lastCompensationTimestamp, the counters it gets
-   * compared against. 24 * 10min = 4h, which is LG's documented cumulative
-   * viewing cycle.
-   *
-   * Note the directory is not internally consistent - autoOffRsTime alongside
-   * it IS in whole panel hours - so do not "simplify" this by assuming one
-   * unit throughout.
+   * Last Off-RS compensation in PANEL HOURS from the filesystem:
+   * autoOffRsTime on webOS <= 8 (B8), autoOffRsLastTime on webOS 9+ (C2).
+   * Confirmed on live sets: autoOffRsTime 3426 on B8; autoOffRsLastTime 4767 on C2.
+   */
+  var autoOffRsRaw = rd('/mnt/lg/cmn_data/pnwash/autoOffRsTime') ||
+                     rd('/mnt/lg/cmn_data/pnwash/autoOffRsLastTime');
+  var fsLastCompHours = autoOffRsRaw ? parseInt(autoOffRsRaw, 10) : null;
+
+  /*
+   * Short Off-RS compensation interval:
+   * On webOS <= 8 (B8): autoOffRsIntervalHomeMode is in 10-minute units (24 = 4h).
+   * On webOS 9+ (C2): autoOffRsInterval is in whole hours (4 = 4h).
    */
   var compIntervalRaw = rd('/mnt/lg/cmn_data/pnwash/autoOffRsIntervalHomeMode');
-  var compIntervalUnits = parseInt(compIntervalRaw, 10);
-  if (!compIntervalUnits || compIntervalUnits <= 0) compIntervalUnits = 24;
-  var compInterval = Math.round((compIntervalUnits * 10 / 60) * 10) / 10;
-  // Guard against a value in an unexpected unit producing a nonsense countdown.
+  var compIntervalUnits;
+  var compInterval;
+  if (compIntervalRaw) {
+    compIntervalUnits = parseInt(compIntervalRaw, 10);
+    if (!compIntervalUnits || compIntervalUnits <= 0) compIntervalUnits = 24;
+    compInterval = Math.round((compIntervalUnits * 10 / 60) * 10) / 10;
+  } else {
+    var compIntervalHoursRaw = rd('/mnt/lg/cmn_data/pnwash/autoOffRsInterval');
+    var hVal = compIntervalHoursRaw ? parseFloat(compIntervalHoursRaw) : 4;
+    if (!hVal || hVal <= 0) hVal = 4;
+    compInterval = hVal;
+    compIntervalUnits = Math.round(hVal * 6);
+  }
   if (compInterval < 0.5 || compInterval > 24) compInterval = 4;
 
-  /* Deep Pixel Refresher ("Panel Wash") cadence. Not exposed anywhere on the
-     set, so it stays an assumption - named rather than buried in an expression. */
-  var REFRESHER_INTERVAL_HOURS = 2000;
+  /*
+   * Deep Pixel Refresher cadence:
+   * Stored in autoJbInterval on webOS 9+ (e.g. "2000 ok"), default 2000h.
+   */
+  var autoJbIntervalRaw = rd('/mnt/lg/cmn_data/pnwash/autoJbInterval');
+  var REFRESHER_INTERVAL_HOURS = autoJbIntervalRaw ? parseInt(autoJbIntervalRaw, 10) : 2000;
+  if (!REFRESHER_INTERVAL_HOURS || REFRESHER_INTERVAL_HOURS <= 0) REFRESHER_INTERVAL_HOURS = 2000;
 
+  function finishOledStats(usageUnits, lastCompUnits, dispRes) {
+    var rawStatus = (dispRes && dispRes.status) ? dispRes.status : 'schedule';
+    var statusStr = 'Idle';
+    if (rawStatus === 'cancel_schedule') statusStr = 'Scheduled';
+    else if (rawStatus === 'processing') statusStr = 'Running';
+
+    // If both Luna calls returned null, fall back to filesystem Off-RS hours so OLED never shows 0
+    if (usageUnits === null && fsLastCompHours !== null) {
+      usageUnits = fsLastCompHours * 6;
+    }
+
+    var panelHours = (usageUnits !== null) ? Math.floor(usageUnits / 6) : 0;
+    var panelHoursExact = (usageUnits !== null) ? Math.round((usageUnits * 10 / 60) * 10) / 10 : 0;
+
+    var lastCompHours = 0;
+    var hoursSinceComp = 0;
+    if (lastCompUnits !== null) {
+      // webOS <= 8: lastCompensationTimestamp is in 10-minute units
+      lastCompHours = Math.round((lastCompUnits * 10 / 60) * 10) / 10;
+      hoursSinceComp = (usageUnits !== null) ?
+        Math.round(((usageUnits - lastCompUnits) * 10 / 60) * 10) / 10 : 0;
+    } else if (fsLastCompHours !== null) {
+      // webOS 9+: autoOffRsLastTime is in whole panel hours
+      lastCompHours = fsLastCompHours;
+      hoursSinceComp = (panelHoursExact && lastCompHours) ?
+        Math.max(0, Math.round((panelHoursExact - lastCompHours) * 10) / 10) : 0;
+    }
+    var hoursUntilComp = Math.max(0, Math.round((compInterval - hoursSinceComp) * 10) / 10);
+
+    var hoursSinceRefresher = (panelHours && lastRefresher) ? Math.max(0, panelHours - lastRefresher) : 0;
+    var hoursUntilRefresher = Math.max(0, REFRESHER_INTERVAL_HOURS - hoursSinceRefresher);
+
+    cachedOled = {
+      panel_hours: panelHours,
+      panel_hours_exact: panelHoursExact,
+      last_compensation_hours: lastCompHours,
+      hours_since_comp: hoursSinceComp,
+      hours_until_comp: hoursUntilComp,
+      comp_interval_hours: compInterval,
+      comp_interval_units: compIntervalUnits,
+      refresher_interval_hours: REFRESHER_INTERVAL_HOURS,
+      last_refresher_hours: lastRefresher,
+      hours_since_refresher: hoursSinceRefresher,
+      hours_until_refresher: hoursUntilRefresher,
+      refresher_status: statusStr,
+      refresher_status_raw: rawStatus,
+      screen_shift: (picSettings && picSettings.screenShift) ? picSettings.screenShift : 'off',
+      logo_dimming: (picSettings && picSettings.logoLuminanceAdjust) ? picSettings.logoLuminanceAdjust : 'off'
+    };
+    lastOledCheck = Date.now();
+    cb(cachedOled);
+  }
+
+  // 1. Query webOS 4-8 Luna systemproperty
   luna('com.webos.service.tv.systemproperty/getSystemProperties',
     { keys: ['panelUsageTime', 'lastCompensationTimestamp'] },
     function (sysRes) {
       var usageUnits = (sysRes && sysRes.panelUsageTime) ? parseInt(sysRes.panelUsageTime, 10) : null;
       var lastCompUnits = (sysRes && sysRes.lastCompensationTimestamp) ? parseInt(sysRes.lastCompensationTimestamp, 10) : null;
 
-      luna('com.webos.service.tv.display/getClearPanelNoiseStatus', {}, function (dispRes) {
-        var rawStatus = (dispRes && dispRes.status) ? dispRes.status : 'schedule';
-        var statusStr = 'Idle';
-        if (rawStatus === 'cancel_schedule') statusStr = 'Scheduled';
-        else if (rawStatus === 'processing') statusStr = 'Running';
+      function queryDisplayStatus(uUnits, cUnits) {
+        // Query clearPanelNoiseStatus (webOS <= 8). On webOS 9+, service does not exist and dispRes is null.
+        luna('com.webos.service.tv.display/getClearPanelNoiseStatus', {}, function (dispRes) {
+          finishOledStats(uUnits, cUnits, dispRes);
+        });
+      }
 
-        var panelHours = (usageUnits !== null) ? Math.floor(usageUnits / 6) : 0;
-        var panelHoursExact = (usageUnits !== null) ? Math.round((usageUnits * 10 / 60) * 10) / 10 : 0;
-
-        var lastCompHours = (lastCompUnits !== null) ? Math.round((lastCompUnits * 10 / 60) * 10) / 10 : 0;
-        var hoursSinceComp = (usageUnits !== null && lastCompUnits !== null) ?
-          Math.round(((usageUnits - lastCompUnits) * 10 / 60) * 10) / 10 : 0;
-        var hoursUntilComp = Math.max(0, Math.round((compInterval - hoursSinceComp) * 10) / 10);
-
-        var hoursSinceRefresher = (panelHours && lastRefresher) ? Math.max(0, panelHours - lastRefresher) : 0;
-        var hoursUntilRefresher = Math.max(0, REFRESHER_INTERVAL_HOURS - hoursSinceRefresher);
-
-        cachedOled = {
-          panel_hours: panelHours,
-          panel_hours_exact: panelHoursExact,
-          last_compensation_hours: lastCompHours,
-          hours_since_comp: hoursSinceComp,
-          hours_until_comp: hoursUntilComp,
-          comp_interval_hours: compInterval,
-          comp_interval_units: compIntervalUnits,
-          refresher_interval_hours: REFRESHER_INTERVAL_HOURS,
-          last_refresher_hours: lastRefresher,
-          hours_since_refresher: hoursSinceRefresher,
-          hours_until_refresher: hoursUntilRefresher,
-          refresher_status: statusStr,
-          refresher_status_raw: rawStatus,
-          screen_shift: (picSettings && picSettings.screenShift) ? picSettings.screenShift : 'off',
-          logo_dimming: (picSettings && picSettings.logoLuminanceAdjust) ? picSettings.logoLuminanceAdjust : 'off'
-        };
-        lastOledCheck = Date.now();
-        cb(cachedOled);
-      });
+      if (usageUnits !== null) {
+        queryDisplayStatus(usageUnits, lastCompUnits);
+      } else {
+        // 2. webOS 9+ (C2/G2/etc.): Query com.webos.service.panelcontroller
+        luna('com.webos.service.panelcontroller/getPanelUsageTime', { subscribe: false }, function (pcRes) {
+          if (pcRes && pcRes.panelUsageTime) {
+            usageUnits = parseInt(pcRes.panelUsageTime, 10);
+          }
+          queryDisplayStatus(usageUnits, lastCompUnits);
+        });
+      }
     }
   );
 }
