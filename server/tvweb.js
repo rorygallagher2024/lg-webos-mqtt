@@ -278,6 +278,9 @@ function wifi() {
        * missing thermal sensor.
        */
       if (!link && !level) return null;
+      // webOS 9+ (C2) exposes signal as unsigned in /proc/net/wireless:
+      // 181 means -75 dBm. iw confirms: "signal: -75 dBm".
+      if (level > 127) level = level - 256;
       return { link: link, level: level };
     }
   }
