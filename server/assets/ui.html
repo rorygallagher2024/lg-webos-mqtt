@@ -1612,8 +1612,31 @@ if (new URLSearchParams(location.search).get('controls') === '1') {
   if (q('main-grid')) q('main-grid').style.gridTemplateColumns = '1fr';
 }
 
+let pollTimer = null;
+
+function startPolling() {
+  if (pollTimer) return;
+  pollTimer = setInterval(tick, 2000);
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopPolling();
+  } else {
+    tick();
+    startPolling();
+  }
+});
+
 tick();
-setInterval(tick, 2000);
+startPolling();
 </script>
 </body>
 </html>
