@@ -13,23 +13,21 @@ There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the T
 Live telemetry and full local control in a two-column layout.
 
 <p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="LG webOS TV live dashboard: dark theme (OLED65B8SLC)" width="900">
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/dashboard-light.png" alt="LG webOS TV live dashboard: light theme (OLED65B8SLC)" width="900">
+  <a href="docs/screenshots/dashboard.png"><img src="docs/screenshots/dashboard.png" alt="LG webOS TV live dashboard: dark theme (OLED65B8SLC)" width="440"></a>
+  &nbsp;
+  <a href="docs/screenshots/dashboard-light.png"><img src="docs/screenshots/dashboard-light.png" alt="LG webOS TV live dashboard: light theme (OLED65B8SLC)" width="440"></a>
 </p>
 
 ### Home Assistant (Auto-Discovered Device via MQTT)
 
 Up to 61 native entities arrive over MQTT Discovery as a single unified device
 <p align="center">
-<img width="1061" height="1042" alt="Home Assistant MQTT entities" src="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235" />
+  <a href="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235"><img width="800" alt="Home Assistant MQTT entities" src="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235" /></a>
 </p>
 
 A custom Home Assistant dashboard for an LG TV:
 <p align="center">
-<img width="1800" height="1042" alt="Custom dashboard leveraging MQTT data" src="https://github.com/user-attachments/assets/737b3106-e8a4-4c6b-ba96-b0bad130b600" />
+  <a href="https://github.com/user-attachments/assets/737b3106-e8a4-4c6b-ba96-b0bad130b600"><img width="800" alt="Custom dashboard leveraging MQTT data" src="https://github.com/user-attachments/assets/737b3106-e8a4-4c6b-ba96-b0bad130b600" /></a>
 </p>
 
 ### Privacy Panel & On-TV Ad Blocker
@@ -41,7 +39,7 @@ agreement recorded on the set. Includes an on-TV ad & telemetry sinkhole via
 bind-mounting over `/etc/hosts` that persists across reboots.
 
 <p align="center">
-  <img src="docs/screenshots/privacy.png" alt="Privacy panel showing content recognition status, advertising identifier, data collection agreements, and ad blocker" width="800">
+  <a href="docs/screenshots/privacy.png"><img src="docs/screenshots/privacy.png" alt="Privacy panel showing content recognition status, advertising identifier, data collection agreements, and ad blocker" width="700"></a>
 </p>
 
 ---
