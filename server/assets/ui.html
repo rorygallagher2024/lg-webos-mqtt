@@ -452,7 +452,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="cols">
         <div><div class="lbl" id="comp-lbl">Compensation in</div><div class="v num" id="comp">&mdash;</div><div class="sub" id="comp-sub">&mdash;</div></div>
         <div><div class="lbl" id="refr-lbl">Refresher in</div><div class="v num" id="refr">&mdash;</div><div class="sub" id="refr-sub">&mdash;</div></div>
-        <div><div class="lbl">Pixel refresher</div><div class="v" id="rstate">&mdash;</div><div class="sub" id="fail-sub">&mdash;</div></div>
         <div id="lux-cell" hidden><div class="lbl">Room light</div><div class="v num" id="lux">&mdash;</div><div class="sub">Ambient sensor</div></div>
       </div>
 
@@ -1159,27 +1158,27 @@ async function tick() {
       }
     }
     if (o.refresher_status === 'Running') {
-      if (q('refr-lbl')) q('refr-lbl').textContent = 'Refresher';
+      if (q('refr-lbl')) q('refr-lbl').textContent = 'Pixel refresher';
       q('refr').textContent = 'In progress';
       q('refr').style.color = 'var(--cand)';
-      if (q('refr-sub')) q('refr-sub').textContent = 'Completing Deep Calibration (1-hour cycle)';
+      if (q('refr-sub')) q('refr-sub').textContent = 'Running 1-hour calibration';
+    } else if (o.refresher_status === 'Scheduled') {
+      if (q('refr-lbl')) q('refr-lbl').textContent = 'Pixel refresher';
+      q('refr').textContent = 'Scheduled';
+      q('refr').style.color = 'var(--cand)';
+      if (q('refr-sub')) q('refr-sub').textContent = 'Runs on next shutdown';
     } else {
       if (q('refr-lbl')) q('refr-lbl').textContent = 'Refresher in';
       q('refr').textContent = hrs(o.hours_until_refresher) + ' h';
       q('refr').style.color = '';
       if (q('refr-sub')) {
-        q('refr-sub').textContent = (o.refresher_cycles !== undefined && o.refresher_cycles !== null) ?
-          o.refresher_cycles + ' deep cycles completed (JB)' : '2,000-hour calibration';
-      }
-    }
-    q('rstate').textContent = o.refresher_status || '—';
-    if (q('fail-sub')) {
-      if (o.failure_alerts !== undefined && o.failure_alerts !== null) {
-        q('fail-sub').innerHTML = o.failure_alerts === 0 ?
-          '0 failures recorded (Healthy)' :
-          '<span style="color:var(--cand)">' + o.failure_alerts + ' failures recorded</span>';
-      } else {
-        q('fail-sub').textContent = '2,000-hour cycle status';
+        if (o.failure_alerts !== undefined && o.failure_alerts !== null && o.failure_alerts > 0) {
+          q('refr-sub').innerHTML = '<span style="color:var(--cand)">' + o.failure_alerts + ' failures recorded</span>';
+        } else if (o.refresher_cycles !== undefined && o.refresher_cycles !== null) {
+          q('refr-sub').textContent = o.refresher_cycles + ' deep cycles completed (JB)';
+        } else {
+          q('refr-sub').textContent = '2,000-hour calibration';
+        }
       }
     }
 
