@@ -235,6 +235,29 @@ function socMhz() {
   return Math.round(v > 10000 ? v / 1000 : v);
 }
 
+/*
+ * What swap is actually backed by. The B8 swaps to zram, but this is not
+ * universal: a G4 swaps to a flash partition (/dev/f2io-0) and leaves zram0
+ * present with disksize 0. Calling both "zram" understated the cost, since
+ * compressed RAM costs no writes and a partition wears the eMMC.
+ *
+ * The largest device wins, which is the one carrying the pages.
+ */
+function swapBacking() {
+  var raw = rd('/proc/swaps');
+  if (!raw) return null;
+  var lines = raw.split('\n'), best = null, bestSize = -1;
+  for (var i = 1; i < lines.length; i++) {          // row 0 is the header
+    var f = lines[i].replace(/\s+/g, ' ').trim().split(' ');
+    if (f.length < 3 || !f[0]) continue;
+    var size = parseInt(f[2], 10);
+    if (isNaN(size) || size <= bestSize) continue;
+    bestSize = size;
+    best = /zram/i.test(f[0]) ? 'zram' : (f[1] === 'file' ? 'file' : 'flash');
+  }
+  return best;
+}
+
 function wifi() {
   var raw = rd('/proc/net/wireless');
   if (!raw) return null;
@@ -926,7 +949,7 @@ function collectStats(cb) {
     mhz: socMhz(),
     cores: coreMatch ? coreMatch[1].trim().split(/\s+/).map(Number) : [],
     mem: { total: mi.MemTotal || 0, avail: mi.MemAvailable || 0 },
-    swap: { total: mi.SwapTotal || 0, free: mi.SwapFree || 0 },
+    swap: { total: mi.SwapTotal || 0, free: mi.SwapFree || 0, backing: swapBacking() },
     uptime: Math.floor(parseFloat(rd('/proc/uptime') || '0')),
     loadavg: (rd('/proc/loadavg') || '').split(' ').slice(0, 3),
     wifi: wifi(),
@@ -2536,7 +2559,7 @@ var PAGE = [
   '    const swapUsed = swapTotal - swapFree;',
   '    const swapPct = swapTotal ? Math.round((swapUsed / swapTotal) * 100) : 0;',
   '    setProgress("swapbar", swapPct, "var(--purple)");',
-  '    q("swapmeta").textContent = "zram Swap: " + formatMb(swapUsed) + " of " + formatMb(swapTotal) + " (" + swapPct + "%)";',
+  '    q("swapmeta").textContent = "Swap: " + formatMb(swapUsed) + " of " + formatMb(swapTotal) + " (" + swapPct + "%)";',
   '',
   '    // Storage & Network',
   '    q("emmc").textContent = (d.emmc && d.emmc.health) || "unknown";',

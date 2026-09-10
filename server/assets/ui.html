@@ -820,7 +820,8 @@ async function tick() {
 
     const su = d.swap.total ? 100 * (d.swap.total - d.swap.free) / d.swap.total : 0;
     row('swap', su.toFixed(0) + '<small>%</small>', su,
-        mb(d.swap.total - d.swap.free) + ' / ' + mb(d.swap.total) + ' MB zram', 70);
+        mb(d.swap.total - d.swap.free) + ' / ' + mb(d.swap.total) + ' MB' +
+        (d.swap.backing ? ' ' + d.swap.backing : ''), 70);
 
     // Wired sets report no wlan0; hide rather than showing a blank signal.
     q('row-net').hidden = !(d.wifi || d.net);
