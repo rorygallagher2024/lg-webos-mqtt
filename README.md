@@ -215,6 +215,10 @@ own after a few seconds.
 Nothing else is needed. Home Assistant picks up the device within a few seconds
 of the bridge connecting.
 
+The panel reports whether the bridge is connected to the broker and how long ago
+it last published, so a wrong address or a rejected password shows up there
+rather than in the log on the TV.
+
 ### Setting it up from a config file
 
 Equivalent to the above, and the better route for installing several TVs from

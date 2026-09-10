@@ -2485,6 +2485,16 @@ var server = http.createServer(function (req, res) {
       device: {
         id: (CONFIG.device && CONFIG.device.id) || '',
         name: (CONFIG.device && CONFIG.device.name) || ''
+      },
+      /* Ages rather than timestamps: the TV's clock is often minutes off the
+         browser's, and a negative "last publish" reads as a fault. */
+      status: {
+        state: MQTT_STATUS.state,
+        broker: MQTT_STATUS.broker,
+        tls: MQTT_STATUS.tls,
+        detail: MQTT_STATUS.detail,
+        forMs: Date.now() - MQTT_STATUS.since,
+        lastPublishMs: MQTT_STATUS.lastPublish ? Date.now() - MQTT_STATUS.lastPublish : null
       }
     }));
   }
@@ -2851,9 +2861,30 @@ function selectState(expr, options) {
   return '{{ (' + expr + ') if (' + expr + ') in [' + quoted.join(', ') + '] else \'None\' }}';
 }
 
+/*
+ * What the dashboard reports about the bridge. The MQTT client is wired up
+ * once at startup against the config as it was then, so this is the only way
+ * to tell whether the broker settings on screen are the ones actually running.
+ */
+var MQTT_STATUS = {
+  state: 'disabled',   // disabled | connecting | connected | error
+  broker: '',
+  tls: false,
+  detail: '',
+  since: Date.now(),
+  lastPublish: 0
+};
+
+function mqttStatus(state, detail) {
+  if (MQTT_STATUS.state !== state) MQTT_STATUS.since = Date.now();
+  MQTT_STATUS.state = state;
+  MQTT_STATUS.detail = detail || '';
+}
+
 function setupHomeAssistant() {
   if (!CONFIG.mqtt || !CONFIG.mqtt.enabled || !CONFIG.mqtt.host) {
     console.log('mqtt: disabled (no host configured)');
+    mqttStatus('disabled', CONFIG.mqtt && CONFIG.mqtt.enabled ? 'no broker address set' : '');
     return;
   }
 
@@ -2893,6 +2924,10 @@ function setupHomeAssistant() {
       retain: true
     }
   });
+
+  MQTT_STATUS.broker = CONFIG.mqtt.host + ':' + mqttClient.opts.port;
+  MQTT_STATUS.tls = useTls;
+  mqttStatus('connecting', '');
 
   function publishDiscovery() {
     var entities = [
@@ -3896,6 +3931,7 @@ function setupHomeAssistant() {
     mqttClient.publish(statusTopic, 'online', true);
     collectStats(function(s) {
       mqttClient.publish(telemetryTopic, JSON.stringify(s), false);
+      MQTT_STATUS.lastPublish = Date.now();
       /*
        * Reconcile the panel switch against what the TV actually reports.
        * It used to be published only when the command arrived over MQTT, so
@@ -3937,6 +3973,7 @@ function setupHomeAssistant() {
   }
 
   mqttClient.on('connect', function() {
+    mqttStatus('connected', '');
     console.log('mqtt: connected to ' + CONFIG.mqtt.host + ':' + mqttClient.opts.port +
                 (useTls ? ' (tls)' : ' (plaintext)'));
     mqttClient.publish(statusTopic, 'online', true);
@@ -4029,7 +4066,14 @@ function setupHomeAssistant() {
   });
 
   mqttClient.on('error', function(err) {
+    mqttStatus('error', err.message);
     console.error('mqtt error:', err.message);
+  });
+
+  /* A socket error destroys the socket, so 'close' follows it. The error text
+     is the part worth reporting, so it stands until the next connect. */
+  mqttClient.on('close', function() {
+    if (MQTT_STATUS.state !== 'error') mqttStatus('connecting', 'connection dropped, retrying');
   });
 
   process.on('SIGTERM', function() {

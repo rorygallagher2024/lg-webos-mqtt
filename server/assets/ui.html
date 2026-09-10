@@ -768,6 +768,14 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 <section class="priv" id="mqttpane" hidden>
   <div class="lbl">MQTT &amp; Home Assistant</div>
 
+  <div class="pv-row" style="margin-top:12px">
+    <div>
+      <div class="n">Bridge status</div>
+      <div class="d" id="cfg-status-detail">&mdash;</div>
+    </div>
+    <div><span class="pill idle" id="cfg-status-pill">&mdash;</span></div>
+  </div>
+
   <div class="pv-h">Broker</div>
   <div class="pv-sub">Where this TV publishes its telemetry. Home Assistant picks the
     entities up automatically once the broker is reachable.</div>
@@ -1775,6 +1783,7 @@ function toggleMqtt() {
   q('mqttpane').hidden = !mqttOpen;
   q('mqtttoggle').textContent = mqttOpen ? 'Hide MQTT settings' : 'MQTT settings';
   q('mqtttoggle').classList.toggle('on', mqttOpen);
+  cfgPollStatus(mqttOpen);
   if (mqttOpen) { loadSettings(); q('mqttpane').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 }
 
@@ -1790,6 +1799,63 @@ function cfgSyncTls() {
   q('cfg-verify').disabled = !on;
 }
 
+const CFG_STATE = {
+  connected:  { pill: 'good', label: 'Connected' },
+  connecting: { pill: 'warn', label: 'Connecting' },
+  error:      { pill: 'bad',  label: 'Error' },
+  disabled:   { pill: 'idle', label: 'Off' }
+};
+
+function cfgAge(ms) {
+  if (ms == null) return 'not yet';
+  const s = Math.round(ms / 1000);
+  if (s < 5) return 'just now';
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.round(s / 60) + 'm ago';
+  return Math.round(s / 3600) + 'h ago';
+}
+
+function renderCfgStatus(st) {
+  const meta = CFG_STATE[st.state] || CFG_STATE.disabled;
+  const pill = q('cfg-status-pill');
+  pill.className = 'pill ' + meta.pill;
+  pill.textContent = meta.label;
+
+  const broker = st.broker + (st.tls ? ' over TLS' : '');
+  let text;
+  if (st.state === 'connected') {
+    text = 'Publishing to ' + broker + '. Last telemetry ' + cfgAge(st.lastPublishMs) + '.';
+  } else if (st.state === 'connecting') {
+    text = (st.detail ? st.detail.charAt(0).toUpperCase() + st.detail.slice(1) + '. ' : '') +
+           'Reaching ' + broker + '.';
+  } else if (st.state === 'error') {
+    text = broker + ': ' + st.detail + '. Retrying every 5s.';
+  } else {
+    text = st.detail
+      ? st.detail.charAt(0).toUpperCase() + st.detail.slice(1) + '.'
+      : 'The bridge is off. Nothing is published.';
+  }
+  q('cfg-status-detail').textContent = text;
+}
+
+/*
+ * Only while the pane is open. Saved settings do not take effect until the
+ * restart, so this is also what shows whether the new broker took.
+ */
+let cfgStatusTimer = null;
+function cfgPollStatus(on) {
+  clearInterval(cfgStatusTimer);
+  cfgStatusTimer = on ? setInterval(refreshCfgStatus, 5000) : null;
+}
+
+async function refreshCfgStatus() {
+  try {
+    const r = await fetch(api('/api/settings'), { cache: 'no-store' });
+    const j = await r.json();
+    if (j.ok && j.status) renderCfgStatus(j.status);
+  } catch (e) { /* a restart drops this; the next poll picks it up */ }
+}
+
 function cfgMsg(text, kind) {
   const el = q('cfg-msg');
   el.textContent = text;
@@ -1801,6 +1867,7 @@ async function loadSettings() {
     const r = await fetch(api('/api/settings'));
     const j = await r.json();
     if (!j.ok) { cfgMsg(j.error || 'Could not read settings', 'bad'); return; }
+    if (j.status) renderCfgStatus(j.status);
     const m = j.mqtt, d = j.device;
     q('cfg-host').value = m.host;
     q('cfg-port').value = m.port == null ? '' : m.port;
