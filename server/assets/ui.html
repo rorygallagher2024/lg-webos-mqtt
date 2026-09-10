@@ -323,6 +323,26 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 .pv-d>summary .cur{margin-left:auto;font-family:'Manrope';font-weight:500;font-size:12px;
   letter-spacing:.12em;text-transform:uppercase;color:var(--w60);white-space:nowrap}
 .pv-note{font-size:13px;color:var(--w60);border-left:2px solid var(--w25);padding:10px 14px;margin:16px 0;max-width:64ch}
+.cfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:18px 20px;max-width:840px;margin-top:4px}
+.cfg-f{display:flex;flex-direction:column;gap:7px;min-width:0}
+.cfg-f>label{font-weight:500;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--w60)}
+.cfg-f input{
+  font-family:'Manrope';font-weight:400;font-size:13px;letter-spacing:.03em;
+  color:var(--w100);background:transparent;
+  border:1px solid var(--w25);padding:14px 12px;
+  min-height:48px;border-radius:0;outline:none;
+  box-sizing:border-box;transition:border-color .16s ease;
+}
+.cfg-f input:focus{border-color:var(--w60)}
+.cfg-f input::placeholder{color:var(--w35)}
+.cfg-f .hint{font-size:12px;color:var(--w35);line-height:1.4}
+.cfg-toggles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;max-width:840px;margin-top:14px}
+.cfg-save{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:22px;max-width:840px}
+.cfg-save button{min-height:48px;padding:0 30px}
+.cfg-msg{font-size:13px;color:var(--w60)}
+.cfg-msg.bad{color:var(--warn,#e5534b)}
+.cfg-msg.good{color:var(--w100)}
+.cfg-toggles button[disabled].on{background:transparent;color:var(--w60);border-color:var(--w12);font-weight:400}
 .proc{display:grid;grid-template-columns:1fr auto;gap:14px;padding:9px 0;
   border-bottom:1px solid var(--w06);font-size:14px}
 .proc .p-name{color:var(--w80);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -675,6 +695,10 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="btns"><button id="privtoggle" onclick="togglePrivacy()">Show privacy panel</button></div>
     </div>
 
+    <div class="set"><div class="lbl">Home Assistant Integration</div>
+      <div class="btns"><button id="mqtttoggle" onclick="toggleMqtt()">MQTT settings</button></div>
+    </div>
+
     <div class="set"><div class="lbl">Power</div>
       <div class="btns">
         <button id="poff" onclick="pw('powerOff')">Power off</button>
@@ -739,6 +763,92 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     <button id="adblock-toggle" onclick="toggleAdBlock()">Enable ad blocker</button>
   </div>
   </details>
+</section>
+
+<section class="priv" id="mqttpane" hidden>
+  <div class="lbl">MQTT &amp; Home Assistant</div>
+
+  <div class="pv-row" style="margin-top:12px">
+    <div>
+      <div class="n">Bridge status</div>
+      <div class="d" id="cfg-status-detail">&mdash;</div>
+    </div>
+    <div><span class="pill idle" id="cfg-status-pill">&mdash;</span></div>
+  </div>
+
+  <div class="pv-h">Broker</div>
+  <div class="pv-sub">Where this TV publishes its telemetry. Home Assistant picks the
+    entities up automatically once the broker is reachable.</div>
+
+  <div class="cfg-grid">
+    <div class="cfg-f">
+      <label for="cfg-host">Broker address</label>
+      <input type="text" id="cfg-host" placeholder="192.168.1.10" autocomplete="off" spellcheck="false">
+      <div class="hint">Hostname or IP of the MQTT broker.</div>
+    </div>
+    <div class="cfg-f">
+      <label for="cfg-port">Port</label>
+      <input type="number" id="cfg-port" placeholder="auto" min="1" max="65535" autocomplete="off">
+      <div class="hint">Left blank: 1883, or 8883 with TLS.</div>
+    </div>
+    <div class="cfg-f">
+      <label for="cfg-user">Username</label>
+      <input type="text" id="cfg-user" autocomplete="off" spellcheck="false">
+      <div class="hint">Blank for an anonymous broker.</div>
+    </div>
+    <div class="cfg-f">
+      <label for="cfg-pass">Password</label>
+      <input type="password" id="cfg-pass" autocomplete="new-password">
+      <div class="hint" id="cfg-pass-hint">Stored on the TV in plain text.</div>
+    </div>
+  </div>
+
+  <div class="cfg-toggles">
+    <button id="cfg-enabled" onclick="cfgToggle('cfg-enabled')">MQTT bridge</button>
+    <button id="cfg-tls" onclick="cfgToggle('cfg-tls')">TLS</button>
+    <button id="cfg-verify" onclick="cfgToggle('cfg-verify')">Verify certificate</button>
+  </div>
+  <div class="pv-note">Without TLS the username and password cross the network in
+    cleartext. The config file is readable by anything with root on this TV, so use a
+    broker account restricted to these topics rather than a shared one.</div>
+
+  <div class="pv-h">Topics &amp; identity</div>
+  <div class="pv-sub">Changing the device ID orphans any entities Home Assistant has
+    already created &mdash; it appears as a second device rather than renaming the first.</div>
+
+  <div class="cfg-grid">
+    <div class="cfg-f">
+      <label for="cfg-prefix">Topic prefix</label>
+      <input type="text" id="cfg-prefix" placeholder="lgtv" autocomplete="off" spellcheck="false">
+      <div class="hint">Must differ per TV. Publishes to &lt;prefix&gt;/telemetry.</div>
+    </div>
+    <div class="cfg-f">
+      <label for="cfg-disc">Discovery prefix</label>
+      <input type="text" id="cfg-disc" placeholder="homeassistant" autocomplete="off" spellcheck="false">
+      <div class="hint">Only change if Home Assistant was reconfigured.</div>
+    </div>
+    <div class="cfg-f">
+      <label for="cfg-devid">Device ID</label>
+      <input type="text" id="cfg-devid" placeholder="lg_tv" autocomplete="off" spellcheck="false">
+      <div class="hint">Lowercase letters, digits and underscores.</div>
+    </div>
+    <div class="cfg-f">
+      <label for="cfg-devname">Device name</label>
+      <input type="text" id="cfg-devname" placeholder="LG OLED TV" autocomplete="off">
+      <div class="hint">Shown as the device name in Home Assistant.</div>
+    </div>
+    <div class="cfg-f">
+      <label for="cfg-interval">Telemetry interval</label>
+      <input type="number" id="cfg-interval" placeholder="10000" min="1000" max="600000" autocomplete="off">
+      <div class="hint">Milliseconds between publishes.</div>
+    </div>
+  </div>
+
+  <div class="cfg-save">
+    <button id="cfg-save-btn" onclick="saveSettings()">Save &amp; restart</button>
+    <span class="cfg-msg" id="cfg-msg">Saving restarts the server. The dashboard reconnects on its own.</span>
+  </div>
+  <div class="sub" id="cfg-file" style="margin-top:14px"></div>
 </section>
 
 <footer>
@@ -1663,6 +1773,185 @@ async function privAction(action) {
     }
   } catch (e) { showErr(e.message); return; }
   setTimeout(loadPrivacy, 800);
+}
+
+// ---- MQTT & Home Assistant settings ----
+let mqttOpen = false, cfgPasswordSet = false;
+
+function toggleMqtt() {
+  mqttOpen = !mqttOpen;
+  q('mqttpane').hidden = !mqttOpen;
+  q('mqtttoggle').textContent = mqttOpen ? 'Hide MQTT settings' : 'MQTT settings';
+  q('mqtttoggle').classList.toggle('on', mqttOpen);
+  cfgPollStatus(mqttOpen);
+  if (mqttOpen) { loadSettings(); q('mqttpane').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+}
+
+function cfgToggle(id) {
+  const b = q(id);
+  b.classList.toggle('on');
+  if (id === 'cfg-tls') cfgSyncTls();
+}
+
+// Certificate verification is meaningless without TLS, so it follows it.
+function cfgSyncTls() {
+  const on = q('cfg-tls').classList.contains('on');
+  q('cfg-verify').disabled = !on;
+}
+
+const CFG_STATE = {
+  connected:  { pill: 'good', label: 'Connected' },
+  connecting: { pill: 'warn', label: 'Connecting' },
+  error:      { pill: 'bad',  label: 'Error' },
+  disabled:   { pill: 'idle', label: 'Off' }
+};
+
+function cfgAge(ms) {
+  if (ms == null) return 'not yet';
+  const s = Math.round(ms / 1000);
+  if (s < 5) return 'just now';
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.round(s / 60) + 'm ago';
+  return Math.round(s / 3600) + 'h ago';
+}
+
+function renderCfgStatus(st) {
+  const meta = CFG_STATE[st.state] || CFG_STATE.disabled;
+  const pill = q('cfg-status-pill');
+  pill.className = 'pill ' + meta.pill;
+  pill.textContent = meta.label;
+
+  const broker = st.broker + (st.tls ? ' over TLS' : '');
+  let text;
+  if (st.state === 'connected') {
+    text = 'Publishing to ' + broker + '. Last telemetry ' + cfgAge(st.lastPublishMs) + '.';
+  } else if (st.state === 'connecting') {
+    text = (st.detail ? st.detail.charAt(0).toUpperCase() + st.detail.slice(1) + '. ' : '') +
+           'Reaching ' + broker + '.';
+  } else if (st.state === 'error') {
+    text = broker + ': ' + st.detail + '. Retrying every 5s.';
+  } else {
+    text = st.detail
+      ? st.detail.charAt(0).toUpperCase() + st.detail.slice(1) + '.'
+      : 'The bridge is off. Nothing is published.';
+  }
+  q('cfg-status-detail').textContent = text;
+}
+
+/*
+ * Only while the pane is open. Saved settings do not take effect until the
+ * restart, so this is also what shows whether the new broker took.
+ */
+let cfgStatusTimer = null;
+function cfgPollStatus(on) {
+  clearInterval(cfgStatusTimer);
+  cfgStatusTimer = on ? setInterval(refreshCfgStatus, 5000) : null;
+}
+
+async function refreshCfgStatus() {
+  try {
+    const r = await fetch(api('/api/settings'), { cache: 'no-store' });
+    const j = await r.json();
+    if (j.ok && j.status) renderCfgStatus(j.status);
+  } catch (e) { /* a restart drops this; the next poll picks it up */ }
+}
+
+function cfgMsg(text, kind) {
+  const el = q('cfg-msg');
+  el.textContent = text;
+  el.className = 'cfg-msg' + (kind ? ' ' + kind : '');
+}
+
+async function loadSettings() {
+  try {
+    const r = await fetch(api('/api/settings'));
+    const j = await r.json();
+    if (!j.ok) { cfgMsg(j.error || 'Could not read settings', 'bad'); return; }
+    if (j.status) renderCfgStatus(j.status);
+    const m = j.mqtt, d = j.device;
+    q('cfg-host').value = m.host;
+    q('cfg-port').value = m.port == null ? '' : m.port;
+    q('cfg-user').value = m.username;
+    q('cfg-pass').value = '';
+    cfgPasswordSet = m.passwordSet;
+    q('cfg-pass-hint').textContent = cfgPasswordSet
+      ? 'A password is set. Leave blank to keep it.'
+      : 'Stored on the TV in plain text.';
+    q('cfg-prefix').value = m.topicPrefix;
+    q('cfg-disc').value = m.discoveryPrefix;
+    q('cfg-devid').value = d.id;
+    q('cfg-devname').value = d.name;
+    q('cfg-interval').value = m.telemetryIntervalMs;
+    q('cfg-enabled').classList.toggle('on', m.enabled);
+    q('cfg-tls').classList.toggle('on', m.tls);
+    q('cfg-verify').classList.toggle('on', m.tlsRejectUnauthorized);
+    cfgSyncTls();
+    q('cfg-file').textContent = 'Saved to ' + j.configFile + ' on the TV.';
+    q('cfg-save-btn').disabled = !j.writable;
+    cfgMsg(j.writable
+      ? 'Saving restarts the server. The dashboard reconnects on its own.'
+      : 'Controls are disabled in config.json, so settings cannot be changed from here.');
+  } catch (e) { cfgMsg(e.message, 'bad'); }
+}
+
+async function saveSettings() {
+  const body = {
+    mqtt: {
+      enabled: q('cfg-enabled').classList.contains('on'),
+      host: q('cfg-host').value,
+      port: q('cfg-port').value === '' ? null : q('cfg-port').value,
+      tls: q('cfg-tls').classList.contains('on'),
+      tlsRejectUnauthorized: q('cfg-verify').classList.contains('on'),
+      username: q('cfg-user').value,
+      topicPrefix: q('cfg-prefix').value,
+      discoveryPrefix: q('cfg-disc').value,
+      telemetryIntervalMs: q('cfg-interval').value || 10000
+    },
+    device: { id: q('cfg-devid').value, name: q('cfg-devname').value }
+  };
+  // An untouched password field means "keep the stored one", not "clear it".
+  const pass = q('cfg-pass').value;
+  if (pass !== '' || !cfgPasswordSet) body.mqtt.password = pass;
+
+  q('cfg-save-btn').disabled = true;
+  cfgMsg('Saving...');
+  try {
+    const r = await fetch(api('/api/settings'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const j = await r.json();
+    if (!j.ok) { cfgMsg(j.error || 'Save failed', 'bad'); q('cfg-save-btn').disabled = false; return; }
+    cfgMsg('Saved. Restarting...');
+    await waitForServer();
+  } catch (e) {
+    cfgMsg(e.message, 'bad');
+    q('cfg-save-btn').disabled = false;
+  }
+}
+
+/*
+ * The restart drops this connection mid-flight, so failures here are expected
+ * until the server is listening again. Give up after ~30s rather than spinning:
+ * a config that stops the server booting needs the log, not another poll.
+ */
+async function waitForServer() {
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      const r = await fetch(api('/api/caps'), { cache: 'no-store' });
+      if (r.ok) {
+        cfgMsg('Applied.', 'good');
+        q('cfg-save-btn').disabled = false;
+        loadSettings();
+        tick();
+        return;
+      }
+    } catch (e) { /* still down */ }
+  }
+  cfgMsg('Saved, but the server did not come back. Check the log on the TV.', 'bad');
+  q('cfg-save-btn').disabled = false;
 }
 
 // Deep link straight to the privacy view: /?privacy=1 . Handy for a bookmark,

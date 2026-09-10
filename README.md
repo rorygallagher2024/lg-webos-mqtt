@@ -1,8 +1,12 @@
 # LG webOS TV Dashboard & Home Assistant Bridge
 
-A telemetry server that runs **on** a rooted LG webOS TV. It serves a live
-dashboard to any browser on your network, and bridges the TV into Home
+A server that runs **on** a rooted LG webOS TV. It serves a live dashboard to
+any browser on the network, and will optionally bridge the TV into Home
 Assistant over MQTT as a single auto-discovered device with up to 61 entities.
+
+The dashboard needs nothing but the TV. Home Assistant and MQTT are an optional
+second half &mdash; [step 3](#3-home-assistant--mqtt-optional) explains what
+they are.
 
 There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the TV.
 
@@ -60,6 +64,12 @@ bind-mounting over `/etc/hosts` that persists across reboots.
    engine is actually running and sampling your screen, your advertising identifier,
    data agreements, and an on-TV `/etc/hosts` blackhole for LG ad and telemetry domains.
 
+5. **Integrating the TV into Home Assistant.** Optional, over MQTT: up to 61
+   entities arrive as a single auto-discovered device &mdash; no YAML, no LG
+   account &mdash; so the TV can be automated and its telemetry recorded
+   alongside everything else in the house.
+   [Step 3](#3-home-assistant--mqtt-optional) explains what MQTT is.
+
 ## Core features
 
 * **OLED panel health.** Panel hours, compensation and Pixel Refresher countdowns
@@ -101,8 +111,9 @@ bind-mounting over `/etc/hosts` that persists across reboots.
 
 * A rooted LG webOS TV ([Root tool here](https://github.com/throwaway96/dejavuln-autoroot/)) with the
   [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel).
-* An MQTT broker reachable on your LAN, if you want the Home Assistant side.
-  The dashboard works without one.
+* Nothing else for the dashboard.
+* An MQTT broker on the network, and usually Home Assistant, only if the
+  bridge in [step 3](#3-home-assistant--mqtt-optional) is wanted.
 
 ### Tested on
 
@@ -145,61 +156,145 @@ root with no password. That comes from the rooting rather than from this
 project, but it is the largest exposure on the TV and worth closing when you
 get the chance.
 
-## 2. Configure
-
-```bash
-cp config.example.json server/config.json
-```
-
-Set your broker under `mqtt` and turn it on. Leaving `device.name` and
-`device.model` empty makes the TV report its own model and firmware at runtime.
-Panel hours, Pixel Refresher and Screen Shift appear on OLED sets only; add
-`"panel": "lcd"` or `"panel": "oled"` if a set is read the wrong way.
-
-Both halves are independent, so run whichever you want:
-
-| | `web.enabled` | `mqtt.enabled` |
-| :--- | :--- | :--- |
-| Dashboard and Home Assistant *(default)* | `true` | `true` |
-| Dashboard only | `true` | `false` |
-| Home Assistant only | `false` | `true` |
-
-If you drive everything from Home Assistant, set `"web": { "enabled": false }`.
-The dashboard is an unauthenticated control endpoint unless you set `token`, so
-an MQTT-only install is better off without one. With both disabled the server
-exits rather than idling.
-
-`allowPower` ships disabled, because there is no authentication unless you set
-`token` &mdash; a fresh install should not expose "turn the TV off" to the whole
-network. Enable it deliberately.
-
-Recommended: Give the TV its own MQTT user with a
-restricted ACL, rather than reusing your main Home Assistant credentials. See [docs/SECURITY.md](docs/SECURITY.md)
-
-### Multiple TVs
-
-Each TV on the same broker needs a unique `topicPrefix` and `device.id`,
-otherwise they overwrite each other's state and disconnect each other.
-`deploy.sh` checks for `server/config.<tv-ip>.json` before falling back to
-`server/config.json`.
-
-## 3. Install
+## 2. Install the dashboard
 
 ```bash
 cd server
 ./deploy.sh <tv-ip> --persist
 ```
 
+Then open **`http://<tv-ip>:8080/`**.
+
+No configuration is needed for this part. Without a config file the dashboard
+runs on port 8080, the controls are live, MQTT is off, and power off / reboot
+are disabled. Nothing is sent anywhere: the server talks to the TV and to
+whoever opens the page.
+
 `--persist` installs a boot hook so it survives reboots. The script copies over
 SSH where available, falling back to telnet; `--telnet` forces the old path. The
 telnet path has to find this machine's LAN address to serve the files from; if
 it cannot, pass it as `MYIP=192.168.x.y ./deploy.sh <tv-ip>`.
 
-Then open **`http://<tv-ip>:8080/`**.
+Panel hours, Pixel Refresher and Screen Shift are read on OLED sets only. If a
+set is detected the wrong way, add `"panel": "lcd"` or `"panel": "oled"` to
+`config.json`.
 
-If you configured MQTT, Home Assistant discovers the device automatically &mdash;
-no YAML. See [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) for the entity
-list and example automations.
+That is a complete install. Everything below is optional.
+
+## 3. Home Assistant & MQTT (optional)
+
+### What these are
+
+**Home Assistant** is open-source home automation software that runs on the
+user's own hardware &mdash; a Raspberry Pi, a NUC, a container on a NAS. It
+gathers devices from different vendors into one place and automates them. It is
+not a service, and nothing here talks to a company's cloud.
+
+**MQTT** is a lightweight messaging protocol. Something publishes a message to a
+named topic, and anything subscribed to that topic receives it. It needs a
+**broker** &mdash; a small server that relays those messages between publishers
+and subscribers. [Mosquitto](https://mosquitto.org/) is the usual one, and Home
+Assistant ships it as a one-click add-on.
+
+This project publishes the TV's telemetry to a broker, and describes its own
+entities using the **MQTT Discovery** convention. Home Assistant reads that
+description and creates the device with all its sensors and controls by itself.
+There is no YAML to write.
+
+The bridge needs a broker reachable on the network. Home Assistant is the usual
+reason to run one, but not a requirement &mdash; see
+[Using MQTT without Home Assistant](#using-mqtt-without-home-assistant).
+
+### Setting it up from the dashboard
+
+Open the dashboard, then **MQTT settings** in the controls column. Fill in the
+broker address and credentials, switch **MQTT bridge** on, and save. The server
+writes `config.json` on the TV and restarts itself; the page reconnects on its
+own after a few seconds.
+
+Nothing else is needed. Home Assistant picks up the device within a few seconds
+of the bridge connecting.
+
+The panel reports whether the bridge is connected to the broker and how long ago
+it last published, so a wrong address or a rejected password shows up there
+rather than in the log on the TV.
+
+### Setting it up from a config file
+
+Equivalent to the above, and the better route for installing several TVs from
+one machine or for keeping the settings under version control.
+
+```bash
+cp config.example.json server/config.json
+```
+
+Set the broker under `mqtt` and set `enabled` to `true`, then run `deploy.sh`
+again. Leaving `device.name` and `device.model` empty makes the TV report its
+own model and firmware at runtime.
+
+`deploy.sh` only installs this file if the TV does not already have one, so it
+will not overwrite settings saved from the dashboard. To replace an existing
+config, edit it through the dashboard or remove `/var/lib/tvweb/config.json`
+first.
+
+### Which settings live where
+
+The dashboard can change the broker, credentials, topic prefix and device
+identity &mdash; the things that decide *where* telemetry goes.
+
+`port`, `host`, `allowControl`, `allowPower` and `token` are file-only. They
+decide *who can reach the server at all*, and a web UI able to widen its own
+exposure would defeat the point of setting them. Edit those in `config.json`
+and redeploy, or edit `/var/lib/tvweb/config.json` on the TV and restart.
+
+`allowPower` ships disabled, because there is no authentication unless `token`
+is set &mdash; a fresh install should not expose "turn the TV off" to the whole
+network. Enable it deliberately.
+
+Recommended: give the TV its own MQTT user with a restricted ACL rather than
+reusing the main Home Assistant credentials. See
+[docs/SECURITY.md](docs/SECURITY.md).
+
+### Using MQTT without Home Assistant
+
+The bridge is a plain MQTT publisher, so anything that speaks MQTT can read it.
+Telemetry is published as JSON to `<topicPrefix>/telemetry`, availability to
+`<topicPrefix>/status`, and commands are accepted on `<topicPrefix>/command/*`.
+
+```bash
+mosquitto_sub -h <broker> -t 'lgtv/#' -v
+```
+
+Node-RED, Telegraf into InfluxDB, or a script subscribing to that topic all work
+the same way. The Discovery messages are simply ignored by anything that is not
+Home Assistant.
+
+### Multiple TVs
+
+Each TV on the same broker needs a unique `topicPrefix` and `device.id`,
+otherwise they overwrite each other's state and disconnect each other. Both are
+editable from each TV's own dashboard.
+
+For the config-file route, `deploy.sh` checks for `server/config.<tv-ip>.json`
+before falling back to `server/config.json`, which keeps per-TV settings from
+being flattened by a shared file.
+
+### Running one half without the other
+
+| | `web.enabled` | `mqtt.enabled` |
+| :--- | :--- | :--- |
+| Dashboard and Home Assistant | `true` | `true` |
+| Dashboard only *(default)* | `true` | `false` |
+| Home Assistant only | `false` | `true` |
+
+With the dashboard disabled the server is an MQTT bridge with no web interface,
+which is the safer shape if everything is driven from Home Assistant &mdash; the
+dashboard is an unauthenticated control endpoint unless `token` is set. Note
+that this also removes the settings UI, so an MQTT-only install is configured by
+file. With both disabled the server exits rather than idling.
+
+See [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) for the entity list and
+example automations.
 
 ## Managing it
 
@@ -227,6 +322,13 @@ anyone who can reach the port can use every enabled control. On a home LAN that
 is usually the point but you can set `"token": "something-long"` in
 `config.json` if you want it gated, and never port-forward it. If you only use
 Home Assistant, `"web": { "enabled": false }` removes the endpoint entirely.
+
+The MQTT settings panel is part of that surface: on a default install, anyone
+who can reach the port can change the broker the TV publishes to, and so
+redirect its telemetry. It is gated by `token` and by `allowControl` like the
+rest of the controls, and it cannot change `port`, `host`, `allowControl`,
+`allowPower` or `token` themselves &mdash; those stay file-only so the UI cannot
+widen its own exposure. The stored broker password is never sent to the browser.
 
 Setting a token affects the dashboard only. **Home Assistant is unaffected**,
 since MQTT is a separate channel.
