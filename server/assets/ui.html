@@ -999,7 +999,7 @@ async function tick() {
     const netParts = [];
     if (d.ssid) netParts.push(esc(d.ssid));
     if (d.wifi && d.wifi.level) netParts.push(d.wifi.level + ' dBm');
-    if (tx > 0) netParts.push(tx.toFixed(0) + ' up');
+    if (tx > 0) netParts.push(tx.toFixed(0) + ' kB/s up');
     if (nt) netParts.push(bytes(nt.rx) + ' / ' + bytes(nt.tx));
     row('net', rx.toFixed(0) + '<small>kB/s</small>', Math.min(100, rx / 20),
         netParts.join('  ·  ') || 'Connected', 101);
