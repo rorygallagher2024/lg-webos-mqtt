@@ -265,27 +265,3 @@ holds until someone notices.
 `scripts/check-entities.py` resolves every entity's `value_json` paths against a
 live `/api/stats`. A renamed field otherwise leaves an entity at `unknown` with
 no error anywhere.
-
----
-
-## Dashboard theme architecture (light & dark mode)
-
-The dashboard has no build pipeline, CSS preprocessors, or bundled dependencies. The dual-theme system operates entirely at runtime using native CSS custom properties and client JavaScript:
-
-### Foreground channel tuple
-Rather than defining separate dark/light rules for every text element, divider, and border, the opacity scale (`--w06` through `--w100`) references an RGB channel variable `--fg`:
-- **Dark mode**: `--bg: #000; --fg: 255,255,255;` (white-on-black)
-- **Light mode**: `--bg: #f5f5f5; --fg: 0,0,0;` (black-on-white)
-
-Because `--w50: rgba(var(--fg), .50)` computes directly from `--fg`, every opacity level flips automatically when `data-theme="light"` is placed on `<html>`.
-
-### Contrast floor calibration
-On true-black OLED, text contrast floors differ from light backgrounds. While white at 50% opacity yields 5.3:1 against black, dark gray at 50% opacity against `#f5f5f5` requires calibrated accent hues to maintain WCAG AA readability:
-- Accent colors (`--cool`, `--warm`, `--cand`, `--red`, `--blue`, `--green`, `--purple`) automatically adjust to deeper, lower-luminance values in light mode.
-- Selected buttons invert via `--btn-on-fg` (`#000` on white in dark mode; `#fff` on black in light mode), preserving distinct visual feedback for active controls.
-
-### Preference lifecycle & deep-linking
-1. **Query parameter**: `/?theme=light` or `/?theme=dark` overrides local preferences, allowing bookmarks or external dashboards to enforce a specific mode.
-2. **Local storage**: Changes made via the masthead toggle (`☾` / `☀`) persist in `localStorage.getItem('theme')`.
-3. **OS media query**: If no preference is set, `matchMedia('(prefers-color-scheme: dark)')` aligns with host OS settings.
-4. **Theme color meta**: The `<meta name="theme-color">` tag updates synchronously to keep browser chrome and status bars matched to the active palette.

@@ -18,20 +18,6 @@ though something is playing.
   <img src="docs/screenshots/dashboard.png" alt="LG webOS TV live dashboard: dark theme (OLED42C24LA)" width="900">
 </p>
 
-### Light & Dark Themes
-
-The dashboard defaults to an OLED-optimised true-black (`#000000`) theme where
-black pixels emit zero light, keeping panel thermals minimal and letting the
-monochrome opacity scale carry visual hierarchy. For bright ambient environments
-or desktop viewing, a high-contrast light theme (`#f5f5f5`) is available via a
-single click on the masthead toggle (`☾` / `☀`).
-
-The theme system is built entirely on CSS custom properties:
-* **Dynamic foreground channel**: All white-on-black opacity steps (`--w06` through `--w100`) map to a single `--fg` channel variable (`255,255,255` dark / `0,0,0` light), flipping text, borders, and dividers without hardcoded overrides.
-* **Calibrated accent hues**: System accent colors (thermal gradients, headroom indicators, signal tags, and protection pills) automatically shift to deeper, contrast-adjusted tones on light backgrounds to preserve WCAG AA legibility.
-* **State inversion**: Active buttons and selected states invert from white-on-black to black-on-white (`--btn-on-fg`), maintaining consistent perceptual weight across themes.
-* **Persistence & detection**: Preferences are saved locally in the browser (`localStorage`), automatically follow system `prefers-color-scheme` if unset, update `meta[name="theme-color"]` for mobile browser chrome, and support direct URL deep-linking (`/?theme=light` or `/?theme=dark`).
-
 <p align="center">
   <img src="docs/screenshots/dashboard-light.png" alt="LG webOS TV live dashboard: light theme (OLED65B8SLC)" width="900">
 </p>
@@ -73,10 +59,6 @@ bind-mounting over `/etc/hosts` that persists across reboots.
    engine is actually running and sampling your screen, your advertising identifier,
    data agreements, and an on-TV `/etc/hosts` blackhole for LG ad and telemetry domains.
 
-5. **Viewing comfortably in any ambient lighting.** OLED true-black theme for
-   low-light rooms and zero pixel emission, plus a high-contrast light theme with
-   calibrated typography and contrast floors for daytime viewing.
-
 ## Core features
 
 * **OLED panel health.** Panel hours, compensation and Pixel Refresher countdowns
@@ -112,11 +94,7 @@ bind-mounting over `/etc/hosts` that persists across reboots.
 * **Self-contained dashboard.** Fonts and assets are served by the TV, so the
   page works with no internet access.
 * **Dark and light themes.** High-contrast light mode with dark text alongside
-  the default true-black OLED theme. One-click toggle in the masthead (☾ / ☀),
-  automatic `prefers-color-scheme` support, persistent preference in local storage,
-  dynamic `meta[name="theme-color"]` updating, and deep-linking via `/?theme=light`
-  or `/?theme=dark`. All opacity steps, borders, selected states, and accent hues
-  are dynamically calibrated for WCAG AA readability in both modes.
+  the default true-black OLED theme, toggled via the masthead (☾ / ☀) or `/?theme=light`.
 
 ## Requirements
 
