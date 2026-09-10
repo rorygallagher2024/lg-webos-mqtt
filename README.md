@@ -1,9 +1,8 @@
 # LG webOS TV Dashboard & Home Assistant Bridge
 
-A telemetry server that runs **on** a rooted LG webOS TV. It serves a live
-dashboard to any browser on the network, and will optionally bridge the TV into
-Home Assistant over MQTT as a single auto-discovered device with up to 61
-entities.
+A server that runs **on** a rooted LG webOS TV. It serves a live dashboard to
+any browser on the network, and will optionally bridge the TV into Home
+Assistant over MQTT as a single auto-discovered device with up to 61 entities.
 
 The dashboard needs nothing but the TV. Home Assistant and MQTT are an optional
 second half &mdash; [step 3](#3-home-assistant--mqtt-optional) explains what
