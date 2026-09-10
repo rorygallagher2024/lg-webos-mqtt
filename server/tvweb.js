@@ -914,14 +914,16 @@ function refreshOledStats(picSettings, cb) {
     var offRsCountRaw = rd('/mnt/lg/cmn_data/pnwash/completedOffRsCount');
     var jbCountRaw = rd('/mnt/lg/cmn_data/pnwash/completedJbCount');
     var failAlertCountRaw = rd('/mnt/lg/cmn_data/pnwash/failAlertCount');
-    var tpcOffRaw = rd('/mnt/lg/cmn_data/pnwash/tpcOff');
-    var gsrOffRaw = rd('/mnt/lg/cmn_data/pnwash/gsrOff');
+    var tpcOffExists = fs.existsSync('/mnt/lg/cmn_data/pnwash/tpcOff');
+    var gsrOffExists = fs.existsSync('/mnt/lg/cmn_data/pnwash/gsrOff');
+    var socTpcRaw = rd('/mnt/lg/cmn_data/pnwash/socTpcStatus');
 
     var offRsCycles = offRsCountRaw ? parseInt(offRsCountRaw, 10) : null;
     var jbCycles = jbCountRaw ? parseInt(jbCountRaw, 10) : null;
     var failCount = failAlertCountRaw ? parseInt(failAlertCountRaw, 10) : null;
-    var asblStatus = (tpcOffRaw && tpcOffRaw.trim() === '1') ? 'Disabled' : 'Active';
-    var gsrStatus = (gsrOffRaw && gsrOffRaw.trim() === '1') ? 'Disabled' : 'Active';
+    var hasTpcMonitoring = tpcOffExists || (socTpcRaw !== null) || fs.existsSync('/mnt/lg/cmn_data/pnwash/autoOffRsInterval');
+    var asblStatus = hasTpcMonitoring ? ((tpcOffExists || socTpcRaw === '0') ? 'Disabled' : 'Active') : null;
+    var gsrStatus = hasTpcMonitoring ? (gsrOffExists ? 'Disabled' : 'Active') : null;
 
     cachedOled = {
       panel_hours: panelHours,
