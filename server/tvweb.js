@@ -640,6 +640,31 @@ function lunaCached(uri, payload, ttlMs, cb) {
 
 function clearLunaCache() { lunaCache = {}; }
 
+/*
+ * Platform code to the processor it always means. LG reports the code either
+ * as _O22_ from the env block or o22 from /proc/lg/base/chip_name, so both
+ * normalise to one key.
+ *
+ * O24 is deliberately absent. It is the 2024 platform, and unlike the earlier
+ * ones it does not name a single processor - a G4 on O24 is an Alpha 11, a C4
+ * on O24 is an Alpha 9 Gen 7 - so any one name here would be wrong on half the
+ * sets that report it. An unmapped code falls through to the bare code, which
+ * reads "O24" rather than the raw "_O24_" that was reaching the sensor.
+ */
+var SOC_ARCH = {
+  O22: 'Alpha 9 Gen 5 (O22)',
+  O20: 'Alpha 9 Gen 3 (O20)',
+  O18: 'Alpha 9 Gen 1 (O18)',
+  M16P: 'Alpha 7 (M16P)'
+};
+
+function socArchName(raw) {
+  if (!raw) return null;
+  var key = String(raw).replace(/^_+|_+$/g, '').toUpperCase();
+  if (!key) return null;
+  return SOC_ARCH[key] || key;
+}
+
 var HARDWARE_INFO = {
   socArch: null,
   ram: null,
@@ -658,11 +683,7 @@ function detectHardwareInfo(cb) {
       var bStr = env.boardTypeStr || rd('/proc/lg/base/chip_name') || '';
       if (bStr) {
         bStr = bStr.trim();
-        if (bStr === '_O22_' || bStr === 'o22') HARDWARE_INFO.socArch = 'Alpha 9 Gen 5 (O22)';
-        else if (bStr === '_O20_' || bStr === 'o20') HARDWARE_INFO.socArch = 'Alpha 9 Gen 3 (O20)';
-        else if (bStr === '_O18_' || bStr === 'o18') HARDWARE_INFO.socArch = 'Alpha 9 Gen 1 (O18)';
-        else if (bStr === '_M16P_' || bStr === 'm16p') HARDWARE_INFO.socArch = 'Alpha 7 (M16P)';
-        else HARDWARE_INFO.socArch = bStr;
+        HARDWARE_INFO.socArch = socArchName(bStr);
       }
       if (env.ddrSize) HARDWARE_INFO.ram = env.ddrSize;
       if (env.panelOutputFrameRate) HARDWARE_INFO.refreshRate = env.panelOutputFrameRate + ' Hz';
@@ -671,8 +692,9 @@ function detectHardwareInfo(cb) {
     } catch (e) {}
   }
   if (!HARDWARE_INFO.socArch) {
+    // Same codes, lower case and without the underscores: "o24".
     var chip = rd('/proc/lg/base/chip_name');
-    if (chip) HARDWARE_INFO.socArch = chip.trim();
+    if (chip) HARDWARE_INFO.socArch = socArchName(chip.trim());
   }
 
   // Query panelcontroller (webOS 9+)
@@ -3599,7 +3621,10 @@ function setupHomeAssistant() {
         payload: {
           name: 'Video Color Space',
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.picture_engine.colorimetry if value_json.picture_engine and value_json.picture_engine.colorimetry else "BT.709" }}',
+          // none, not "BT.709": defaulting to a colour space states a fact
+          // about the signal that was never read, and states it wrongly on
+          // anything wide-gamut. A set that does not report one reports none.
+          value_template: '{{ value_json.picture_engine.colorimetry if value_json.picture_engine and value_json.picture_engine.colorimetry else none }}',
           icon: 'mdi:palette-swatch'
         }
       },
