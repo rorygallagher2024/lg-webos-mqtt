@@ -165,7 +165,7 @@ function meminfo() {
   return out;
 }
 
-var EOL_MAP = { '01': 'Normal', '02': 'Warning', '03': 'Urgent' };
+var EOL_MAP = { 1: 'Normal', 2: 'Warning', 3: 'Urgent' };
 
 /* eMMC DEVICE_LIFE_TIME_EST: 0x01 = 0-10% of rated write cycles used (>90% health remaining). */
 function emmcInfo() {
@@ -176,8 +176,9 @@ function emmcInfo() {
    * wear counter could not be read is the same mistake as rendering 0 C for a
    * missing thermal sensor: it states as fact something never measured.
    */
-  var eolKey = eolRaw ? eolRaw.trim().replace(/^0x/i, '') : '';
-  var eol = (eolKey && EOL_MAP[eolKey]) || 'unknown';
+  // The kernel prints pre_eol_info as 0x%02X, so parse the value rather than
+  // match its text: '0x01' and '01' both mean Normal. 0x00 is "not defined".
+  var eol = EOL_MAP[parseInt(eolRaw, 16)] || 'unknown';
   if (!raw) return { life: 'unknown', wear: 'unknown', health: 'unknown', eol: eol };
 
   var parts = raw.split(/\s+/), wearList = [], minHealth = 100;
