@@ -20,13 +20,14 @@ var tls = require('tls');
 var child_process = require('child_process');
 var path = require('path');
 var execFile = child_process.execFile;
+var zlib = require('zlib');
 
 /*
  * Bump on release, and tag the release to match: the dashboard turns this into
  * a link to /releases/tag/v<version>, so a value with no tag behind it gives a
  * 404 rather than a wrong page.
  */
-var TVWEB_VERSION = '0.15.0';
+var TVWEB_VERSION = '0.16.0';
 
 // ---------------------------------------------------------------- config
 var CONFIG = {
@@ -173,9 +174,11 @@ function meminfo() {
 }
 
 var EOL_MAP = { 1: 'Normal', 2: 'Warning', 3: 'Urgent' };
+var EMMC_CACHE = null;
 
 /* eMMC DEVICE_LIFE_TIME_EST: 0x01 = 0-10% of rated write cycles used (>90% health remaining). */
 function emmcInfo() {
+  if (EMMC_CACHE) return EMMC_CACHE;
   var raw = rd('/sys/block/mmcblk0/device/life_time');
   var eolRaw = rd('/sys/block/mmcblk0/device/pre_eol_info');
   /*
@@ -186,7 +189,10 @@ function emmcInfo() {
   // The kernel prints pre_eol_info as 0x%02X, so parse the value rather than
   // match its text: '0x01' and '01' both mean Normal. 0x00 is "not defined".
   var eol = EOL_MAP[parseInt(eolRaw, 16)] || 'unknown';
-  if (!raw) return { life: 'unknown', wear: 'unknown', health: 'unknown', eol: eol };
+  if (!raw) {
+    EMMC_CACHE = { life: 'unknown', wear: 'unknown', health: 'unknown', eol: eol };
+    return EMMC_CACHE;
+  }
 
   var parts = raw.split(/\s+/), wearList = [], minHealth = 100;
   for (var i = 0; i < parts.length; i++) {
@@ -216,12 +222,13 @@ function emmcInfo() {
   // The wear band inverted. Kept for anyone templating on it; nothing in this
   // project presents it, because next to `wear` it is the same fact twice.
   var healthStr = (minHealth >= 90) ? '>90% (Healthy)' : (minHealth + '% remaining');
-  return {
+  EMMC_CACHE = {
     life: wearStr,    // backwards-compatible with old HA discovery template
     wear: wearStr,
     health: healthStr,
     eol: eol
   };
+  return EMMC_CACHE;
 }
 
 /*
@@ -281,7 +288,10 @@ function socMhz() {
  *
  * The largest device wins, which is the one carrying the pages.
  */
+var SWAP_BACKING_CACHE = null;
+
 function swapBacking() {
+  if (SWAP_BACKING_CACHE !== null) return SWAP_BACKING_CACHE;
   var raw = rd('/proc/swaps');
   if (!raw) return null;
   var lines = raw.split('\n'), best = null, bestSize = -1;
@@ -293,6 +303,7 @@ function swapBacking() {
     bestSize = size;
     best = /zram/i.test(f[0]) ? 'zram' : (f[1] === 'file' ? 'file' : 'flash');
   }
+  SWAP_BACKING_CACHE = best;
   return best;
 }
 
@@ -353,13 +364,17 @@ function ifaceRank(name) {
  * reports its Wi-Fi address rather than a wired one with nothing plugged in.
  * An all-zero address is a placeholder for an interface that has none.
  */
+var MAC_CACHE = {};
+
 function macAddress(iface) {
   if (!iface) return null;
+  if (MAC_CACHE[iface]) return MAC_CACHE[iface];
   var raw = rd('/sys/class/net/' + iface + '/address');
   if (!raw) return null;
   var mac = raw.trim().toLowerCase();
   if (!/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(mac)) return null;
   if (mac === '00:00:00:00:00:00') return null;
+  MAC_CACHE[iface] = mac;
   return mac;
 }
 
@@ -420,21 +435,28 @@ function getVideoSignal() {
   return null;
 }
 
+var cachedRemote = null;
+var lastRemoteCheck = 0;
+
 function readRemoteInfo() {
+  var now = Date.now();
+  if (cachedRemote && (now - lastRemoteCheck < 30000)) return cachedRemote;
   var raw = rd('/mnt/lg/cmn_data/mrcu/mrcu1.info');
-  if (!raw) return null;
+  if (!raw) return cachedRemote || null;
   var bMatch = raw.match(/Battery\s*=\s*(\d+)/i);
   var nMatch = raw.match(/Name\s*=\s*([^\r\n]+)/i);
   var macMatch = raw.match(/BDAddr\s*=\s*([^\r\n]+)/i);
   var fwMatch = raw.match(/fwVer\s*=\s*([^\r\n]+)/i);
-  if (!bMatch && !nMatch) return null;
-  return {
+  if (!bMatch && !nMatch) return cachedRemote || null;
+  cachedRemote = {
     battery: bMatch ? parseInt(bMatch[1], 10) : null,
     model: nMatch ? nMatch[1].trim() : null,
     mac: macMatch ? macMatch[1].trim() : null,
     firmware: fwMatch ? fwMatch[1].trim() : null,
     paired: true
   };
+  lastRemoteCheck = Date.now();
+  return cachedRemote;
 }
 
 function getActiveHdmiDiagnostics() {
@@ -819,10 +841,19 @@ var ADBLOCK_DOMAINS = [
   'yumenetworks.com'
 ];
 
+var cachedAdBlockActive = null;
+var lastAdBlockCheck = 0;
+
 function isAdBlockActive() {
+  var now = Date.now();
+  if (cachedAdBlockActive !== null && (now - lastAdBlockCheck < 30000)) {
+    return cachedAdBlockActive;
+  }
   try {
     var mounts = fs.readFileSync('/proc/mounts', 'utf8');
-    return mounts.indexOf(' /etc/hosts ') !== -1;
+    cachedAdBlockActive = mounts.indexOf(' /etc/hosts ') !== -1;
+    lastAdBlockCheck = now;
+    return cachedAdBlockActive;
   } catch (e) {
     return false;
   }
@@ -853,6 +884,7 @@ function setAdBlock(enable, cb) {
       return;
     }
     execFile('/bin/mount', ['--bind', ADBLOCK_HOSTS_FILE, '/etc/hosts'], { timeout: 3000 }, function (err) {
+      cachedAdBlockActive = null;
       cachedPrivacy = null;
       lastStats = null;
       if (cb) cb({ ok: !err, enabled: isAdBlockActive() });
@@ -862,6 +894,7 @@ function setAdBlock(enable, cb) {
       if (fs.existsSync(ADBLOCK_FLAG_FILE)) fs.unlinkSync(ADBLOCK_FLAG_FILE);
     } catch (e) {}
     execFile('/bin/umount', ['/etc/hosts'], { timeout: 3000 }, function (err) {
+      cachedAdBlockActive = null;
       cachedPrivacy = null;
       lastStats = null;
       if (cb) cb({ ok: !err, enabled: isAdBlockActive() });
@@ -1519,16 +1552,30 @@ function screenSaverOn() {
  * App storage. Separate partition from cmn_data, and the one that actually
  * fills up and makes installs fail.
  */
+var cachedAppStorage = null;
+var lastAppStorageCheck = 0;
+var APP_STORAGE_TTL = 60000;
+
 function appStorage(cb) {
+  var now = Date.now();
+  if (cachedAppStorage && (now - lastAppStorageCheck < APP_STORAGE_TTL)) {
+    return cb(cachedAppStorage);
+  }
   execFile('/bin/df', ['-k', '/mnt/lg/appstore'], { timeout: 4000 }, function (err, stdout) {
-    if (err) return cb(null);
+    if (err) return cb(cachedAppStorage || null);
     var lines = String(stdout || '').trim().split('\n');
     var f = (lines[lines.length - 1] || '').split(/\s+/);
-    if (f.length < 4) return cb(null);
+    if (f.length < 4) return cb(cachedAppStorage || null);
     var total = parseInt(f[1], 10), used = parseInt(f[2], 10), avail = parseInt(f[3], 10);
-    if (!total) return cb(null);
-    cb({ totalMb: Math.round(total / 1024), usedMb: Math.round(used / 1024),
-         freeMb: Math.round(avail / 1024), pct: Math.round(used / total * 100) });
+    if (!total) return cb(cachedAppStorage || null);
+    cachedAppStorage = {
+      totalMb: Math.round(total / 1024),
+      usedMb: Math.round(used / 1024),
+      freeMb: Math.round(avail / 1024),
+      pct: Math.round(used / total * 100)
+    };
+    lastAppStorageCheck = Date.now();
+    cb(cachedAppStorage);
   });
 }
 
@@ -2127,6 +2174,9 @@ function missingAssetsPage() {
 }
 
 var UI_HTML = null;
+var UI_HTML_GZ = null;
+var ASSET_CACHE = {};
+
 (function loadUI() {
   if (!WEB_ENABLED) return;   // nothing will serve it
   var f = assetPath('ui.html');
@@ -2138,6 +2188,12 @@ var UI_HTML = null;
   try {
     UI_HTML = fs.readFileSync(f, 'utf8');
     console.log('assets: serving ui.html from ' + f);
+    zlib.gzip(UI_HTML, function (err, gzipped) {
+      if (!err && gzipped) {
+        UI_HTML_GZ = gzipped;
+        console.log('assets: pre-compressed ui.html (' + UI_HTML.length + ' -> ' + gzipped.length + ' bytes)');
+      }
+    });
   } catch (e) {
     console.error('assets: could not read ui.html: ' + e.message);
   }
@@ -2176,7 +2232,21 @@ var server = http.createServer(function (req, res) {
   var pathname = u.pathname;
 
   if (pathname === '/' || pathname === '/index.html') {
-    if (UI_HTML) return send(res, 200, UI_HTML, 'text/html; charset=utf-8');
+    if (UI_HTML) {
+      var enc = req.headers['accept-encoding'] || '';
+      if (UI_HTML_GZ && enc.indexOf('gzip') !== -1) {
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Encoding': 'gzip',
+          'Content-Length': UI_HTML_GZ.length,
+          'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff',
+          'Referrer-Policy': 'no-referrer'
+        });
+        return res.end(UI_HTML_GZ);
+      }
+      return send(res, 200, UI_HTML, 'text/html; charset=utf-8');
+    }
     // 503, not 200: the dashboard is genuinely unavailable, and a monitor
     // polling this should see that rather than a page that says so in prose.
     return send(res, 503, missingAssetsPage(), 'text/html; charset=utf-8');
@@ -2185,10 +2255,21 @@ var server = http.createServer(function (req, res) {
   if (pathname.indexOf('/assets/') === 0) {
     var file = assetPath(pathname.slice('/assets/'.length));
     if (!file) return send(res, 404, JSON.stringify({ ok: false, error: 'not found' }));
+    var mime = MIME[path.extname(file).toLowerCase()] || 'application/octet-stream';
+    if (ASSET_CACHE[file]) {
+      res.writeHead(200, {
+        'Content-Type': mime,
+        'Content-Length': ASSET_CACHE[file].length,
+        'Cache-Control': 'public, max-age=86400'
+      });
+      return res.end(ASSET_CACHE[file]);
+    }
     return fs.readFile(file, function (e, buf) {
       if (e) return send(res, 500, JSON.stringify({ ok: false, error: 'read failed' }));
+      ASSET_CACHE[file] = buf;
       res.writeHead(200, {
-        'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream',
+        'Content-Type': mime,
+        'Content-Length': buf.length,
         'Cache-Control': 'public, max-age=86400'
       });
       res.end(buf);
