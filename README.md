@@ -6,7 +6,7 @@ Assistant over MQTT as a single auto-discovered device with up to 61 entities.
 
 The dashboard needs nothing but the TV. Home Assistant and MQTT are an optional
 second half &mdash; [step 3](#3-home-assistant--mqtt-optional) explains what
-they are and how to decide whether to bother.
+they are.
 
 There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the TV.
 
@@ -68,8 +68,7 @@ bind-mounting over `/etc/hosts` that persists across reboots.
    entities arrive as a single auto-discovered device &mdash; no YAML, no LG
    account &mdash; so the TV can be automated and its telemetry recorded
    alongside everything else in the house.
-   [Step 3](#3-home-assistant--mqtt-optional) explains what MQTT is and how to
-   decide whether it is wanted.
+   [Step 3](#3-home-assistant--mqtt-optional) explains what MQTT is.
 
 ## Core features
 
@@ -201,15 +200,6 @@ This project publishes the TV's telemetry to a broker, and describes its own
 entities using the **MQTT Discovery** convention. Home Assistant reads that
 description and creates the device with all its sensors and controls by itself.
 There is no YAML to write.
-
-### Deciding whether to bother
-
-Worth it for: driving the TV from automations, recording panel hours or
-temperature over months, alerting on Pixel Refresher, putting the TV on the same
-dashboard as everything else in the house.
-
-Not worth it for: watching live numbers and pressing buttons. That is the
-dashboard, and it is already installed.
 
 The bridge needs a broker reachable on the network. Home Assistant is the usual
 reason to run one, but not a requirement &mdash; see
