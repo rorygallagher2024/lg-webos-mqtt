@@ -26,7 +26,7 @@ var execFile = child_process.execFile;
  * a link to /releases/tag/v<version>, so a value with no tag behind it gives a
  * 404 rather than a wrong page.
  */
-var TVWEB_VERSION = '0.11.0';
+var TVWEB_VERSION = '0.11.1';
 
 // ---------------------------------------------------------------- config
 var CONFIG = {
