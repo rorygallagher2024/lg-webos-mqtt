@@ -344,6 +344,26 @@ function ifaceRank(name) {
 }
 
 /*
+ * The address a magic packet has to be sent to. Waking a set is the one thing
+ * this server cannot do - it is not running when the TV is off - so the README
+ * documents Wake-on-LAN for it and leaves the address for the reader to find
+ * in the TV's menus. The set knows it.
+ *
+ * Read for whichever interface the throughput came from, so a TV on Wi-Fi
+ * reports its Wi-Fi address rather than a wired one with nothing plugged in.
+ * An all-zero address is a placeholder for an interface that has none.
+ */
+function macAddress(iface) {
+  if (!iface) return null;
+  var raw = rd('/sys/class/net/' + iface + '/address');
+  if (!raw) return null;
+  var mac = raw.trim().toLowerCase();
+  if (!/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(mac)) return null;
+  if (mac === '00:00:00:00:00:00') return null;
+  return mac;
+}
+
+/*
  * Whichever interface is actually carrying traffic. This matched wlan0 alone,
  * so every wired set reported zero throughput forever - the counters it wanted
  * were on eth0. Loopback is excluded.
@@ -1253,6 +1273,7 @@ function collectStats(cb) {
      * and start from zero on whichever interface is in use - Wi-Fi or wired.
      */
     netTotal: n ? { rx: n.rx, tx: n.tx, iface: n.iface } : null,
+    mac: n ? macAddress(n.iface) : null,
     emmc: emmcInfo(),
     signal: getVideoSignal(),
     hdmi_diag: hdmiDiag,
@@ -2822,6 +2843,22 @@ function setupHomeAssistant() {
           value_template: '{{ value_json.tvwebVersion }}',
           entity_category: 'diagnostic',
           icon: 'mdi:tag-outline'
+        }
+      },
+      {
+        /*
+         * For the wake_on_lan.send_magic_packet action the Home Assistant
+         * guide sets up, where the address is currently left to the reader.
+         * Diagnostic: it belongs on the device page beside the firmware, and
+         * it is read once rather than watched.
+         */
+        type: 'sensor', id: 'mac_address',
+        payload: {
+          name: 'MAC Address',
+          state_topic: telemetryTopic,
+          value_template: '{{ value_json.mac if value_json.mac else none }}',
+          entity_category: 'diagnostic',
+          icon: 'mdi:ethernet'
         }
       },
       {
