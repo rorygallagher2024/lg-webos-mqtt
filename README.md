@@ -13,7 +13,11 @@ There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the T
 Live telemetry and full local control in a two-column layout.
 
 <p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="LG webOS TV live dashboard: metrics and interactive controls" width="900">
+  <img src="docs/screenshots/dashboard.png" alt="LG webOS TV live dashboard: dark theme (OLED42C24LA)" width="900">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/dashboard-light.png" alt="LG webOS TV live dashboard: light theme (OLED65B8SLC)" width="900">
 </p>
 
 ### Home Assistant (Auto-Discovered Device via MQTT)
@@ -87,6 +91,8 @@ bind-mounting over `/etc/hosts` that persists across reboots.
   cookies, and toggle the on-TV ad blocker. Deep link: `/?privacy=1`.
 * **Self-contained dashboard.** Fonts and assets are served by the TV, so the
   page works with no internet access.
+* **Dark and light themes.** High-contrast light mode with dark text alongside
+  the default true-black OLED theme, toggled via the masthead (☾ / ☀) or `/?theme=light`.
 
 ## Requirements
 
