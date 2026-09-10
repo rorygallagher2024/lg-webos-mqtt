@@ -176,6 +176,13 @@ network. Enable it deliberately.
 Recommended: Give the TV its own MQTT user with a
 restricted ACL, rather than reusing your main Home Assistant credentials. See [docs/SECURITY.md](docs/SECURITY.md)
 
+Once the server is running, the broker settings, topic prefix and device identity
+can also be changed from the dashboard under **MQTT settings**, without editing
+the file or reaching for SSH. Saving writes `config.json` on the TV and restarts
+the server to apply it. Everything that decides who can reach the server at all
+&mdash; `port`, `host`, `allowControl`, `allowPower`, `token` &mdash; stays
+file-only.
+
 ### Multiple TVs
 
 Each TV on the same broker needs a unique `topicPrefix` and `device.id`,

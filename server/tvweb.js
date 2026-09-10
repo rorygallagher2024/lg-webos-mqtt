@@ -90,9 +90,17 @@ function argvConfigPath() {
   return null;
 }
 
+/*
+ * Where a settings write goes. Set to whichever file loadConfig() actually
+ * read; when none exists yet (a fresh install) it stays at the install path,
+ * so the first save from the dashboard creates the file the boot hook reads.
+ */
+var CONFIG_FILE = '/var/lib/tvweb/config.json';
+
 function loadConfig() {
   var override = argvConfigPath();
   var paths = override ? [override] : ['/var/lib/tvweb/config.json', './config.json'];
+  if (override) CONFIG_FILE = override;
   for (var i = 0; i < paths.length; i++) {
     try {
       if (fs.existsSync(paths[i])) {
@@ -124,6 +132,7 @@ function loadConfig() {
         } catch (e) {
           console.error('warning: could not chmod ' + paths[i] + ': ' + e.message);
         }
+        CONFIG_FILE = paths[i];
         console.log('loaded configuration from ' + paths[i]);
         break;
       }
@@ -2262,6 +2271,118 @@ function send(res, code, body, type) {
   res.end(body);
 }
 
+/*
+ * Settings the dashboard is allowed to write. Everything else in config.json
+ * (port, host, allowControl, allowPower, token) stays file-only: those decide
+ * who may reach this server at all, and a UI that can widen its own exposure
+ * defeats the point of setting them.
+ */
+function readConfigFile() {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+  } catch (e) {
+    console.error('warning: could not re-read ' + CONFIG_FILE + ': ' + e.message);
+  }
+  return {};
+}
+
+function str(v) { return typeof v === 'string' ? v.trim() : ''; }
+
+/*
+ * A topic segment ends up in every topic this bridge publishes. MQTT wildcards
+ * and a trailing slash would produce topics Home Assistant silently never
+ * matches, which looks like a broken bridge rather than a bad prefix.
+ */
+function badTopic(v) {
+  return !v || /[#+\s]/.test(v) || v.charAt(0) === '/' || v.charAt(v.length - 1) === '/';
+}
+
+function validateSettings(j) {
+  var m = (j && j.mqtt) || {};
+  var d = (j && j.device) || {};
+  var out = { mqtt: {}, device: {} }, e = [];
+
+  out.mqtt.enabled = !!m.enabled;
+  out.mqtt.host = str(m.host);
+  if (out.mqtt.enabled && !out.mqtt.host) e.push('a broker address is required to enable MQTT');
+
+  if (m.port === null || m.port === undefined || m.port === '') {
+    out.mqtt.port = null;
+  } else {
+    var port = parseInt(m.port, 10);
+    if (!(port >= 1 && port <= 65535)) e.push('port must be between 1 and 65535');
+    else out.mqtt.port = port;
+  }
+
+  out.mqtt.tls = !!m.tls;
+  out.mqtt.tlsRejectUnauthorized = m.tlsRejectUnauthorized !== false;
+  out.mqtt.username = str(m.username);
+
+  /*
+   * The password is never sent to the browser, so an absent field means
+   * "unchanged" rather than "clear it". Clearing needs an explicit "".
+   */
+  if (typeof m.password === 'string') out.mqtt.password = m.password;
+
+  out.mqtt.topicPrefix = str(m.topicPrefix) || 'lgtv';
+  if (badTopic(out.mqtt.topicPrefix)) e.push('topic prefix cannot contain +, # or spaces, or start or end with /');
+  out.mqtt.discoveryPrefix = str(m.discoveryPrefix) || 'homeassistant';
+  if (badTopic(out.mqtt.discoveryPrefix)) e.push('discovery prefix cannot contain +, # or spaces, or start or end with /');
+
+  var iv = parseInt(m.telemetryIntervalMs, 10);
+  if (!(iv >= 1000 && iv <= 600000)) e.push('telemetry interval must be between 1000 and 600000 ms');
+  else out.mqtt.telemetryIntervalMs = iv;
+
+  /*
+   * The device id keys every discovery topic and every entity id in Home
+   * Assistant. Changing it orphans the old entities rather than renaming them.
+   */
+  out.device.id = str(d.id);
+  if (!/^[a-z0-9_]{1,64}$/.test(out.device.id)) e.push('device id must be 1-64 characters of a-z, 0-9 or _');
+  out.device.name = str(d.name);
+
+  return { errors: e, value: out };
+}
+
+function writeSettings(patch, cb) {
+  var file = readConfigFile();
+  for (var section in patch) {
+    file[section] = file[section] || {};
+    for (var k in patch[section]) file[section][k] = patch[section][k];
+  }
+  try {
+    var tmp = CONFIG_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(file, null, 2), 'utf8');
+    fs.chmodSync(tmp, 0600);
+    fs.renameSync(tmp, CONFIG_FILE);   // atomic: never leave a half-written config
+  } catch (err) {
+    return cb(err);
+  }
+  cb(null);
+}
+
+/*
+ * MQTT is wired up once at startup - the client, its keepalive, the telemetry
+ * timer and every discovery topic close over the config that was current then.
+ * Restarting the process is the one way to apply new broker settings that
+ * cannot leave a half-migrated bridge behind.
+ */
+function restartSelf() {
+  var ctl = [path.join(__dirname, 'tvwebctl'), '/var/lib/tvweb/tvwebctl'];
+  for (var i = 0; i < ctl.length; i++) {
+    if (!fs.existsSync(ctl[i])) continue;
+    try {
+      child_process.spawn('/bin/sh', [ctl[i], 'restart'], {
+        detached: true, stdio: 'ignore'
+      }).unref();
+      return true;
+    } catch (e) {
+      console.error('restart failed: ' + e.message);
+    }
+  }
+  return false;
+}
+
 function authed(q) {
   return !CONFIG.token || q.k === CONFIG.token;
 }
@@ -2339,6 +2460,78 @@ var server = http.createServer(function (req, res) {
 
   if (pathname === '/api/stats') {
     return collectStats(function (s) { send(res, 200, JSON.stringify(s)); });
+  }
+
+  if (pathname === '/api/settings' && req.method === 'GET') {
+    if (!authed(u.query)) return send(res, 401, JSON.stringify({ ok: false, error: 'unauthorized' }));
+    var mc = CONFIG.mqtt || {};
+    return send(res, 200, JSON.stringify({
+      ok: true,
+      writable: CONFIG.allowControl,
+      configFile: CONFIG_FILE,
+      mqtt: {
+        enabled: !!mc.enabled,
+        host: mc.host || '',
+        port: mc.port === undefined ? null : mc.port,
+        tls: !!mc.tls,
+        tlsRejectUnauthorized: mc.tlsRejectUnauthorized !== false,
+        username: mc.username || '',
+        // The password is deliberately not returned; only whether one is set.
+        passwordSet: !!mc.password,
+        topicPrefix: mc.topicPrefix || 'lgtv',
+        discoveryPrefix: mc.discoveryPrefix || 'homeassistant',
+        telemetryIntervalMs: mc.telemetryIntervalMs || 10000
+      },
+      device: {
+        id: (CONFIG.device && CONFIG.device.id) || '',
+        name: (CONFIG.device && CONFIG.device.name) || ''
+      }
+    }));
+  }
+
+  if (pathname === '/api/settings' && req.method === 'POST') {
+    if (!authed(u.query)) return send(res, 401, JSON.stringify({ ok: false, error: 'unauthorized' }));
+    if (!CONFIG.allowControl) {
+      return send(res, 403, JSON.stringify({ ok: false, error: 'controls disabled in config' }));
+    }
+    var sctype = String(req.headers['content-type'] || '').toLowerCase();
+    if (sctype.indexOf('application/json') !== 0) {
+      return send(res, 415, JSON.stringify({ ok: false, error: 'Content-Type must be application/json' }));
+    }
+    var sorigin = req.headers.origin;
+    if (sorigin && String(sorigin).replace(/^https?:\/\//, '') !== String(req.headers.host || '')) {
+      return send(res, 403, JSON.stringify({ ok: false, error: 'cross-origin request refused' }));
+    }
+    var sbody = '';
+    req.on('data', function (d) {
+      sbody += d;
+      if (sbody.length > 8192) req.destroy();
+    });
+    req.on('end', function () {
+      var j = null;
+      try { j = JSON.parse(sbody); } catch (e) {
+        return send(res, 400, JSON.stringify({ ok: false, error: 'malformed JSON' }));
+      }
+      var v = validateSettings(j);
+      if (v.errors.length) {
+        return send(res, 400, JSON.stringify({ ok: false, error: v.errors.join('; ') }));
+      }
+      writeSettings(v.value, function (err) {
+        if (err) {
+          return send(res, 500, JSON.stringify({ ok: false, error: 'could not write ' + CONFIG_FILE + ': ' + err.message }));
+        }
+        console.log('settings: saved to ' + CONFIG_FILE + ', restarting to apply');
+        /*
+         * Answer before restarting: the restart kills this process, and the
+         * browser needs the result to know the save itself succeeded.
+         */
+        send(res, 200, JSON.stringify({ ok: true, restarting: true }));
+        setTimeout(function () {
+          if (!restartSelf()) console.error('settings: no tvwebctl found - restart manually to apply');
+        }, 250);
+      });
+    });
+    return;
   }
 
   if (pathname === '/api/control' && req.method === 'POST') {
