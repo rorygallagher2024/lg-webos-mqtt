@@ -6,7 +6,7 @@ Entity reference and example automations.
 
 ## Entities
 
-Once connected to your MQTT broker, Home Assistant automatically discovers **42 native entities** under a single unified device:
+Once connected to your MQTT broker, Home Assistant discovers these as a single unified device. **50 entities are defined**; any one set publishes fewer, because anything it cannot measure is withheld rather than reported as zero - a non-OLED set gets no panel counters, a set with no ambient sensor gets no room-light reading, and so on. A 2024 G4 on ethernet publishes 46.
 
 | Domain | Entity ID | Name | Description |
 | :--- | :--- | :--- | :--- |
@@ -14,15 +14,19 @@ Once connected to your MQTT broker, Home Assistant automatically discovers **42 
 | `switch` | `switch.lg_tv_mute` | Mute | Toggle audio mute |
 | `switch` | `switch.lg_tv_pixel_refresher_schedule` | Schedule Pixel Refresher | Schedule/cancel 1-hour calibration for next standby |
 | `switch` | `switch.lg_tv_ad_blocker` | Ad & Telemetry Blocker | On-TV `/etc/hosts` blackhole for LG ad/tracking domains |
+| `switch` | `switch.lg_tv_standby_light` | Standby LED | Front standby LED on/off |
+| `switch` | `switch.lg_tv_logo_light` | Logo Light | Logo light on/off, on sets that have one |
 | `number` | `number.lg_tv_volume` | Volume | Volume slider (0–100) |
 | `select` | `select.lg_tv_input_source` | Input Source | HDMI 1–4, Live TV |
 | `select` | `select.lg_tv_app` | Launch App | Installed apps (YouTube, Netflix, Prime Video, Spotify, etc.) |
 | `select` | `select.lg_tv_picture_mode` | Picture Mode | Switch profiles (ISF Dark/Bright, Cinema, Game, Standard) |
 | `select` | `select.lg_tv_sound_output` | Sound Output | Switch outputs (TV Speaker, HDMI ARC, Optical, Headphone) |
+| `select` | `select.lg_tv_sleep_timer` | Sleep Timer | Off, 10, 30, 60, 90 or 120 minutes |
 | `button` | `button.lg_tv_play` | Play | Resume media playback |
 | `button` | `button.lg_tv_pause` | Pause | Pause media playback |
 | `button` | `button.lg_tv_play_pause` | Play / Pause | Toggle media playback |
 | `button` | `button.lg_tv_stop` | Stop | Stop media playback |
+| `button` | `button.lg_tv_screensaver` | Start Screensaver | Starts the screen saver; only available from an app, not an HDMI input or Live TV |
 | `text` | `text.lg_tv_screen_notification` | Screen Notification | Send custom toast messages to TV screen |
 | `button` | `button.lg_tv_restart` | Restart TV | Reboots the TV (requires `allowPower: true`) |
 | `button` | `button.lg_tv_power_off` | Power Off TV | Powers off the TV (requires `allowPower: true`) |
@@ -34,14 +38,17 @@ Once connected to your MQTT broker, Home Assistant automatically discovers **42 
 | `sensor` | `sensor.lg_tv_oled_refresher_status` | Pixel Refresher Status | `Idle` or `Scheduled` |
 | `sensor` | `sensor.lg_tv_oled_screen_shift` | OLED Screen Shift | Pixel orbiting state (`ON` / `OFF`) |
 | `sensor` | `sensor.lg_tv_oled_logo_dimming` | OLED Logo Dimming | Logo luminance reduction (`Low`, `Strong`, `Off`) |
+| `sensor` | `sensor.lg_tv_panel_dimming` | Panel Dimming | ABL / logo dimming activity; withheld on OLED sets and where unmeasured |
 | `sensor` | `sensor.lg_tv_dynamic_range` | Dynamic Range | **Dolby Vision**, **HDR**, or **SDR** |
 | `sensor` | `sensor.lg_tv_picture_mode` | Picture Mode | Current profile (e.g. *Dolby Vision Cinema*) |
 | `sensor` | `sensor.lg_tv_oled_light` | OLED Light | OLED panel backlight level (`0–100%`) |
+| `sensor` | `sensor.lg_tv_ambient_light` | Ambient Light | Room brightness from the ambient sensor (`lux`); withheld on sets without one |
 | `sensor` | `sensor.lg_tv_video_signal` | Video Signal | HDMI resolution & refresh rate (e.g. `3840x2160 @ 60Hz`) |
 | `sensor` | `sensor.lg_tv_audio_output` | Audio Output | Audio scenario (e.g. *Optical / Headphone*, *Internal*) |
 | `sensor` | `sensor.lg_tv_active_app` | Active App | Current foreground app or friendly CEC device |
 | `sensor` | `sensor.lg_tv_soc_temperature` | SoC Temperature | TV processor temperature (`°C`) |
 | `sensor` | `sensor.lg_tv_soc_current` | SoC Current | Processor current draw (`mA`, CPU + Core AVS) |
+| `sensor` | `sensor.lg_tv_gpu_clock` | GPU Clock | GPU PLL output (`MHz`); withheld on sets that do not report it |
 | `sensor` | `sensor.lg_tv_cpu_usage` | CPU Usage | Real-time CPU load (`%`) |
 | `sensor` | `sensor.lg_tv_memory_usage` | Memory Usage | System RAM usage (`%`) |
 | `sensor` | `sensor.lg_tv_swap_usage` | Swap Usage | zram Swap usage (`%`) |
@@ -50,6 +57,7 @@ Once connected to your MQTT broker, Home Assistant automatically discovers **42 
 | `sensor` | `sensor.lg_tv_upload_rate` | Upload Rate | Live network upload throughput (`kB/s`) |
 | `sensor` | `sensor.lg_tv_flash_health` | Flash Storage Health | eMMC remaining health estimate (`>90% (Healthy)`) |
 | `sensor` | `sensor.lg_tv_flash_wear` | Flash Wear Level | JEDEC write-cycle consumption (`0–10%`) |
+| `sensor` | `sensor.lg_tv_app_storage_free` | App Storage Free | Free app storage (`GB`) |
 | `sensor` | `sensor.lg_tv_uptime` | Uptime | TV uptime in seconds |
 | `sensor` | `sensor.lg_tv_tvweb_version` | TVWeb Version | Version of tvweb itself, not the TV firmware (diagnostic) |
 
