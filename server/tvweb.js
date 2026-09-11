@@ -27,7 +27,7 @@ var zlib = require('zlib');
  * a link to /releases/tag/v<version>, so a value with no tag behind it gives a
  * 404 rather than a wrong page.
  */
-var TVWEB_VERSION = '0.25.0';
+var TVWEB_VERSION = '0.26.0';
 
 // ---------------------------------------------------------------- config
 var CONFIG = {
@@ -1875,6 +1875,137 @@ function loadConsentGroups() {
   return consentGroups;
 }
 
+/*
+ * The agreement documents behind the flags, read from the settings service.
+ *
+ * eulaStatus is the output: a C8 on 4.4.0 rebuilds every flag from the accepted
+ * documents at boot, so a flag written on its own reverts there. A B8 on 4.4.3
+ * does not rebuild, which is why writing flags alone appeared to work and left
+ * the two records disagreeing. Writing both keeps them saying the same thing on
+ * either firmware. Reported in #61.
+ *
+ * It also carries the titles - "S_ADG" is "Viewing Information Agreement" -
+ * which is the only place on the set that names them. The file that caches this
+ * does not exist on webOS 9, so it is read from the service.
+ */
+function readConsentDocs(cb) {
+  luna('com.webos.settingsservice/getSystemSettings', { keys: ['eulaInfoNetwork'] }, function (r) {
+    var eln = r && r.settings && r.settings.eulaInfoNetwork;
+    cb(eln && Array.isArray(eln.eulaList) ? eln : null);
+  });
+}
+
+function acceptedSet(eln) {
+  var out = {};
+  for (var i = 0; i < eln.eulaList.length; i++) {
+    if (eln.eulaList[i].accepted) out[eln.eulaList[i].id] = true;
+  }
+  return out;
+}
+
+function docsSatisfied(need, accepted) {
+  for (var i = 0; i < need.length; i++) if (!accepted[need[i]]) return false;
+  return need.length > 0;
+}
+
+/*
+ * What the TV would hold after this change. The documents move first and every
+ * mapped flag is then derived from them, which is exactly what the rebuilding
+ * firmware does at boot - done here so both firmwares agree immediately.
+ *
+ * A document needed by a flag that cannot be switched off is never withdrawn:
+ * Terms of Use sits under nearly every group, and dropping it would withdraw
+ * the lot.
+ */
+function planConsent(key, on, flags, eln) {
+  var groups = loadConsentGroups();
+  var accepted = acceptedSet(eln);
+  var need = groups[key] || [];
+  var i, k;
+
+  if (on) {
+    for (i = 0; i < need.length; i++) accepted[need[i]] = true;
+  } else {
+    var protectedDocs = {};
+    for (k in groups) {
+      if (!groups.hasOwnProperty(k)) continue;
+      if (!CONSENT_LOCKED[k] || !flags[k]) continue;
+      for (i = 0; i < groups[k].length; i++) protectedDocs[groups[k][i]] = true;
+    }
+    for (i = 0; i < need.length; i++) {
+      if (!protectedDocs[need[i]]) delete accepted[need[i]];
+    }
+  }
+
+  var nextFlags = {}, changed = [];
+  for (k in flags) if (flags.hasOwnProperty(k)) nextFlags[k] = flags[k];
+  for (k in groups) {
+    if (!groups.hasOwnProperty(k) || !nextFlags.hasOwnProperty(k)) continue;
+    if (CONSENT_LOCKED[k]) continue;
+    /*
+     * Downward only. A flag whose agreement has just been withdrawn has to go
+     * off with it, but nothing is ever switched on as a side effect: a set
+     * whose flags were written directly before this existed has documents
+     * saying yes under flags saying no, and reconciling that upwards would
+     * turn collection back on behind the reader.
+     */
+    if (nextFlags[k] && !docsSatisfied(groups[k], accepted)) {
+      nextFlags[k] = false;
+      changed.push(k);
+    }
+  }
+  if (nextFlags[key] !== on) { nextFlags[key] = on; if (changed.indexOf(key) === -1) changed.push(key); }
+
+  var nextDocs = JSON.parse(JSON.stringify(eln));
+  for (i = 0; i < nextDocs.eulaList.length; i++) {
+    nextDocs.eulaList[i].accepted = !!accepted[nextDocs.eulaList[i].id];
+  }
+  return { flags: nextFlags, docs: nextDocs, changed: changed };
+}
+
+/*
+ * Name the documents a row depends on, and the rows that move with it. A flag
+ * cannot be off while an agreement it shares is accepted, so the panel says so
+ * before the click rather than surprising the reader afterwards.
+ */
+function annotateConsent(consent, eln) {
+  if (!consent || !eln) return;
+  var titles = {}, i;
+  for (i = 0; i < eln.eulaList.length; i++) {
+    if (eln.eulaList[i].title) titles[eln.eulaList[i].id] = eln.eulaList[i].title;
+  }
+  var groups = loadConsentGroups();
+  var rows = (consent.known || []).concat(consent.other || []);
+  var flags = {}, byKey = {};
+  for (i = 0; i < rows.length; i++) { flags[rows[i].key] = rows[i].enabled; byKey[rows[i].key] = rows[i]; }
+
+  for (i = 0; i < rows.length; i++) {
+    var row = rows[i], need = groups[row.key];
+    if (!need) continue;
+    var names = [];
+    for (var j = 0; j < need.length; j++) if (titles[need[j]]) names.push(titles[need[j]]);
+    if (names.length) {
+      row.agreements = names;
+      // Now that the documents can be named, an undescribed flag can say what
+      // it is filed under instead of that the TV would not say.
+      if (!CONSENT_LABELS[row.key]) {
+        row.detail = 'Accepted under ' + (names.length > 1
+          ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]
+          : names[0]) + '.';
+      }
+    }
+    if (!row.settable || !row.enabled) continue;
+    var plan = planConsent(row.key, false, flags, eln);
+    var also = [];
+    for (var c = 0; c < plan.changed.length; c++) {
+      var k = plan.changed[c];
+      if (k === row.key || !byKey[k]) continue;
+      also.push(byKey[k].label || k);
+    }
+    if (also.length) row.sharesWith = also;
+  }
+}
+
 function consentSettable(key) {
   if (CONSENT_LOCKED[key]) return false;
   if (CONSENT_LABELS[key]) return true;
@@ -2164,6 +2295,12 @@ function collectPrivacy(cb) {
    */
   runningDaemons(function (daemons) {
     out.daemons = daemons;
+    // Titles and the sharing map come from the same record the writes move, so
+    // the rest of the payload waits on it rather than racing it.
+    lunaCached('com.webos.settingsservice/getSystemSettings', { keys: ['eulaInfoNetwork'] }, 60000,
+               function (elnRes) {
+    var eln = elnRes && elnRes.settings && elnRes.settings.eulaInfoNetwork;
+    if (eln && Array.isArray(eln.eulaList)) annotateConsent(out.consent, eln);
     luna('com.webos.service.acr/getACRSolutionStatus', {}, function (acr) {
       // `false` here means the recognition engine is not running at all.
       out.acr = {
@@ -2211,6 +2348,7 @@ function collectPrivacy(cb) {
           cb(out);
         });
       });
+    });
     });
   });
 }
@@ -2400,54 +2538,39 @@ function doControl(action, value, cb) {
         var cur = r && r.settings && r.settings.eulaStatus;
         if (!cur || typeof cur !== 'object') return cb({ ok: false, error: 'could not read the consent flags' });
         if (!cur.hasOwnProperty(ckey)) return cb({ ok: false, error: 'no such consent flag: ' + ckey });
-        if (cur[ckey] === cOn) {
-          cachedPrivacy = null;
-          return cb({ ok: true, key: ckey, enabled: cOn, changed: false });
-        }
-        var next = {};
-        for (var ek in cur) if (cur.hasOwnProperty(ek)) next[ek] = cur[ek];
-        next[ckey] = cOn;
-        luna('com.webos.settingsservice/setSystemSettings', { settings: { eulaStatus: next } }, function (w) {
-          cachedPrivacy = null;
-          if (!(w && w.returnValue)) {
-            console.log('consent: ' + ckey + ' ' + cur[ckey] + ' -> ' + cOn + ' (refused)');
-            return cb({ ok: false, error: (w && w.errorText) || 'the TV refused the change' });
-          }
-          /*
-           * Read it back. returnValue means the service took the call, not that
-           * it stored anything - writing /var/luna/preferences/eula directly
-           * looks exactly as successful and reverts at boot. On firmware this
-           * has never run against, that difference is the whole question, and a
-           * toggle that reports success without checking is the failure this
-           * panel exists to avoid.
-           */
-          luna('com.webos.settingsservice/getSystemSettings', { keys: ['eulaStatus'] }, function (v) {
-            var now = v && v.settings && v.settings.eulaStatus;
-            var applied = !!(now && now[ckey] === cOn);
-            // Consent records: without a line here there is no telling
-            // afterwards whether a change came from the panel or the TV.
-            console.log('consent: ' + ckey + ' ' + cur[ckey] + ' -> ' + cOn +
-                        (applied ? '' : ' (accepted but not applied)'));
+
+        readConsentDocs(function (eln) {
+          if (!eln) return cb({ ok: false, error: 'could not read the agreement documents' });
+          var plan = planConsent(ckey, cOn, cur, eln);
+          if (!plan.changed.length) {
             cachedPrivacy = null;
-            cb(applied
-              ? { ok: true, key: ckey, enabled: cOn, changed: true }
-              : { ok: false, error: 'the TV accepted the change without applying it' });
+            return cb({ ok: true, key: ckey, enabled: cOn, changed: false });
+          }
+          luna('com.webos.settingsservice/setSystemSettings',
+               { settings: { eulaInfoNetwork: plan.docs, eulaStatus: plan.flags } }, function (w) {
+            cachedPrivacy = null;
+            if (!(w && w.returnValue)) {
+              console.log('consent: ' + ckey + ' -> ' + cOn + ' (refused)');
+              return cb({ ok: false, error: (w && w.errorText) || 'the TV refused the change' });
+            }
+            /*
+             * Read back. returnValue means the service took the call, not that
+             * it stored anything - writing the file directly looks exactly as
+             * successful and reverts at boot.
+             */
+            luna('com.webos.settingsservice/getSystemSettings', { keys: ['eulaStatus'] }, function (v) {
+              var now = v && v.settings && v.settings.eulaStatus;
+              var applied = !!(now && now[ckey] === cOn);
+              console.log('consent: ' + ckey + ' ' + cur[ckey] + ' -> ' + cOn +
+                          (plan.changed.length > 1 ? ' (with ' + (plan.changed.length - 1) + ' sharing the agreement)' : '') +
+                          (applied ? '' : ' (accepted but not applied)'));
+              cb(applied
+                ? { ok: true, key: ckey, enabled: cOn, changed: true, alsoChanged: plan.changed.length - 1 }
+                : { ok: false, error: 'the TV accepted the change without applying it' });
+            });
           });
         });
       });
-
-    /*
-     * Hold an LG daemon down, or let it back up. Restricted to the two upstart
-     * supervises: this is an initctl target arriving over HTTP, and the
-     * bus-activated services cannot be held down anyway.
-     */
-    case 'service':
-      var svcName = (value && value.name) ? String(value.name) : '';
-      var svcOn = !!(value && (value.enabled === true || value.enabled === 'true'));
-      if (!SERVICE_CONTROLLABLE[svcName]) {
-        return cb({ ok: false, error: svcName ? svcName + ' is not controllable' : 'no service named' });
-      }
-      return setServiceEnabled(svcName, svcOn, cb);
 
     case 'clearAdCookies':
       return luna('com.webos.service.admanager/inactivateCookies', {}, function (r) {
