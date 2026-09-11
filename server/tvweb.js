@@ -1008,11 +1008,18 @@ function setAdBlock(mode, cb) {
   }
 }
 
+/*
+ * KEY_PLAY toggles: on a B8 feeding an Apple TV it starts and stops playback,
+ * while KEY_PLAYPAUSE and KEY_PAUSECD do nothing at all - webOS forwards this
+ * one over CEC and not the others. So the play/pause control sends 207, and
+ * the separate play and pause entities are gone rather than published dead.
+ * The names stay accepted for anything calling /api/control directly.
+ */
 var RCU_KEY_CODES = {
   play: 207,
-  pause: 201,
-  playPause: 164,
-  playpause: 164,
+  pause: 207,
+  playPause: 207,
+  playpause: 207,
   stop: 128,
   fastForward: 208,
   fastforward: 208,
@@ -1509,10 +1516,13 @@ function collectStats(cb) {
           mode: (snd && snd.settings && snd.settings.soundMode) || 'standard'
         };
         /*
-         * Whether something is actually playing. applicationManager says which
-         * app is in front; this is a different service, reporting the media
-         * pipeline behind it, which is the part Home Assistant wants. Asked for
-         * on r/homeassistant, endpoint included.
+         * The TV's own media pipeline. applicationManager says which app is in
+         * front; this says what that app's player is doing.
+         *
+         * It describes the TV, not the source: with an external input it reads
+         * "playing" for as long as the HDMI pipeline is up, whatever the box on
+         * the other end is doing. Useful for the built-in apps, not a transport
+         * state for anything on HDMI.
          */
         lunaCached('com.webos.service.acb/getForegroundAppInfo', {}, 4000, function (acb) {
         var pipe = (acb && Array.isArray(acb.acbs)) ? acb.acbs[0] : null;
@@ -3492,7 +3502,21 @@ function setupHomeAssistant() {
   MQTT_STATUS.tls = useTls;
   mqttStatus('connecting', '');
 
+  /*
+   * Entities this once published and no longer does. Home Assistant keeps a
+   * discovered entity until its config topic is cleared, so without this an
+   * upgrade leaves the retired ones sitting in the device forever.
+   */
+  var RETIRED_ENTITIES = [
+    { type: 'button', id: 'play' },     // folded into play_pause: KEY_PLAY toggles
+    { type: 'button', id: 'pause' }     // KEY_PAUSECD did nothing on any set tested
+  ];
+
   function publishDiscovery() {
+    for (var r = 0; r < RETIRED_ENTITIES.length; r++) {
+      mqttClient.publish(discPfx + '/' + RETIRED_ENTITIES[r].type + '/' + devId + '/' +
+                         RETIRED_ENTITIES[r].id + '/config', '', true);
+    }
     var entities = [
       {
         type: 'sensor', id: 'soc_temperature',
@@ -3603,11 +3627,12 @@ function setupHomeAssistant() {
       {
         type: 'sensor', id: 'play_state',
         payload: {
-          name: 'Play State',
+          name: 'Player State',
           state_topic: telemetryTopic,
           // Absent on a set whose media service does not answer, rather than
           // reported as stopped - nothing playing and nothing to ask are
-          // different things.
+          // different things. On an external input this tracks the HDMI
+          // pipeline rather than the source's own transport state.
           value_template: '{{ value_json.media.state if value_json.media else None }}',
           icon: 'mdi:play-pause'
         }
@@ -4188,24 +4213,6 @@ function setupHomeAssistant() {
           payload_on: 'ON',
           payload_off: 'OFF',
           icon: 'mdi:shield-check'
-        }
-      },
-      {
-        type: 'button', id: 'play',
-        payload: {
-          name: 'Play',
-          command_topic: pfx + '/command/playback',
-          payload_press: 'play',
-          icon: 'mdi:play'
-        }
-      },
-      {
-        type: 'button', id: 'pause',
-        payload: {
-          name: 'Pause',
-          command_topic: pfx + '/command/playback',
-          payload_press: 'pause',
-          icon: 'mdi:pause'
         }
       },
       {
