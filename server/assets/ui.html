@@ -828,11 +828,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     <div class="pv-grp"><div class="pv-g"><span>Recognition</span></div><div id="pv-live"></div></div>
     <div class="pv-grp"><div class="pv-g"><span>Diagnostics services</span></div><div id="pv-daemons"></div></div>
   </div>
-  <div class="pv-note">A service can be running with its permission switched off &mdash; it
-    simply has nothing it is allowed to send. Switching one off here keeps it off across
-    reboots. LG's recognition and advertising services are not listed: the service bus starts
-    them whenever anything asks them a question, this panel included, so nothing here could
-    report on them without causing the answer.</div>
+  <div class="pv-note" id="pv-running-note"></div>
   </details>
 </section>
 
@@ -1758,6 +1754,21 @@ async function loadPrivacy() {
     }).join('');
     const liveOn = (d.acr && d.acr.active ? 1 : 0) + (d.acr && d.acr.capturing ? 1 : 0);
     const total = dae.length + 2;
+    /*
+     * Whether these can be switched off is a property of the firmware, not of
+     * the dashboard: webOS 9 has an initctl that lists no jobs, so the rows are
+     * read-only there and the note must not promise otherwise.
+     */
+    q('pv-running-note').innerHTML =
+      'A service can be running with its permission switched off &mdash; it simply has ' +
+      'nothing it is allowed to send. ' +
+      (dae.some(x => x.stoppable)
+        ? 'Switching one off here keeps it off across reboots.'
+        : 'This firmware does not run them as jobs the dashboard can stop, so they are ' +
+          'read-only here.') +
+      ' LG\'s recognition and advertising services are not listed: anything that asks them a ' +
+      'question starts them, this panel included.';
+
     q('pv-running-cur').textContent = dae.length
       ? (dae.filter(x => x.running).length + liveOn) + ' of ' + total + ' running' : '';
 
