@@ -27,7 +27,7 @@ var zlib = require('zlib');
  * a link to /releases/tag/v<version>, so a value with no tag behind it gives a
  * 404 rather than a wrong page.
  */
-var TVWEB_VERSION = '0.24.0';
+var TVWEB_VERSION = '0.25.0';
 
 // ---------------------------------------------------------------- config
 var CONFIG = {
@@ -1904,6 +1904,7 @@ var CONSENT_GROUPS = [
   ['advertising', 'Advertising'],
   ['watching',    'What the TV watches and hears'],
   ['analytics',   'Analytics and sharing'],
+  ['services',    'LG services'],
   ['unknown',     'No published description',
    'The TV records these and LG publishes nothing about what they mean. ' +
    'The ones it cannot tie to any agreement are left read-only.'],
@@ -1926,6 +1927,18 @@ var CONSENT_GROUP_OF = {
   additionalDataAllowed: 'analytics',
   remoteDiagAllowed: 'analytics',
   thirdPartySharingAllowed: 'analytics',
+
+  /*
+   * Named in CONSENT_NAMES, so they belong with their subject rather than
+   * under "no published description" - a row titled "LG Channels" filed as
+   * undescribed reads as an oversight. acrOn accepts the same agreement as
+   * third-party sharing; marketing has its own; chp and shopping are LG
+   * offerings a viewer opts into.
+   */
+  acrOnAllowed: 'watching',
+  marketingOnAllowed: 'advertising',
+  chpAllowed: 'services',
+  shoppingOnAllowed: 'services',
 
   // Read-only, and structural rather than a collection choice.
   networkAllowed: 'platform',
