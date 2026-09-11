@@ -323,6 +323,9 @@ button.pill[disabled]{cursor:default;opacity:.45}
 .pv-g:first-child{margin-top:4px}
 .pv-g .c{letter-spacing:0;text-transform:none;color:var(--w35);font-size:12px;white-space:nowrap}
 .pv-gn{font-size:13px;color:var(--w50);max-width:58ch;margin:4px 0 2px}
+/* The raw flag name, kept visible on rows that now show a friendlier one: it is
+   what the API, the TV and the issue tracker all call it. */
+.pv-row .k{color:var(--w35)}
 /* Collapsible privacy sections. The consent list alone runs to 21 rows, so the
    long sections fold. The summary keeps the pv-h size rather than borrowing the
    control column's small caps, so folding a section does not demote it. */
@@ -1618,8 +1621,13 @@ async function loadPrivacy() {
     const cw = !!d.consentWritable;
     // Labelled rows show their label; the rest are named by their raw key,
     // which is all the name they have.
-    const rows = c.known.map(f => ({ ...f, name: f.label }))
-      .concat((c.other || []).map(f => ({ ...f, name: f.key })));
+    const rows = c.known.map(f => ({ ...f, name: f.label, detail: esc(f.detail || '') }))
+      .concat((c.other || []).map(f => ({
+        ...f,
+        name: f.label || f.key,
+        // A named row still shows its key; an unnamed one is already titled by it.
+        detail: esc(f.detail || '') + (f.label ? ` <span class="k">${esc(f.key)}</span>` : '')
+      })));
     let html = '';
     for (const [id, title, note] of (d.consentGroups || [['unknown', '']])) {
       const inGroup = rows.filter(f => (f.group || 'unknown') === id);
@@ -1628,7 +1636,7 @@ async function loadPrivacy() {
       html += `<div class="pv-g"><span>${esc(title)}</span>` +
               `<span class="c">${on} of ${inGroup.length} on</span></div>` +
               (note ? `<div class="pv-gn">${esc(note)}</div>` : '') +
-              inGroup.map(f => pvRow(esc(f.name), esc(f.detail || ''), pvConsentPill(f, cw))).join('');
+              inGroup.map(f => pvRow(esc(f.name), f.detail, pvConsentPill(f, cw))).join('');
     }
     q('pv-consent').innerHTML = html || '<div class="d">Could not read the agreements file.</div>';
     q('pv-consent-note').innerHTML = cw

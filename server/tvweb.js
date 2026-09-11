@@ -1870,6 +1870,25 @@ function consentGroup(key) {
   return CONSENT_GROUP_OF[key] || 'unknown';
 }
 
+/*
+ * A name only, for flags LG publishes no description of. Deliberately separate
+ * from CONSENT_LABELS: a label there means "we can say what this collects",
+ * which is what makes a flag settable. Naming a row must never be what decides
+ * that - a title is not an understanding of what it grants.
+ *
+ * Names from #61, read off the licence documents each flag accepts on a C8.
+ * The descriptions offered alongside them are not taken: they assert firmware-
+ * specific findings (and, for generalTermsAllowed, an untested outcome) that do
+ * not hold on 4.4.3. What a flag is grouped with is derived at runtime instead.
+ */
+var CONSENT_NAMES = {
+  networkAllowed:      'Network use',
+  generalTermsAllowed: 'Terms of Use and Privacy Policy',
+  chpAllowed:          'LG Channels',
+  acrOnAllowed:        'Screen recognition (master consent)',
+  allAllowed:          'Select All'
+};
+
 // Daemons worth naming, with what they actually do.
 var PRIVACY_DAEMONS = {
   acr2:       ['Content recognition service', 'Identifies what is on screen'],
@@ -1911,6 +1930,7 @@ var cachedPrivacy = null, lastPrivacyCheck = 0;
  */
 function describeUnlabelled(key, on, groups) {
   var row = { key: key, enabled: on, settable: consentSettable(key), group: consentGroup(key) };
+  if (CONSENT_NAMES[key]) row.label = CONSENT_NAMES[key];
   var docs = groups[key];
   /*
    * The document ids (S_ADG and friends) go in the payload but never on the
