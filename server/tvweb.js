@@ -884,8 +884,29 @@ var ADBLOCK_PLATFORM = [
 
 var ADBLOCK_DOMAINS = ADBLOCK_ADS.concat(ADBLOCK_PLATFORM);
 
+/*
+ * The store's own server, as the TV has it. lgtvsdp.com on webOS 4 and
+ * nextlgsdp.com on webOS 9 are both in the list above, but a set this has not
+ * seen could name a third - and then the full tier would claim to block the
+ * store while leaving it reachable.
+ */
+function storeHost() {
+  try {
+    var j = JSON.parse(rd('/var/palm/data/com.webos.appInstallService/serverInfo') || '{}');
+    var m = /^[a-z]+:\/\/([^\/:?#]+)/i.exec(String(j.serverUrl || ''));
+    return m ? m[1].toLowerCase() : null;
+  } catch (e) { return null; }
+}
+
+function adBlockPlatform() {
+  var list = ADBLOCK_PLATFORM.slice();
+  var host = storeHost();
+  if (host && list.indexOf(host) === -1) list.push(host);
+  return list;
+}
+
 function adBlockList(mode) {
-  return mode === 'full' ? ADBLOCK_DOMAINS : ADBLOCK_ADS;
+  return mode === 'full' ? ADBLOCK_ADS.concat(adBlockPlatform()) : ADBLOCK_ADS;
 }
 
 var cachedAdBlockActive = null;
@@ -1834,6 +1855,7 @@ var CONSENT_LOCKED = {
  * something neither we nor the platform can name.
  */
 var consentGroups = null;
+var consentMapFound = false;
 
 function loadConsentGroups() {
   if (consentGroups) return consentGroups;
@@ -1847,6 +1869,7 @@ function loadConsentGroups() {
       // "mandatory" is the set that actually has to be accepted; the notice and
       // select-all entries are the same document on every group.
       consentGroups[e.settingKey] = (e.mandatory || e.generalSelectAll || []).slice().sort();
+      consentMapFound = true;
     }
   } catch (err) { /* no mapping on this set: every unlabelled flag stays read-only */ }
   return consentGroups;
@@ -1989,7 +2012,9 @@ function describeUnlabelled(key, on, groups) {
     return row;
   }
   if (!docs) {
-    row.detail = 'Tied to no agreement on this firmware.';
+    row.detail = consentMapFound
+      ? 'Tied to no agreement on this firmware.'
+      : 'This TV publishes no agreement mapping, so there is nothing to go on.';
     return row;
   }
   var peers = consentPeers(key, groups);
@@ -2073,9 +2098,9 @@ function collectPrivacy(cb) {
           out.adblock = {
             enabled: isAdBlockActive(),
             mode: adBlockMode(),
-            count: ADBLOCK_DOMAINS.length,
+            count: adBlockList('full').length,
             adCount: ADBLOCK_ADS.length,
-            platform: ADBLOCK_PLATFORM
+            platform: adBlockPlatform()
           };
           cachedPrivacy = out;
           lastPrivacyCheck = Date.now();
@@ -2279,14 +2304,31 @@ function doControl(action, value, cb) {
         for (var ek in cur) if (cur.hasOwnProperty(ek)) next[ek] = cur[ek];
         next[ckey] = cOn;
         luna('com.webos.settingsservice/setSystemSettings', { settings: { eulaStatus: next } }, function (w) {
-          var wrote = !!(w && w.returnValue);
-          // These are consent records. Without a line here there is no way to
-          // tell afterwards whether a change came from the panel or the TV.
-          console.log('consent: ' + ckey + ' ' + cur[ckey] + ' -> ' + cOn +
-                      (wrote ? '' : ' (refused)'));
           cachedPrivacy = null;
-          cb(wrote ? { ok: true, key: ckey, enabled: cOn, changed: true }
-                   : { ok: false, error: (w && w.errorText) || 'the TV refused the change' });
+          if (!(w && w.returnValue)) {
+            console.log('consent: ' + ckey + ' ' + cur[ckey] + ' -> ' + cOn + ' (refused)');
+            return cb({ ok: false, error: (w && w.errorText) || 'the TV refused the change' });
+          }
+          /*
+           * Read it back. returnValue means the service took the call, not that
+           * it stored anything - writing /var/luna/preferences/eula directly
+           * looks exactly as successful and reverts at boot. On firmware this
+           * has never run against, that difference is the whole question, and a
+           * toggle that reports success without checking is the failure this
+           * panel exists to avoid.
+           */
+          luna('com.webos.settingsservice/getSystemSettings', { keys: ['eulaStatus'] }, function (v) {
+            var now = v && v.settings && v.settings.eulaStatus;
+            var applied = !!(now && now[ckey] === cOn);
+            // Consent records: without a line here there is no telling
+            // afterwards whether a change came from the panel or the TV.
+            console.log('consent: ' + ckey + ' ' + cur[ckey] + ' -> ' + cOn +
+                        (applied ? '' : ' (accepted but not applied)'));
+            cachedPrivacy = null;
+            cb(applied
+              ? { ok: true, key: ckey, enabled: cOn, changed: true }
+              : { ok: false, error: 'the TV accepted the change without applying it' });
+          });
         });
       });
 

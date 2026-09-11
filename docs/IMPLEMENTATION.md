@@ -203,6 +203,18 @@ flag is a read-modify-write.
 A flag that sticks still only records what the TV stored. It does not prove LG
 honours it, and the value may be mirrored against the account server-side.
 
+`returnValue: true` is the service accepting the call, not evidence it stored
+anything - writing the file directly looks exactly as successful. Every write
+from the panel is read back before it reports success, so a set where the
+setter is a no-op says so rather than showing a toggle that has not moved.
+
+Which flags exist varies: a B8 on 4.4.3 has 21, a C2 on 9.2.2 has 23, including
+`marketingOnAllowed`, `shoppingOnAllowed` and `takeOnAllowed`, and no
+`allAllowed`. `eulaMappingList` differs too - `additional1Allowed` is in a group
+on 4.4.3 and in none on 4.4.0. Nothing about the set is hardcoded for that
+reason: the mapping decides which flags the panel will write, and a TV that
+publishes no mapping gets no toggles on undescribed flags at all.
+
 ## luna-send prints nothing without a tty
 
 Over a non-interactive ssh command it returns an empty string and exit 0, which

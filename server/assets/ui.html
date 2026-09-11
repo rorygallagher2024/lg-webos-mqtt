@@ -1636,8 +1636,10 @@ async function loadPrivacy() {
       const inGroup = rows.filter(f => (f.group || 'unknown') === id);
       if (!inGroup.length) continue;
       const on = inGroup.filter(f => f.enabled).length;
-      html += `<div class="pv-g"><span>${esc(title)}</span>` +
-              `<span class="c">${on} of ${inGroup.length} on</span></div>` +
+      // A server that predates the grouping sends no titles; one unlabelled
+      // heading above every row is worse than none.
+      html += (title ? `<div class="pv-g"><span>${esc(title)}</span>` +
+                       `<span class="c">${on} of ${inGroup.length} on</span></div>` : '') +
               (note ? `<div class="pv-gn">${esc(note)}</div>` : '') +
               inGroup.map(f => pvRow(esc(f.name), f.detail, pvConsentPill(f, cw))).join('');
     }
