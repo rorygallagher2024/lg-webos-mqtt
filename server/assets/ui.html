@@ -213,7 +213,11 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 /* The rule between groups separated them when they were one stack. In columns
    the top of every column is a head, so only the ones below a sibling keep it -
    otherwise column one starts higher than the rest and misses the rule. */
-.lcol>.grp-sec{margin-top:0}
+/* The gap spaces the column, so a child's own top margin only offsets the
+   first one - which is how column two came to start lower than column one.
+   Two classes deep on purpose: .set and .grp-sec set their own margin later in
+   this sheet and would otherwise win on source order. */
+.lcols .lcol>*{margin-top:0}
 .lcol>.lhead{padding-top:0;border-top:0}
 .grid-wrap{display:grid;grid-template-columns:1fr;gap:clamp(32px,5vw,56px);margin-top:clamp(28px,4vw,44px)}
 @media (min-width:960px){
