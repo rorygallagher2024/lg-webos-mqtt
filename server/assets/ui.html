@@ -73,7 +73,7 @@ body{
   font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   font-weight:400;font-size:15px;line-height:1.5;
   padding:var(--gut) var(--gut) calc(var(--gut) * 2);
-  max-width:1160px;margin:0 auto;
+  max-width:1440px;margin:0 auto;
   -webkit-font-smoothing:antialiased;
 }
 /* Live numerals sit in tabular figures. A proportional digit set makes a
@@ -186,7 +186,7 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 
 /* ---- readouts ---- */
 .readouts{margin-top:0;border-top:1px solid var(--w06)}
-.r{display:grid;grid-template-columns:clamp(144px,17%,176px) 1fr 92px;gap:20px;align-items:center;
+.r{display:grid;grid-template-columns:clamp(118px,15%,176px) 1fr 84px;gap:14px;align-items:center;
    padding:15px 0;border-bottom:1px solid var(--w06)}
 .r .v{font-family:'Outfit';font-weight:200;font-size:26px;color:var(--w100);text-align:right;line-height:1}
 .r .v small{font-size:13px;color:var(--w50);margin-left:4px;font-family:'Manrope';font-weight:400}
@@ -235,6 +235,10 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 @media (min-width:1280px){
   .col-telemetry{column-count:3}
 }
+/* Advanced spans the columns. Left in the flow it is balanced with everything
+   else, so opening a disclosure re-ran the balance and shuffled Storage into
+   another column under the reader. */
+#advblock{column-span:all;break-inside:auto;margin-top:clamp(26px,3vw,34px)}
 .grid-wrap{display:grid;grid-template-columns:1fr;gap:clamp(32px,5vw,56px);margin-top:clamp(28px,4vw,44px)}
 @media (min-width:960px){
   .grid-wrap{grid-template-columns:minmax(380px,1.15fr) minmax(340px,1fr);gap:clamp(36px,5vw,60px);align-items:start}
@@ -403,7 +407,7 @@ button.pill[disabled]{cursor:default;opacity:.45}
    into it would read as a missing port rather than an empty one. State is
    carried by fill and weight, the same way the selected controls are - the
    live port is the bright one. */
-.ports{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:14px}
+.ports{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:9px;margin-top:14px}
 .port{border:1px solid var(--w06);border-radius:4px;padding:13px 14px 14px;
   display:flex;flex-direction:column;min-height:112px}
 .port .ptop{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -585,7 +589,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       </div>
     </div>
 
-    <div class="grp-sec">
+    <div class="grp-sec" id="advblock">
       <div class="grp">Advanced</div>
       <details class="disc" id="disc-hwinfo" hidden style="border-top:0;margin-top:0">
       <summary>System info</summary>
@@ -837,6 +841,11 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     <div><span class="pill idle" id="cfg-status-pill">&mdash;</span></div>
   </div>
 
+  <div class="cfg-toggles" style="margin-top:18px;max-width:300px">
+    <button id="cfg-enabled" onclick="cfgToggle('cfg-enabled')">MQTT bridge</button>
+  </div>
+  <div class="sub" id="cfg-enabled-note" style="margin-top:8px"></div>
+
   <div class="pv-h">Broker</div>
   <div class="pv-sub">Where this TV publishes its telemetry. Home Assistant picks the
     entities up automatically once the broker is reachable.</div>
@@ -865,7 +874,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   </div>
 
   <div class="cfg-toggles">
-    <button id="cfg-enabled" onclick="cfgToggle('cfg-enabled')">MQTT bridge</button>
     <button id="cfg-tls" onclick="cfgToggle('cfg-tls')">TLS</button>
     <button id="cfg-verify" onclick="cfgToggle('cfg-verify')">Verify certificate</button>
   </div>
@@ -1958,6 +1966,16 @@ function cfgToggle(id) {
   const b = q(id);
   b.classList.toggle('on');
   if (id === 'cfg-tls') cfgSyncTls();
+  if (id === 'cfg-enabled') cfgSyncEnabled();
+}
+
+// The switch is part of the form, so it means nothing until the save restarts
+// the server. Saying so beats a switch that looks like it has already acted.
+function cfgSyncEnabled() {
+  const on = q('cfg-enabled').classList.contains('on');
+  q('cfg-enabled-note').textContent = on
+    ? 'The TV publishes telemetry and accepts commands over MQTT.'
+    : 'Nothing is published. The dashboard is unaffected.';
 }
 
 // Certificate verification is meaningless without TLS, so it follows it.
@@ -2050,6 +2068,7 @@ async function loadSettings() {
     q('cfg-devname').value = d.name;
     q('cfg-interval').value = m.telemetryIntervalMs;
     q('cfg-enabled').classList.toggle('on', m.enabled);
+    cfgSyncEnabled();
     q('cfg-tls').classList.toggle('on', m.tls);
     q('cfg-verify').classList.toggle('on', m.tlsRejectUnauthorized);
     cfgSyncTls();
