@@ -372,6 +372,13 @@ button.pill[disabled]{cursor:default;opacity:.45}
 .cfg-f input::placeholder{color:var(--w35)}
 .cfg-f .hint{font-size:12px;color:var(--w35);line-height:1.4}
 .cfg-toggles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;max-width:840px;margin-top:14px}
+/* State and switch to one side, the form it describes to the other. The left
+   is sized to its content - a pill and a button - rather than to half the page. */
+.cfg-cols{display:grid;grid-template-columns:1fr;gap:clamp(26px,4vw,48px);align-items:start}
+@media (min-width:980px){
+  .cfg-cols{grid-template-columns:minmax(250px,0.52fr) minmax(0,1fr)}
+}
+.cfg-side .pv-row{border-bottom:0;padding-top:0}
 .cfg-save{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:22px;max-width:840px}
 .cfg-save button{min-height:48px;padding:0 30px}
 .cfg-msg{font-size:13px;color:var(--w60)}
@@ -814,20 +821,24 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 <section class="priv panel" id="mqttpane" role="tabpanel" hidden>
   <div class="lbl">MQTT &amp; Home Assistant</div>
 
-  <div class="pv-row" style="margin-top:12px;max-width:820px">
-    <div>
-      <div class="n">Bridge status</div>
-      <div class="d" id="cfg-status-detail">&mdash;</div>
+  <div class="cfg-cols">
+  <div class="cfg-side">
+    <div class="pv-row" style="margin-top:0">
+      <div>
+        <div class="n">Bridge status</div>
+        <div class="d" id="cfg-status-detail">&mdash;</div>
+      </div>
+      <div><span class="pill idle" id="cfg-status-pill">&mdash;</span></div>
     </div>
-    <div><span class="pill idle" id="cfg-status-pill">&mdash;</span></div>
+
+    <div class="cfg-toggles" style="margin-top:18px">
+      <button id="cfg-enabled" onclick="cfgToggle('cfg-enabled')">MQTT bridge</button>
+    </div>
+    <div class="sub" id="cfg-enabled-note" style="margin-top:8px"></div>
   </div>
 
-  <div class="cfg-toggles" style="margin-top:18px;max-width:300px">
-    <button id="cfg-enabled" onclick="cfgToggle('cfg-enabled')">MQTT bridge</button>
-  </div>
-  <div class="sub" id="cfg-enabled-note" style="margin-top:8px"></div>
-
-  <div class="pv-h">Broker</div>
+  <div class="cfg-main">
+  <div class="pv-h" style="margin-top:0">Broker</div>
   <div class="pv-sub">Where this TV publishes its telemetry. Home Assistant picks the
     entities up automatically once the broker is reachable.</div>
 
@@ -899,6 +910,8 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     <span class="cfg-msg" id="cfg-msg">Saving restarts the server. The dashboard reconnects on its own.</span>
   </div>
   <div class="sub" id="cfg-file" style="margin-top:14px"></div>
+  </div>
+  </div>
 </section>
 </main>
 
