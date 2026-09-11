@@ -1960,13 +1960,79 @@ var CONSENT_NAMES = {
   allAllowed:          'Select All'
 };
 
-// Daemons worth naming, with what they actually do.
+/*
+ * Daemons worth naming, with what they do and how the platform runs them.
+ *
+ * "bus" ones are started on demand by ls-hubd: asking them anything starts
+ * them, this panel's own getAdid call included, so whether the process exists
+ * says nothing about whether the TV chose to run it. "upstart" ones are
+ * supervised jobs whose running state is real, and which initctl can hold down.
+ */
 var PRIVACY_DAEMONS = {
-  acr2:       ['Content recognition service', 'Identifies what is on screen'],
-  admanager:  ['Advertising service', 'Fetches and displays ads on the TV'],
-  uploadd:    ['Diagnostics uploader', 'Sends diagnostic data to LG'],
-  rdxd:       ['Diagnostics collector', 'Gathers crash and diagnostic reports']
+  acr2:       ['Content recognition service', 'Identifies what is on screen', 'bus'],
+  admanager:  ['Advertising service', 'Fetches and displays ads on the TV', 'bus'],
+  uploadd:    ['Diagnostics uploader', 'Sends diagnostic data to LG', 'upstart'],
+  rdxd:       ['Diagnostics collector', 'Gathers crash and diagnostic reports', 'upstart']
 };
+
+/*
+ * Held down across reboots by the boot hook, which reads this file. Only jobs
+ * upstart supervises can be held down at all - the bus starts the others back
+ * up the moment anything asks them a question.
+ */
+var SERVICES_FILE = '/var/lib/tvweb/services_stopped';
+var SERVICE_CONTROLLABLE = { uploadd: true, rdxd: true };
+
+function stoppedServices() {
+  var raw = rd(SERVICES_FILE), out = [];
+  if (!raw) return out;
+  var parts = raw.split('\n');
+  for (var i = 0; i < parts.length; i++) {
+    var n = parts[i].replace(/\s+/g, '');
+    if (n && SERVICE_CONTROLLABLE[n] && out.indexOf(n) === -1) out.push(n);
+  }
+  return out;
+}
+
+/*
+ * Upstart's view, or nothing. webOS 9 keeps an initctl that lists no jobs at
+ * all - on a C2 it answers `touch: /tmp/rdxd: Read-only file system` - so the
+ * set gets no toggles there, which is the right answer: uploadd and rdxd run,
+ * but not as jobs anything here can hold down.
+ */
+function upstartJobs(cb) {
+  execFile('/sbin/initctl', ['list'], { timeout: 4000 }, function (err, stdout) {
+    var out = {}, lines = String(stdout || '').split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var m = /^(\S+)\s+(\S+)/.exec(lines[i]);
+      if (m) out[m[1]] = m[2].replace(/,$/, '');   // "start/running, process 123"
+    }
+    cb(out);
+  });
+}
+
+function setServiceEnabled(name, enable, cb) {
+  execFile('/sbin/initctl', [enable ? 'start' : 'stop', name], { timeout: 6000 }, function () {
+    // initctl reports failure when the job is already in the state asked for,
+    // so the job's own state decides, not the exit code.
+    upstartJobs(function (jobs) {
+      var running = String(jobs[name] || '').indexOf('start/') === 0;
+      var list = stoppedServices(), at = list.indexOf(name);
+      if (enable && at !== -1) list.splice(at, 1);
+      if (!enable && at === -1) list.push(name);
+      try {
+        if (list.length) fs.writeFileSync(SERVICES_FILE, list.join('\n') + '\n', 'utf8');
+        else if (fs.existsSync(SERVICES_FILE)) fs.unlinkSync(SERVICES_FILE);
+      } catch (e) { /* the job moved either way; only the boot hook loses out */ }
+      cachedPrivacy = null;
+      console.log('service: ' + name + ' -> ' + (enable ? 'start' : 'stop') +
+                  (running === enable ? '' : ' (did not take)'));
+      cb(running === enable
+        ? { ok: true, name: name, running: running }
+        : { ok: false, error: 'the TV did not ' + (enable ? 'start' : 'stop') + ' ' + name });
+    });
+  });
+}
 
 /*
  * Power state. tvpower reports the panel separately from the system: a set can
@@ -2047,18 +2113,27 @@ function readConsentFlags() {
 }
 
 function runningDaemons(cb) {
-  execFile('/bin/ps', ['-eo', 'args'], { timeout: 4000 }, function (err, stdout) {
-    var txt = String(stdout || ''), list = [];
-    for (var name in PRIVACY_DAEMONS) {
-      if (!PRIVACY_DAEMONS.hasOwnProperty(name)) continue;
-      list.push({
-        name: name,
-        label: PRIVACY_DAEMONS[name][0],
-        detail: PRIVACY_DAEMONS[name][1],
-        running: txt.indexOf('/usr/sbin/' + name) !== -1
-      });
-    }
-    cb(list);
+  var held = stoppedServices();
+  upstartJobs(function (jobs) {
+    execFile('/bin/ps', ['-eo', 'args'], { timeout: 4000 }, function (err, stdout) {
+      var txt = String(stdout || ''), list = [];
+      for (var name in PRIVACY_DAEMONS) {
+        if (!PRIVACY_DAEMONS.hasOwnProperty(name)) continue;
+        var d = PRIVACY_DAEMONS[name];
+        var onDemand = d[2] === 'bus';
+        list.push({
+          name: name,
+          label: d[0],
+          detail: d[1],
+          running: txt.indexOf('/usr/sbin/' + name) !== -1,
+          onDemand: onDemand,
+          job: jobs[name] || null,
+          stoppable: !onDemand && !!SERVICE_CONTROLLABLE[name] && !!jobs[name],
+          heldDown: held.indexOf(name) !== -1
+        });
+      }
+      cb(list);
+    });
   });
 }
 
@@ -2069,35 +2144,48 @@ function collectPrivacy(cb) {
   var out = { ok: true, consent: readConsentFlags(), consentWritable: CONFIG.allowControl,
               consentGroups: CONSENT_GROUPS };
 
-  luna('com.webos.service.acr/getACRSolutionStatus', {}, function (acr) {
-    // `false` here means the recognition engine is not running at all.
-    out.acr = {
-      label: 'Screen content recognition',
-      detail: 'LG calls this ACR. It samples what is on screen to work out what you are watching.',
-      active: !!(acr && acr.ACRSolutionStatus)
-    };
-    luna('com.webos.service.acr/getVideoCaptureStatus', {}, function (cap) {
-      out.acr.capturing = !!(cap && cap.status && cap.status !== 'stopped');
-      out.acr.captureState = (cap && cap.status) ? cap.status : 'unknown';
-      luna('com.webos.service.admanager/getAdid', {}, function (ad) {
-        var id = (ad && ad.IFA) ? String(ad.IFA) : null;
-        out.advertisingId = {
-          label: 'Advertising identifier',
-          detail: 'A unique ID your TV hands to advertisers. Resetting it breaks the link to your past activity.',
+  /*
+   * Scan first. Every luna call below starts the service it asks, so a scan
+   * afterwards can only ever report acr2 and admanager as running - which is
+   * what this panel did, on every load, for as long as it has existed.
+   */
+  runningDaemons(function (daemons) {
+    out.daemons = daemons;
+    luna('com.webos.service.acr/getACRSolutionStatus', {}, function (acr) {
+      // `false` here means the recognition engine is not running at all.
+      out.acr = {
+        label: 'Screen content recognition',
+        detail: 'LG calls this ACR. It samples what is on screen to work out what you are watching.',
+        active: !!(acr && acr.ACRSolutionStatus)
+      };
+      luna('com.webos.service.acr/getVideoCaptureStatus', {}, function (cap) {
+        out.acr.capturing = !!(cap && cap.status && cap.status !== 'stopped');
+        out.acr.captureState = (cap && cap.status) ? cap.status : 'unknown';
+        luna('com.webos.service.admanager/getAdid', {}, function (ad) {
           /*
-           * The value is deliberately NOT returned, not even truncated. It is
-           * an identifier for this household, and the dashboard is the sort of
-           * thing that ends up in screenshots. Whether a reset worked is
-           * reported by the reset action itself, which compares before and
-           * after on the TV without either value leaving it.
+           * getAdid does not exist on every firmware - a C8 on 4.4.0 answers
+           * `Unknown method`, a B8 on 4.4.3 answers properly. Without this the
+           * failure renders as "no identifier assigned", which is a claim about
+           * the TV rather than about the call.
            */
-          present: !!id,
-          limitTracking: !!(ad && String(ad.LMT).toLowerCase() === 'on'),
-          limitTrackingLabel: 'Limit ad tracking',
-          limitTrackingDetail: 'When on, apps are asked not to use this ID to profile you.'
-        };
-        runningDaemons(function (daemons) {
-          out.daemons = daemons;
+          var adOk = !!(ad && ad.returnValue !== false && ad.IFA !== undefined);
+          var id = (adOk && ad.IFA) ? String(ad.IFA) : null;
+          out.advertisingId = {
+            available: adOk,
+            label: 'Advertising identifier',
+            detail: 'A unique ID your TV hands to advertisers. Resetting it breaks the link to your past activity.',
+            /*
+             * The value is deliberately NOT returned, not even truncated. It is
+             * an identifier for this household, and the dashboard is the sort of
+             * thing that ends up in screenshots. Whether a reset worked is
+             * reported by the reset action itself, which compares before and
+             * after on the TV without either value leaving it.
+             */
+            present: !!id,
+            limitTracking: !!(ad && String(ad.LMT).toLowerCase() === 'on'),
+            limitTrackingLabel: 'Limit ad tracking',
+            limitTrackingDetail: 'When on, apps are asked not to use this ID to profile you.'
+          };
           out.adblock = {
             enabled: isAdBlockActive(),
             mode: adBlockMode(),
@@ -2334,6 +2422,19 @@ function doControl(action, value, cb) {
           });
         });
       });
+
+    /*
+     * Hold an LG daemon down, or let it back up. Restricted to the two upstart
+     * supervises: this is an initctl target arriving over HTTP, and the
+     * bus-activated services cannot be held down anyway.
+     */
+    case 'service':
+      var svcName = (value && value.name) ? String(value.name) : '';
+      var svcOn = !!(value && (value.enabled === true || value.enabled === 'true'));
+      if (!SERVICE_CONTROLLABLE[svcName]) {
+        return cb({ ok: false, error: svcName ? svcName + ' is not controllable' : 'no service named' });
+      }
+      return setServiceEnabled(svcName, svcOn, cb);
 
     case 'clearAdCookies':
       return luna('com.webos.service.admanager/inactivateCookies', {}, function (r) {

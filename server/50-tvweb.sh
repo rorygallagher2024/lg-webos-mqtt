@@ -14,6 +14,9 @@
 
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:$PATH
 
+# Hold down the LG daemons switched off in the dashboard. Done in the delayed
+# block below, after upstart has had its go at starting them.
+
 # Restore adblock bind-mount if enabled
 if [ -f /var/lib/tvweb/adblock_enabled ] && [ -f /var/lib/tvweb/adblock_hosts ]; then
   mount --bind /var/lib/tvweb/adblock_hosts /etc/hosts 2>/dev/null || true
@@ -26,6 +29,12 @@ fi
   sleep 20   # let the TV finish booting before adding load
   /usr/bin/pkill -9 -f tvweb.js 2>/dev/null || true
   sleep 1
+  if [ -f /var/lib/tvweb/services_stopped ]; then
+    while read -r job; do
+      [ -n "$job" ] && /sbin/initctl stop "$job" >/dev/null 2>&1
+    done < /var/lib/tvweb/services_stopped
+  fi
+
   if [ -x /var/lib/tvweb/tvwebctl ]; then
     /var/lib/tvweb/tvwebctl start
   else
