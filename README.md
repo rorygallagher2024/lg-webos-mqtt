@@ -45,7 +45,7 @@ here. Includes an on-TV ad & telemetry sinkhole via bind-mounting over
 Store or one that does not.
 
 <p align="center">
-  <a href="docs/screenshots/privacy.png"><img src="docs/screenshots/privacy.png" alt="Privacy panel showing content recognition status, advertising identifier, data collection agreements, and ad blocker" width="700"></a>
+  <a href="docs/screenshots/privacy.png"><img src="docs/screenshots/privacy.png" alt="Privacy panel showing content recognition status, advertising identifier, the data collection agreements grouped by subject with toggles, background services, and the ad sinkhole tiers" width="700"></a>
 </p>
 
 ---
