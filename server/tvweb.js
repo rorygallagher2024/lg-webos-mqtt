@@ -1771,15 +1771,11 @@ var CONSENT_LABELS = {
  * everything is the one failure this panel must not have.
  */
 var CONSENT_LOCKED = {
-  generalTermsAllowed: 'Acceptance of the terms themselves rather than a collection choice. ' +
-                       'Left to the TV\'s own menus.',
-  networkAllowed:      'Acceptance of network use rather than a collection choice. ' +
-                       'Left to the TV\'s own menus.',
-  firstUseAllowed:     'Part of first-boot setup rather than a collection choice. ' +
-                       'Left to the TV\'s own menus.',
-  allAllowed:          'The Select-All. Read-only here: whether writing it cascades to the other ' +
-                       'flags is untested, and a click that grants everything at once is the one ' +
-                       'mistake this panel must not allow.'
+  generalTermsAllowed: 'Acceptance of the terms themselves.',
+  networkAllowed:      'Acceptance of network use.',
+  firstUseAllowed:     'Part of first-boot setup.',
+  allAllowed:          'The Select-All. Read-only because whether writing it cascades to the ' +
+                       'other flags is untested.'
 };
 
 /*
@@ -1831,6 +1827,49 @@ function consentPeers(key, groups) {
   return names;
 }
 
+/*
+ * Display grouping. 21 flat rows is a list nobody reads to the end of, and the
+ * groups put the flags LG never described in one place instead of scattering
+ * them between ones that are explained.
+ */
+var CONSENT_GROUPS = [
+  ['advertising', 'Advertising'],
+  ['watching',    'What the TV watches and hears'],
+  ['analytics',   'Analytics and sharing'],
+  ['unknown',     'No published description',
+   'The TV records these and LG publishes nothing about what they mean. ' +
+   'The ones it cannot tie to any agreement are left read-only.'],
+  ['platform',    'Set on the TV itself',
+   'Acceptance records rather than collection choices. Changed in the TV\'s own menus, ' +
+   'under Settings \u203a General \u203a About This TV \u203a User Agreements.']
+];
+
+var CONSENT_GROUP_OF = {
+  customAdAllowed: 'advertising',
+  customadsAllowed: 'advertising',
+  cookiesAllowed: 'advertising',
+  acrAdAllowed: 'advertising',
+
+  acrAllowed: 'watching',
+  acrGdprAllowed: 'watching',
+  voiceAllowed: 'watching',
+  voice2Allowed: 'watching',
+
+  additionalDataAllowed: 'analytics',
+  remoteDiagAllowed: 'analytics',
+  thirdPartySharingAllowed: 'analytics',
+
+  // Read-only, and structural rather than a collection choice.
+  networkAllowed: 'platform',
+  generalTermsAllowed: 'platform',
+  firstUseAllowed: 'platform',
+  allAllowed: 'platform'
+};
+
+function consentGroup(key) {
+  return CONSENT_GROUP_OF[key] || 'unknown';
+}
+
 // Daemons worth naming, with what they actually do.
 var PRIVACY_DAEMONS = {
   acr2:       ['Content recognition service', 'Identifies what is on screen'],
@@ -1871,22 +1910,27 @@ var cachedPrivacy = null, lastPrivacyCheck = 0;
  * place - see loadConsentGroups.
  */
 function describeUnlabelled(key, on, groups) {
-  var row = { key: key, enabled: on, settable: consentSettable(key) };
+  var row = { key: key, enabled: on, settable: consentSettable(key), group: consentGroup(key) };
+  var docs = groups[key];
+  /*
+   * The document ids (S_ADG and friends) go in the payload but never on the
+   * page: LG publishes no index for them, and this TV carries no file that
+   * resolves one to a title, so on screen they are noise wearing the costume
+   * of an explanation.
+   */
+  if (docs) row.documents = docs;
   if (CONSENT_LOCKED[key]) {
     row.detail = CONSENT_LOCKED[key];
     return row;
   }
-  var docs = groups[key];
   if (!docs) {
-    row.detail = 'Recorded by the TV, but tied to no agreement on this firmware. ' +
-                 'Left read-only rather than guessed at.';
+    row.detail = 'Tied to no agreement on this firmware.';
     return row;
   }
   var peers = consentPeers(key, groups);
   row.detail = peers.length
-    ? 'No published description. The TV accepts it under the same agreement as ' +
-      peers.join(' and ') + '.'
-    : 'No published description. The TV records it under ' + docs.join(', ') + '.';
+    ? 'Accepted under the same agreement as ' + peers.join(' and ') + '.'
+    : 'Filed under an agreement the TV does not name.';
   return row;
 }
 
@@ -1900,7 +1944,8 @@ function readConsentFlags() {
     var key = m[1], on = m[2] === 'true';
     if (CONSENT_LABELS[key]) {
       out.known.push({ key: key, label: CONSENT_LABELS[key][0], detail: CONSENT_LABELS[key][1],
-                       enabled: on, settable: consentSettable(key) });
+                       enabled: on, settable: consentSettable(key),
+                       group: consentGroup(key) });
     } else {
       out.other.push(describeUnlabelled(key, on, groups));
     }
@@ -1928,7 +1973,8 @@ function collectPrivacy(cb) {
   var now = Date.now();
   if (cachedPrivacy && (now - lastPrivacyCheck < 20000)) return cb(cachedPrivacy);
 
-  var out = { ok: true, consent: readConsentFlags(), consentWritable: CONFIG.allowControl };
+  var out = { ok: true, consent: readConsentFlags(), consentWritable: CONFIG.allowControl,
+              consentGroups: CONSENT_GROUPS };
 
   luna('com.webos.service.acr/getACRSolutionStatus', {}, function (acr) {
     // `false` here means the recognition engine is not running at all.

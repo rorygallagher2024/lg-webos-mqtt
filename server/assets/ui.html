@@ -318,6 +318,11 @@ button.pill[disabled]{cursor:default;opacity:.45}
 /* A flag the panel will not write keeps its colour - the value still matters -
    but has to read as inert next to 19 rows that respond to a click. */
 .pill.fixed{opacity:.45}
+.pv-g{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--w60);
+      margin:22px 0 2px;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.pv-g:first-child{margin-top:4px}
+.pv-g .c{letter-spacing:0;text-transform:none;color:var(--w35);font-size:12px;white-space:nowrap}
+.pv-gn{font-size:13px;color:var(--w50);max-width:58ch;margin:4px 0 2px}
 /* Collapsible privacy sections. The consent list alone runs to 21 rows, so the
    long sections fold. The summary keeps the pv-h size rather than borrowing the
    control column's small caps, so folding a section does not demote it. */
@@ -1611,10 +1616,19 @@ async function loadPrivacy() {
     // consent flags
     const c = d.consent || { known: [], other: [] };
     const cw = !!d.consentWritable;
-    let html = c.known.map(f => pvRow(f.label, f.detail, pvConsentPill(f, cw))).join('');
-    if (c.other && c.other.length) {
-      // The server describes these from the TV's own licence mapping.
-      html += c.other.map(f => pvRow(f.key, esc(f.detail || ''), pvConsentPill(f, cw))).join('');
+    // Labelled rows show their label; the rest are named by their raw key,
+    // which is all the name they have.
+    const rows = c.known.map(f => ({ ...f, name: f.label }))
+      .concat((c.other || []).map(f => ({ ...f, name: f.key })));
+    let html = '';
+    for (const [id, title, note] of (d.consentGroups || [['unknown', '']])) {
+      const inGroup = rows.filter(f => (f.group || 'unknown') === id);
+      if (!inGroup.length) continue;
+      const on = inGroup.filter(f => f.enabled).length;
+      html += `<div class="pv-g"><span>${esc(title)}</span>` +
+              `<span class="c">${on} of ${inGroup.length} on</span></div>` +
+              (note ? `<div class="pv-gn">${esc(note)}</div>` : '') +
+              inGroup.map(f => pvRow(esc(f.name), esc(f.detail || ''), pvConsentPill(f, cw))).join('');
     }
     q('pv-consent').innerHTML = html || '<div class="d">Could not read the agreements file.</div>';
     q('pv-consent-note').innerHTML = cw
