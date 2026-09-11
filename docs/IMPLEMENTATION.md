@@ -248,29 +248,31 @@ Home Assistant's history on every reboot.
 
 ---
 
-## The ad sinkhole blocks more than ads
+## The blocker's second tier takes LG's own platform with it
 
 The blocklist is applied by bind-mounting a generated hosts file over
 `/etc/hosts`, which is the only way to change it on a read-only rootfs - the
 same technique webosbrew uses for `/etc/shadow` and `/etc/motd`. Verified
 working: `getent hosts ad.lgsmartad.com` returns `0.0.0.0`.
 
-Two of the fifteen domains are **LG infrastructure rather than advertising**:
+Nine of the nineteen domains are ad, tracking and diagnostics hosts that
+nothing on the TV needs. The other ten are **LG infrastructure rather than
+advertising**, which is why they are a separate tier:
 
 | Domain | What it actually serves |
 | :--- | :--- |
-| `ngfts.lge.com` | Content and firmware delivery CDN |
-| `lgtvsdp.com` (and `us.`/`gb.`/`eu.`) | Service Delivery Platform behind the LG Content Store |
+| `ngfts.lge.com`, `aic-ngfts.lge.com` | Content and firmware delivery CDN |
+| `lgtvsdp.com` (and `us.`/`gb.`/`eu.`) | Service platform behind the Content Store on webOS 4 |
+| `nextlgsdp.com` (and `us.`/`gb.`/`eu.`) | The same on webOS 9 |
+
+`com.webos.appInstallService` names the one its own set installs from:
+`http://GB.lgtvsdp.com` on a B8, `http://GB.nextlgsdp.com` on a C2. The full
+tier adds whatever that file says, so a firmware using neither is still covered.
 
 Blocking them is a defensible choice, but it means **firmware updates and the
-app store may stop working** while the sinkhole is enabled. Anyone who turns
-this on and later finds the Content Store broken will not connect the two
-events unless told, so it is stated at the toggle in the UI as well as here.
-
-Removing those two entries from `ADBLOCK_DOMAINS` gives a conservative list
-that only targets advertising and telemetry.
-
----
+app store may stop working** on that tier. Anyone who turns it on and later
+finds the Content Store broken will not connect the two events unless told, so
+it is stated at the control in the UI as well as here.
 
 ## Entity state must come from the TV, not from the command
 

@@ -40,12 +40,12 @@ The Privacy tab, or `/?tab=privacy`. Reports live state from
 the TV rather than repeating a settings menu: whether LG's content recognition
 engine is running and sampling frames, your advertising identifier, and every
 agreement recorded on the set &mdash; most of which can be switched off from
-here. Includes an on-TV ad & telemetry sinkhole via bind-mounting over
-`/etc/hosts` that persists across reboots, in a tier that spares the Content
-Store or one that does not.
+here. Includes an ad & telemetry blocker that holds a blackhole list over
+`/etc/hosts` and survives a reboot, in a tier that spares the Content Store or
+one that does not.
 
 <p align="center">
-  <a href="docs/screenshots/privacy.png"><img src="docs/screenshots/privacy.png" alt="Privacy panel showing content recognition status, advertising identifier, the data collection agreements grouped by subject with toggles, background services, and the ad sinkhole tiers" width="700"></a>
+  <a href="docs/screenshots/privacy.png"><img src="docs/screenshots/privacy.png" alt="Privacy tab: ad and telemetry blocker, advertising identifier, the data collection agreements grouped by subject with toggles, and what is running now" width="700"></a>
 </p>
 
 ---
@@ -91,7 +91,7 @@ Store or one that does not.
   (resolution, refresh rate, colour depth, pixel clock) and a read-only list of
   what is resident in memory. Both load on demand.
 * **Bi-directional control.** Volume, mute, input select, media playback (play/pause/stop/skip via native remote key injection), app launching, picture presets, sound outputs, screen blanking, sleep timer, standby LED, on-screen notifications, power and restart (from the dashboard or Home Assistant). The picture presets on offer are the ones the TV will accept for whatever is playing &mdash; a Dolby Vision source has its own set.
-* **On-TV ad & telemetry sinkhole.** Blackholes LG's tracking, ad and ACR
+* **Ad & telemetry blocker.** Blackholes LG's tracking, ad and ACR
   endpoints on the set itself by bind-mounting a hosts table over `/etc/hosts`.
   Automatically restored on boot. Two tiers: *ads & telemetry* blocks the nine
   ad and diagnostics hosts and leaves LG's own service platform reachable;
