@@ -316,7 +316,7 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 .pv-top .pv-h:first-child{margin-top:0}
 /* The long lists stay one column - a consent row is a sentence, not a tile -
    but capped so the pill stays near what it describes on a wide screen. */
-.pv-d{max-width:940px}
+.priv.panel{max-width:1180px}
 .pv-h{font-family:'Outfit';font-weight:300;font-size:clamp(20px,2.4vw,26px);color:var(--w100);margin:22px 0 4px}
 .pv-sub{font-size:13px;color:var(--w60);max-width:62ch;margin-bottom:16px}
 .pv-row{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;
@@ -351,7 +351,8 @@ button.pill[disabled]{cursor:default;opacity:.45}
 .pv-d{border:0;margin:0}
 .pv-d>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:16px;
   font-family:'Outfit';font-weight:300;font-size:clamp(20px,2.4vw,26px);color:var(--w100);
-  margin:22px 0 4px;min-height:44px}
+  margin:0;padding:20px 0 14px;min-height:44px;border-top:1px solid var(--w12)}
+.pv-d>summary:hover .cur{color:var(--w80)}
 .pv-d>summary::-webkit-details-marker{display:none}
 .pv-d>summary::after{content:'+';font-family:'Manrope';font-size:20px;line-height:1;color:var(--w60)}
 .pv-d[open]>summary::after{content:'\2212'}
@@ -763,9 +764,18 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
   <div class="pv-top">
     <div>
-      <div class="pv-h" id="pv-acr-h">Screen content recognition</div>
-      <div class="pv-sub" id="pv-live-sub">&mdash;</div>
-      <div id="pv-live"></div>
+      <div class="pv-h">Ad &amp; telemetry blocker</div>
+      <div class="pv-sub">Blocks LG's ad, tracking and diagnostics servers at the TV itself,
+        by holding a blackhole list over <code>/etc/hosts</code>. Survives a reboot.</div>
+      <div class="btns" style="max-width:520px">
+        <button id="ab-off" onclick="setAdBlockMode('off')">Off</button>
+        <button id="ab-ads" onclick="setAdBlockMode('ads')">Ads &amp; telemetry</button>
+        <button id="ab-full" onclick="setAdBlockMode('full')">Everything</button>
+      </div>
+      <div class="sub" id="adblock-detail" style="margin-top:12px">&mdash;</div>
+      <div class="pv-note"><b>Everything</b> also blocks the servers the Content Store installs
+        from and LG delivers firmware through, so on that setting <b>the app store and updates
+        may stop working</b>.</div>
     </div>
 
     <div>
@@ -791,35 +801,20 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   </details>
 
   <details class="pv-d">
-  <summary>Background services <span class="cur" id="pv-daemons-cur"></span></summary>
-  <div class="pv-sub">Whether LG's data-collection services are currently running. A
-    service can be running while its permission is switched off &mdash; it simply has
-    nothing it is allowed to send. The two marked <b>on demand</b> are started by the
-    service bus whenever anything asks them a question, so their running state is not a
-    choice the TV made. The other two are supervised jobs and can be held down.</div>
+  <summary>What&rsquo;s running now <span class="cur" id="pv-running-cur"></span></summary>
+  <div class="pv-sub">What LG's collection machinery is doing at this moment, which is a
+    separate question from what it is permitted to collect.</div>
+  <!-- The feature and the process behind it are different questions: ACR can
+       report "not running" while acr2 is alive, which read as a contradiction
+       when the two sat in one list. -->
+  <div class="pv-g"><span>Recognition</span></div>
+  <div id="pv-live"></div>
+  <div class="pv-g"><span>Processes</span></div>
   <div id="pv-daemons"></div>
-  </details>
-
-  <details class="pv-d">
-  <summary>On-TV ad &amp; telemetry sinkhole <span class="cur" id="pv-adblock-cur"></span></summary>
-  <div class="pv-sub">Sinkholes known LG telemetry, ad servers, and Automatic Content Recognition (ACR) tracking endpoints directly on the TV by bind-mounting a local blackhole table over /etc/hosts.</div>
-  <div class="pv-note"><b>Ads &amp; telemetry</b> blocks the ad, tracking and diagnostics hosts,
-    and leaves LG's own service platform reachable. <b>Everything</b> adds
-    <b>lgtvsdp.com</b> (the server the Content Store installs from) and <b>ngfts.lge.com</b>
-    (content and firmware delivery), so with it on <b>the app store and firmware updates may
-    stop working</b>.</div>
-  <div class="pv-row">
-    <div>
-      <div class="n">LG Ad &amp; Analytics Blackhole</div>
-      <div class="d" id="adblock-detail">&mdash;</div>
-    </div>
-    <div><span class="pill idle" id="adblock-pill">Off</span></div>
-  </div>
-  <div class="btns" style="margin-top:14px;max-width:520px">
-    <button id="ab-off" onclick="setAdBlockMode('off')">Off</button>
-    <button id="ab-ads" onclick="setAdBlockMode('ads')">Ads &amp; telemetry</button>
-    <button id="ab-full" onclick="setAdBlockMode('full')">Everything</button>
-  </div>
+  <div class="pv-note">A service can be running with its permission switched off &mdash; it
+    simply has nothing it is allowed to send. The two marked <b>on demand</b> are started by
+    the service bus whenever anything asks them a question, so their running state is not a
+    choice the TV made. The other two are supervised jobs and can be held down.</div>
   </details>
 </section>
 
@@ -1647,17 +1642,16 @@ async function loadPrivacy() {
        and the rows report it. Previously the heading was generic and the ACR
        description sat under it as if it explained the whole panel. */
     const a = d.acr || {};
-    q('pv-acr-h').textContent = a.label || 'Screen content recognition';
-    q('pv-live-sub').textContent = a.detail || '';
+    /*
+     * One vocabulary across the panel: amber is the TV collecting something,
+     * green is it not. The description says what the row is, never what the
+     * pill beside it already says.
+     */
     q('pv-live').innerHTML =
-      pvRow('Recognition engine',
-          a.active ? 'The recognition engine is running on your TV.'
-                   : 'The recognition engine is not running.',
-          `<span class="pill ${a.active ? 'bad' : 'good'}">${a.active ? 'Active' : 'Not running'}</span>`) +
-      pvRow('Screen capturing',
-          a.capturing ? 'Frames are being sampled from your screen right now.'
-                      : 'No frames are being sampled from your screen.',
-          `<span class="pill ${a.capturing ? 'bad' : 'good'}">${a.capturing ? 'Capturing' : 'Stopped'}</span>`);
+      pvRow('Content recognition', 'LG calls this ACR. It works out what is on screen.',
+          `<span class="pill ${a.active ? 'warn' : 'good'}">${a.active ? 'Running' : 'Not running'}</span>`) +
+      pvRow('Screen capturing', 'Sampling frames from the screen for recognition.',
+          `<span class="pill ${a.capturing ? 'warn' : 'good'}">${a.capturing ? 'Capturing' : 'Stopped'}</span>`);
 
     // advertising id
     const ad = d.advertisingId || {};
@@ -1741,28 +1735,24 @@ async function loadPrivacy() {
         : `<span class="pill ${cls}">${state}</span>`;
       return pvRow(esc(x.label), esc(x.detail) + note, pill);
     }).join('');
-    q('pv-daemons-cur').textContent = dae.length
-      ? dae.filter(x => x.running).length + ' of ' + dae.length + ' running' : '';
+    const liveOn = (d.acr && d.acr.active ? 1 : 0) + (d.acr && d.acr.capturing ? 1 : 0);
+    const total = dae.length + 2;
+    q('pv-running-cur').textContent = dae.length
+      ? (dae.filter(x => x.running).length + liveOn) + ' of ' + total + ' running' : '';
 
     // ad blocker
     const ab = d.adblock || {};
     const mode = ab.mode || (ab.enabled ? 'full' : 'off');
     const AB = {
-      off:  { pill: 'idle', label: 'Off',
+      off:  { label: 'Off',
               detail: 'Nothing is blocked. LG telemetry and ad hosts resolve normally.' },
-      ads:  { pill: 'good', label: 'Ads & telemetry',
+      ads:  { label: 'Ads & telemetry',
               detail: `Blocks ${ab.adCount} ad, tracking and diagnostics hosts. LG's store and ` +
                       `update endpoints still resolve.` },
-      full: { pill: 'good', label: 'Everything',
+      full: { label: 'Everything',
               detail: `Blocks all ${ab.count} hosts, including ${(ab.platform || []).join(', ')}.` }
     }[mode] || {};
-    const pill = q('adblock-pill');
-    if (pill) {
-      pill.textContent = AB.label || mode;
-      pill.className = 'pill ' + (AB.pill || 'idle');
-    }
     q('adblock-detail').textContent = AB.detail || '';
-    q('pv-adblock-cur').textContent = AB.label || mode;
     for (const m of ['off', 'ads', 'full']) {
       const btn = q('ab-' + m);
       if (btn) btn.classList.toggle('on', m === mode);
