@@ -34,15 +34,23 @@ A custom Home Assistant dashboard for an LG TV:
   <a href="https://github.com/user-attachments/assets/737b3106-e8a4-4c6b-ba96-b0bad130b600"><img width="800" alt="Custom dashboard leveraging MQTT data" src="https://github.com/user-attachments/assets/737b3106-e8a4-4c6b-ba96-b0bad130b600" /></a>
 </p>
 
-### Privacy Panel & On-TV Ad Blocker
+### Privacy & telemetry
 
-The Privacy tab, or `/?tab=privacy`. Reports live state from
-the TV rather than repeating a settings menu: whether LG's content recognition
-engine is running and sampling frames, your advertising identifier, and every
-agreement recorded on the set &mdash; most of which can be switched off from
-here. Includes an ad & telemetry blocker that holds a blackhole list over
-`/etc/hosts` and survives a reboot, in a tier that spares the Content Store or
-one that does not.
+The Privacy tab, or `/?tab=privacy`. It reports what the TV is doing rather than
+repeating its settings menu: whether the content-recognition engine is running
+and sampling frames, your advertising identifier and whether ad tracking is
+limited, and every data agreement the set records.
+
+Most of those agreements can be switched off from here. The TV keeps two
+records &mdash; the agreements, and the flags derived from them &mdash; and a
+change writes both, so it survives a reboot on firmware that rebuilds the flags
+at boot. Some agreements cover several flags, and the panel says which ones move
+together before you click.
+
+The ad & telemetry blocker holds a blackhole list over `/etc/hosts` and survives
+a reboot. Two tiers: one blocks the nine ad and diagnostics endpoints and leaves
+LG's service platform reachable, the other adds the servers the Content Store
+and firmware updates use.
 
 <p align="center">
   <a href="docs/screenshots/privacy.png"><img src="docs/screenshots/privacy.png" alt="Privacy tab: ad and telemetry blocker, advertising identifier, the data collection agreements grouped by subject with toggles, and what is running now" width="700"></a>
