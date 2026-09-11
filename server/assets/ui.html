@@ -358,7 +358,8 @@ button.pill[disabled]{cursor:default;opacity:.45}
 .pv-d>summary .cur{margin-left:auto;font-family:'Manrope';font-weight:500;font-size:12px;
   letter-spacing:.12em;text-transform:uppercase;color:var(--w60);white-space:nowrap}
 .pv-note{font-size:13px;color:var(--w60);border-left:2px solid var(--w25);padding:10px 14px;margin:16px 0;max-width:64ch}
-.cfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:18px 20px;max-width:840px;margin-top:4px}
+.cfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(232px,100%),1fr));
+  gap:18px 20px;max-width:840px;margin-top:4px}
 .cfg-f{display:flex;flex-direction:column;gap:7px;min-width:0}
 .cfg-f>label{font-weight:500;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--w60)}
 .cfg-f input{
@@ -371,7 +372,8 @@ button.pill[disabled]{cursor:default;opacity:.45}
 .cfg-f input:focus{border-color:var(--w60)}
 .cfg-f input::placeholder{color:var(--w35)}
 .cfg-f .hint{font-size:12px;color:var(--w35);line-height:1.4}
-.cfg-toggles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;max-width:840px;margin-top:14px}
+.cfg-toggles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));
+  gap:8px;max-width:840px;margin-top:14px}
 /* State and switch to one side, the form it describes to the other. The left
    is sized to its content - a pill and a button - rather than to half the page. */
 .cfg-cols{display:grid;grid-template-columns:1fr;gap:clamp(26px,4vw,48px);align-items:start}
@@ -379,6 +381,9 @@ button.pill[disabled]{cursor:default;opacity:.45}
   .cfg-cols{grid-template-columns:minmax(250px,0.52fr) minmax(0,1fr)}
 }
 .cfg-side .pv-row{border-bottom:0;padding-top:0}
+/* One switch does not need the width of the column it sits in. */
+.cfg-side .cfg-toggles{max-width:320px}
+.cfg-cols>*{min-width:0}
 .cfg-save{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:22px;max-width:840px}
 .cfg-save button{min-height:48px;padding:0 30px}
 .cfg-msg{font-size:13px;color:var(--w60)}
