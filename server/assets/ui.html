@@ -1699,12 +1699,18 @@ async function loadPrivacy() {
     const cw = !!d.consentWritable;
     // Labelled rows show their label; the rest are named by their raw key,
     // which is all the name they have.
-    const rows = c.known.map(f => ({ ...f, name: f.label, detail: esc(f.detail || '') }))
+    // A flag cannot be off while an agreement it shares stays accepted, so the
+    // rows it takes with it are named before the click, not after.
+    const shared = f => f.sharesWith && f.sharesWith.length
+      ? ` <span class="k">&middot; switching this off also switches off ${esc(f.sharesWith.join(', '))}</span>`
+      : '';
+    const rows = c.known.map(f => ({ ...f, name: f.label, detail: esc(f.detail || '') + shared(f) }))
       .concat((c.other || []).map(f => ({
         ...f,
         name: f.label || f.key,
         // A named row still shows its key; an unnamed one is already titled by it.
-        detail: esc(f.detail || '') + (f.label ? ` <span class="k">${esc(f.key)}</span>` : '')
+        detail: esc(f.detail || '') + shared(f) +
+                (f.label ? ` <span class="k">${esc(f.key)}</span>` : '')
       })));
     let html = '';
     for (const [id, title, note] of (d.consentGroups || [['unknown', '']])) {
