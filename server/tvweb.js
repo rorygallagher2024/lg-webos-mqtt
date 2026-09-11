@@ -1009,24 +1009,38 @@ function setAdBlock(mode, cb) {
 }
 
 /*
- * KEY_PLAY toggles: on a B8 feeding an Apple TV it starts and stops playback,
- * while KEY_PLAYPAUSE and KEY_PAUSECD do nothing at all - webOS forwards this
- * one over CEC and not the others. So the play/pause control sends 207, and
- * the separate play and pause entities are gone rather than published dead.
- * The names stay accepted for anything calling /api/control directly.
+ * Measured on a B8 against the built-in player, watching playStateNow move:
+ * KEY_PAUSE pauses, KEY_PLAY resumes, and KEY_PLAYPAUSE, KEY_PAUSECD and
+ * KEY_PLAYCD do nothing at all. Pause was previously sent as KEY_PAUSECD,
+ * which is why it never worked.
+ *
+ * Over CEC to an external box, KEY_PLAY behaves as a toggle instead.
  */
 var RCU_KEY_CODES = {
   play: 207,
-  pause: 207,
-  playPause: 207,
-  playpause: 207,
+  pause: 119,
   stop: 128,
   fastForward: 208,
   fastforward: 208,
   rewind: 168
 };
 
+/*
+ * No key toggles the built-in player, so this asks what it is doing and sends
+ * the other one. An external input reports "playing" whatever the box on the
+ * end is doing, and KEY_PLAY is a toggle over CEC, so that path just sends it.
+ */
+function sendPlayPause(cb) {
+  luna('com.webos.service.acb/getForegroundAppInfo', {}, function (acb) {
+    var pipe = (acb && Array.isArray(acb.acbs)) ? acb.acbs[0] : null;
+    var external = !pipe || pipe.playerType === 'external input';
+    var paused = !!(pipe && String(pipe.playStateNow) === 'paused');
+    sendMediaKey(external || paused ? 'play' : 'pause', cb);
+  });
+}
+
 function sendMediaKey(cmd, cb) {
+  if (cmd === 'playPause' || cmd === 'playpause') return sendPlayPause(cb);
   var code = RCU_KEY_CODES[cmd];
   if (!code) {
     if (cb) cb(false);
@@ -3507,10 +3521,7 @@ function setupHomeAssistant() {
    * discovered entity until its config topic is cleared, so without this an
    * upgrade leaves the retired ones sitting in the device forever.
    */
-  var RETIRED_ENTITIES = [
-    { type: 'button', id: 'play' },     // folded into play_pause: KEY_PLAY toggles
-    { type: 'button', id: 'pause' }     // KEY_PAUSECD did nothing on any set tested
-  ];
+  var RETIRED_ENTITIES = [];
 
   function publishDiscovery() {
     for (var r = 0; r < RETIRED_ENTITIES.length; r++) {
@@ -4213,6 +4224,24 @@ function setupHomeAssistant() {
           payload_on: 'ON',
           payload_off: 'OFF',
           icon: 'mdi:shield-check'
+        }
+      },
+      {
+        type: 'button', id: 'play',
+        payload: {
+          name: 'Play',
+          command_topic: pfx + '/command/playback',
+          payload_press: 'play',
+          icon: 'mdi:play'
+        }
+      },
+      {
+        type: 'button', id: 'pause',
+        payload: {
+          name: 'Pause',
+          command_topic: pfx + '/command/playback',
+          payload_press: 'pause',
+          icon: 'mdi:pause'
         }
       },
       {
