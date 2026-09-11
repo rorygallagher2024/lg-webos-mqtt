@@ -762,19 +762,22 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <details class="pv-d">
   <summary>On-TV ad &amp; telemetry sinkhole <span class="cur" id="pv-adblock-cur"></span></summary>
   <div class="pv-sub">Sinkholes known LG telemetry, ad servers, and Automatic Content Recognition (ACR) tracking endpoints directly on the TV by bind-mounting a local blackhole table over /etc/hosts.</div>
-  <div class="pv-note">Two of the blocked domains are LG infrastructure rather than pure ad hosts:
-    <b>ngfts.lge.com</b> (content and firmware delivery) and <b>lgtvsdp.com</b> (the service
-    platform behind the LG Content Store). With this on, <b>firmware updates and the app store
-    may stop working</b>. That is the trade &mdash; turn it off if you need either.</div>
+  <div class="pv-note"><b>Ads &amp; telemetry</b> blocks the ad, tracking and diagnostics hosts,
+    and leaves LG's own service platform reachable. <b>Everything</b> adds
+    <b>lgtvsdp.com</b> (the server the Content Store installs from) and <b>ngfts.lge.com</b>
+    (content and firmware delivery), so with it on <b>the app store and firmware updates may
+    stop working</b>.</div>
   <div class="pv-row">
     <div>
       <div class="n">LG Ad &amp; Analytics Blackhole</div>
-      <div class="d">Blocks ad.lgsmartad.com, ibis.lgappstv.com, rdx.lgtvcommon.com, and 12 other tracking endpoints.</div>
+      <div class="d" id="adblock-detail">&mdash;</div>
     </div>
-    <div><span class="pill idle" id="adblock-pill">Inactive</span></div>
+    <div><span class="pill idle" id="adblock-pill">Off</span></div>
   </div>
-  <div class="btns" style="margin-top:14px;max-width:320px">
-    <button id="adblock-toggle" onclick="toggleAdBlock()">Enable ad blocker</button>
+  <div class="btns" style="margin-top:14px;max-width:520px">
+    <button id="ab-off" onclick="setAdBlockMode('off')">Off</button>
+    <button id="ab-ads" onclick="setAdBlockMode('ads')">Ads &amp; telemetry</button>
+    <button id="ab-full" onclick="setAdBlockMode('full')">Everything</button>
   </div>
   </details>
 </section>
@@ -1663,17 +1666,26 @@ async function loadPrivacy() {
 
     // ad blocker
     const ab = d.adblock || {};
-    const abActive = !!ab.enabled;
+    const mode = ab.mode || (ab.enabled ? 'full' : 'off');
+    const AB = {
+      off:  { pill: 'idle', label: 'Off',
+              detail: 'Nothing is blocked. LG telemetry and ad hosts resolve normally.' },
+      ads:  { pill: 'good', label: 'Ads & telemetry',
+              detail: `Blocks ${ab.adCount} ad, tracking and diagnostics hosts. LG's store and ` +
+                      `update endpoints still resolve.` },
+      full: { pill: 'good', label: 'Everything',
+              detail: `Blocks all ${ab.count} hosts, including ${(ab.platform || []).join(', ')}.` }
+    }[mode] || {};
     const pill = q('adblock-pill');
     if (pill) {
-      pill.textContent = abActive ? 'Active' : 'Inactive';
-      pill.className = 'pill ' + (abActive ? 'good' : 'idle');
+      pill.textContent = AB.label || mode;
+      pill.className = 'pill ' + (AB.pill || 'idle');
     }
-    q('pv-adblock-cur').textContent = abActive ? 'Active' : 'Inactive';
-    const abBtn = q('adblock-toggle');
-    if (abBtn) {
-      abBtn.textContent = abActive ? 'Disable ad blocker' : 'Enable ad blocker';
-      abBtn.classList.toggle('on', abActive);
+    q('adblock-detail').textContent = AB.detail || '';
+    q('pv-adblock-cur').textContent = AB.label || mode;
+    for (const m of ['off', 'ads', 'full']) {
+      const btn = q('ab-' + m);
+      if (btn) btn.classList.toggle('on', m === mode);
     }
   } catch (e) {
     q('pv-live').innerHTML = '<div class="d">Could not load privacy information &mdash; ' + e.message + '</div>';
@@ -1694,9 +1706,11 @@ q('pv-consent').addEventListener('click', async (ev) => {
   loadPrivacy();
 });
 
-async function toggleAdBlock() {
-  await c('toggleAdBlock', 'toggle');
-  setTimeout(loadPrivacy, 600);
+async function setAdBlockMode(mode) {
+  for (const m of ['off', 'ads', 'full']) { const b = q('ab-' + m); if (b) b.disabled = true; }
+  await c('setAdBlock', mode);
+  await loadPrivacy();
+  for (const m of ['off', 'ads', 'full']) { const b = q('ab-' + m); if (b) b.disabled = false; }
 }
 
 function renderHdmiDiag(diag, colSpace) {

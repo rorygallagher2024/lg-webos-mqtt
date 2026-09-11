@@ -849,26 +849,52 @@ function refreshInstalledApps(cb) {
 
 var ADBLOCK_HOSTS_FILE = '/var/lib/tvweb/adblock_hosts';
 var ADBLOCK_FLAG_FILE = '/var/lib/tvweb/adblock_enabled';
-var ADBLOCK_DOMAINS = [
+/* Ad, tracking and telemetry hosts. Nothing on the TV needs to reach them. */
+var ADBLOCK_ADS = [
   'ad.lgsmartad.com',
   'ibis.lgappstv.com',
   'ibs.lgappstv.com',
   'lgsmartad.com',
   'rdx.lgtvcommon.com',
   'aic.lgtvcommon.com',
-  'aic-ngfts.lge.com',
-  'ngfts.lge.com',
-  'lgtvsdp.com',
-  'us.lgtvsdp.com',
-  'gb.lgtvsdp.com',
-  'eu.lgtvsdp.com',
   'smartclip.com',
   'smartclip-services.com',
   'yumenetworks.com'
 ];
 
+/*
+ * LG's own service platform and content delivery. These carry ads and
+ * recommendations, but they carry the Content Store and firmware updates too:
+ * com.webos.appInstallService on a B8 points at http://GB.lgtvsdp.com. That is
+ * what the "everything" tier costs, and why it is not the default.
+ */
+var ADBLOCK_PLATFORM = [
+  'lgtvsdp.com',
+  'us.lgtvsdp.com',
+  'gb.lgtvsdp.com',
+  'eu.lgtvsdp.com',
+  'ngfts.lge.com',
+  'aic-ngfts.lge.com'
+];
+
+var ADBLOCK_DOMAINS = ADBLOCK_ADS.concat(ADBLOCK_PLATFORM);
+
+function adBlockList(mode) {
+  return mode === 'full' ? ADBLOCK_DOMAINS : ADBLOCK_ADS;
+}
+
 var cachedAdBlockActive = null;
 var lastAdBlockCheck = 0;
+
+/*
+ * Which tier is mounted. The flag file holds the mode; installs made before
+ * there was a choice wrote '1', which was today's "full".
+ */
+function adBlockMode() {
+  if (!isAdBlockActive()) return 'off';
+  var flag = rd(ADBLOCK_FLAG_FILE);
+  return flag === 'ads' ? 'ads' : 'full';
+}
 
 function isAdBlockActive() {
   var now = Date.now();
@@ -885,9 +911,10 @@ function isAdBlockActive() {
   }
 }
 
-function setAdBlock(enable, cb) {
+function setAdBlock(mode, cb) {
   var active = isAdBlockActive();
-  if (enable && !active) {
+  if (mode !== 'off') {
+    var list = adBlockList(mode);
     var lines = [
       '127.0.0.1\tlocalhost.localdomain\tlocalhost',
       '::1\tlocalhost ip6-localhost ip6-loopback',
@@ -898,24 +925,37 @@ function setAdBlock(enable, cb) {
       '',
       '# LG Ad & Telemetry Blackhole (lg-webos-mqtt)'
     ];
-    for (var i = 0; i < ADBLOCK_DOMAINS.length; i++) {
-      lines.push('0.0.0.0\t' + ADBLOCK_DOMAINS[i]);
+    for (var i = 0; i < list.length; i++) {
+      lines.push('0.0.0.0\t' + list[i]);
     }
     lines.push('');
     try {
+      /*
+       * Truncate and rewrite in place. The bind mount is to this file's inode,
+       * so switching tier while mounted takes effect immediately - and writing
+       * a new file and renaming it over this one would leave the mount showing
+       * the old contents.
+       */
       fs.writeFileSync(ADBLOCK_HOSTS_FILE, lines.join('\n'), 'utf8');
-      fs.writeFileSync(ADBLOCK_FLAG_FILE, '1', 'utf8');
+      fs.writeFileSync(ADBLOCK_FLAG_FILE, mode, 'utf8');
     } catch (e) {
       if (cb) cb({ ok: false, error: 'could not write adblock hosts: ' + e.message });
+      return;
+    }
+    if (active) {   // already mounted: the rewrite above is the whole change
+      cachedAdBlockActive = null;
+      cachedPrivacy = null;
+      lastStats = null;
+      if (cb) cb({ ok: true, enabled: true, mode: mode });
       return;
     }
     execFile('/bin/mount', ['--bind', ADBLOCK_HOSTS_FILE, '/etc/hosts'], { timeout: 3000 }, function (err) {
       cachedAdBlockActive = null;
       cachedPrivacy = null;
       lastStats = null;
-      if (cb) cb({ ok: !err, enabled: isAdBlockActive() });
+      if (cb) cb({ ok: !err, enabled: isAdBlockActive(), mode: adBlockMode() });
     });
-  } else if (!enable && active) {
+  } else if (mode === 'off' && active) {
     try {
       if (fs.existsSync(ADBLOCK_FLAG_FILE)) fs.unlinkSync(ADBLOCK_FLAG_FILE);
     } catch (e) {}
@@ -923,10 +963,10 @@ function setAdBlock(enable, cb) {
       cachedAdBlockActive = null;
       cachedPrivacy = null;
       lastStats = null;
-      if (cb) cb({ ok: !err, enabled: isAdBlockActive() });
+      if (cb) cb({ ok: !err, enabled: isAdBlockActive(), mode: adBlockMode() });
     });
   } else {
-    if (cb) cb({ ok: true, enabled: active });
+    if (cb) cb({ ok: true, enabled: active, mode: adBlockMode() });
   }
 }
 
@@ -2027,7 +2067,10 @@ function collectPrivacy(cb) {
           out.daemons = daemons;
           out.adblock = {
             enabled: isAdBlockActive(),
-            count: ADBLOCK_DOMAINS.length
+            mode: adBlockMode(),
+            count: ADBLOCK_DOMAINS.length,
+            adCount: ADBLOCK_ADS.length,
+            platform: ADBLOCK_PLATFORM
           };
           cachedPrivacy = out;
           lastPrivacyCheck = Date.now();
@@ -2171,18 +2214,22 @@ function doControl(action, value, cb) {
         cb({ ok: ok });
       });
 
+    /*
+     * Two tiers: "ads" blocks the ad and telemetry hosts, "full" takes LG's
+     * store and update endpoints with them. Callers that predate the choice
+     * pass a boolean and still mean off/full.
+     */
     case 'adblock':
     case 'setAdBlock':
     case 'toggleAdBlock':
-      var enableBlock;
-      if (action === 'toggleAdBlock' || value === 'toggle') {
-        enableBlock = !isAdBlockActive();
-      } else {
-        enableBlock = (value === true || value === 'ON' || value === 'true' || value === 1);
+      var abMode = String(value == null ? '' : value).toLowerCase();
+      if (action === 'toggleAdBlock' || abMode === 'toggle') {
+        abMode = isAdBlockActive() ? 'off' : 'full';
+      } else if (abMode !== 'off' && abMode !== 'ads' && abMode !== 'full') {
+        abMode = (value === true || abMode === 'on' || abMode === 'true' || abMode === '1')
+          ? 'full' : 'off';
       }
-      return setAdBlock(enableBlock, function (res) {
-        cb(res);
-      });
+      return setAdBlock(abMode, function (res) { cb(res); });
 
     /*
      * Rotate the advertising identifier. A real Luna call, not a file edit -
@@ -2797,6 +2844,11 @@ if (!webEnabled && !mqttEnabled) {
   try {
     if (fs.existsSync(ADBLOCK_FLAG_FILE) && !isAdBlockActive() && fs.existsSync(ADBLOCK_HOSTS_FILE)) {
       execFile('/bin/mount', ['--bind', ADBLOCK_HOSTS_FILE, '/etc/hosts'], { timeout: 3000 }, function (err) {
+        // The isAdBlockActive() above cached "not mounted" moments ago, and
+        // that answer is good for 30s - long enough to report the sinkhole off
+        // on every boot it restores.
+        cachedAdBlockActive = null;
+        cachedPrivacy = null;
         if (!err) console.log('adblock: restored /etc/hosts bind-mount from previous boot');
       });
     }
