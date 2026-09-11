@@ -1508,6 +1508,21 @@ function collectStats(cb) {
           output_raw: rawSnd,
           mode: (snd && snd.settings && snd.settings.soundMode) || 'standard'
         };
+        /*
+         * Whether something is actually playing. applicationManager says which
+         * app is in front; this is a different service, reporting the media
+         * pipeline behind it, which is the part Home Assistant wants. Asked for
+         * on r/homeassistant, endpoint included.
+         */
+        lunaCached('com.webos.service.acb/getForegroundAppInfo', {}, 4000, function (acb) {
+        var pipe = (acb && Array.isArray(acb.acbs)) ? acb.acbs[0] : null;
+        if (pipe && pipe.playStateNow) {
+          out.media = {
+            state: String(pipe.playStateNow),
+            playerType: pipe.playerType || null,
+            fullScreen: pipe.isFullScreen !== false
+          };
+        }
         lunaCached('com.webos.applicationManager/getForegroundAppInfo', {}, 4000, function (app) {
           if (app && app.appId) {
             var shortApp = String(app.appId).replace('com.webos.app.', '');
@@ -1564,6 +1579,7 @@ function collectStats(cb) {
               });
             }
           );
+        });
         });
       }
     );
@@ -3582,6 +3598,18 @@ function setupHomeAssistant() {
           state_topic: telemetryTopic,
           value_template: '{{ value_json.display_title or value_json.app_name or value_json.app }}',
           icon: 'mdi:television-play'
+        }
+      },
+      {
+        type: 'sensor', id: 'play_state',
+        payload: {
+          name: 'Play State',
+          state_topic: telemetryTopic,
+          // Absent on a set whose media service does not answer, rather than
+          // reported as stopped - nothing playing and nothing to ask are
+          // different things.
+          value_template: '{{ value_json.media.state if value_json.media else None }}',
+          icon: 'mdi:play-pause'
         }
       },
       {
