@@ -52,25 +52,28 @@ one that does not.
 
 ## What it's for
 
-
 1. **Controlling the TV without the cloud.** Volume, mute, media playback keys (play, pause, stop, skip), app launcher, picture presets, sound output routing, power and reboot.
 
-2. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
-   load, memory, swap, current draw, Wi-Fi signal and throughput.
-
-3. **Observing OLED panel wear.** Cumulative panel hours, compensation cycle
-   progress, Pixel Refresher countdown with scheduling, completed cycle counters,
-   failure alerts, and ASBL / GSR protection status.
-
-4. **Seeing what LG collects & blocking telemetry.** Whether the content-recognition
-   engine is actually running and sampling your screen, your advertising identifier,
-   data agreements, and an on-TV `/etc/hosts` blackhole for LG ad and telemetry domains.
-
-5. **Integrating the TV into Home Assistant.** Optional, over MQTT: up to 61
+2. **Seeing what the TV collects, and switching it off.** Whether LG's
+   content-recognition engine is running and sampling your screen, your
+   advertising identifier and whether ad tracking is limited, and every data
+   agreement recorded on the set with most of them switchable from the
+   dashboard. Includes an on-TV blocker for LG's ad and telemetry
+   endpoints, and a switch for the two diagnostics services that upload to LG.
+   
+3. **Integrating the TV into Home Assistant.** Optional, over MQTT: up to 61
    entities arrive as a single auto-discovered device &mdash; no YAML, no LG
    account &mdash; so the TV can be automated and its telemetry recorded
    alongside everything else in the house.
    [Step 3](#3-home-assistant--mqtt-optional) explains what MQTT is.
+
+4. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
+   load, memory, swap, current draw, Wi-Fi signal and throughput.
+
+5. **Observing OLED panel wear.** Cumulative panel hours, compensation cycle
+   progress, Pixel Refresher countdown with scheduling, completed cycle counters,
+   failure alerts, and ASBL / GSR protection status.
+
 
 ## Core features
 
