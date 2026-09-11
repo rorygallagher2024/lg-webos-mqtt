@@ -822,12 +822,13 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
        when the two sat in one list. -->
   <div class="pv-list">
     <div class="pv-grp"><div class="pv-g"><span>Recognition</span></div><div id="pv-live"></div></div>
-    <div class="pv-grp"><div class="pv-g"><span>Processes</span></div><div id="pv-daemons"></div></div>
+    <div class="pv-grp"><div class="pv-g"><span>Diagnostics services</span></div><div id="pv-daemons"></div></div>
   </div>
   <div class="pv-note">A service can be running with its permission switched off &mdash; it
-    simply has nothing it is allowed to send. The two marked <b>on demand</b> are started by
-    the service bus whenever anything asks them a question, so their running state is not a
-    choice the TV made. The other two are supervised jobs and can be held down.</div>
+    simply has nothing it is allowed to send. Switching one off here keeps it off across
+    reboots. LG's recognition and advertising services are not listed: the service bus starts
+    them whenever anything asks them a question, this panel included, so nothing here could
+    report on them without causing the answer.</div>
   </details>
 </section>
 
@@ -1735,15 +1736,16 @@ async function loadPrivacy() {
       ? onCount + ' of ' + allConsent.length + ' on' : '';
 
     // services
-    const dae = d.daemons || [];
+    /*
+     * Only the supervised ones. A bus-activated service starts when anything
+     * asks it a question, and this panel asks, so its row could report
+     * "stopped" on the first load after a boot and "running" ever after -
+     * a value caused by looking at it. The server still reports them.
+     */
+    const dae = (d.daemons || []).filter(x => !x.onDemand);
     q('pv-daemons').innerHTML = dae.map(x => {
       const state = x.running ? 'Running' : 'Stopped';
       const cls = x.running ? 'idle' : 'good';
-      if (x.onDemand) {
-        return pvRow(esc(x.label), esc(x.detail) +
-          ' <span class="k">&middot; on demand, so asking it anything starts it</span>',
-          `<span class="pill idle fixed">${state}</span>`);
-      }
       const note = x.heldDown ? ' <span class="k">&middot; kept stopped at boot</span>' : '';
       const pill = (x.stoppable && cw)
         ? `<button class="pill ${cls}" data-svc="${esc(x.name)}" data-next="${x.running ? '0' : '1'}">${state}</button>`
