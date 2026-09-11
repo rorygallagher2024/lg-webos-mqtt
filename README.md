@@ -14,8 +14,7 @@ There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the T
 
 ### Web Dashboard & Controls
 
-Four tabs &mdash; Control, Metrics, Privacy and MQTT &mdash; so the remote
-controls are not behind a screen of telemetry, or the other way round.
+Four tabs: Control, Metrics, Privacy and MQTT.
 
 <p align="center">
   <a href="docs/screenshots/dashboard.png"><img src="docs/screenshots/dashboard.png" alt="Metrics tab: SoC temperature, system readouts, storage and display panel counters, dark theme (OLED65B8SLC)" width="440"></a>
