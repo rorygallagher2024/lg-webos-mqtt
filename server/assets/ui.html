@@ -172,11 +172,11 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 /* ---- the spectacle ---- */
 .hero{margin:clamp(20px,4vw,34px) 0 0;display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap}
 .hero .big{font-family:'Outfit';font-weight:200;color:var(--hot,var(--w100));transition:color .8s ease;
-  font-size:clamp(68px,13vw,130px);line-height:.86;letter-spacing:-.025em}
+  font-size:clamp(56px,7vw,96px);line-height:.86;letter-spacing:-.025em}
 .hero .deg{font-size:.34em;color:var(--w50);vertical-align:super;letter-spacing:0}
 /* Nothing to show. Drop to ordinary size when temperature is unavailable. */
 .hero .big.none{font-size:clamp(36px,6vw,54px);color:var(--w50)}
-.hero .side{flex:1;min-width:210px;padding-bottom:6px}
+.hero .side{flex:1;min-width:150px;padding-bottom:6px}
 .trace{display:flex;align-items:flex-end;gap:2px;height:46px;margin-bottom:9px}
 .trace i{flex:1;background:var(--w25);min-height:1px;display:block;transition:background .8s ease}
 .trace i.warm{background:color-mix(in srgb,var(--hot,var(--w100)) 45%,transparent)}
@@ -337,7 +337,7 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 .pv-top .pv-h:first-child{margin-top:0}
 /* The long lists stay one column - a consent row is a sentence, not a tile -
    but capped so the pill stays near what it describes on a wide screen. */
-.pv-d{max-width:1180px}
+.pv-d{max-width:940px}
 .pv-h{font-family:'Outfit';font-weight:300;font-size:clamp(20px,2.4vw,26px);color:var(--w100);margin:22px 0 4px}
 .pv-sub{font-size:13px;color:var(--w60);max-width:62ch;margin-bottom:16px}
 .pv-row{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;
@@ -514,7 +514,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <div class="col-telemetry">
     <div class="col-sec">Metrics</div>
 
-    <div class="grp-sec first">
+    <div class="grp-sec first" data-col="0">
       <div class="grp">Temperature</div>
       <section class="hero" style="margin-top:0">
         <div>
@@ -531,12 +531,12 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       </section>
     </div>
 
-    <div class="grp-sec">
+    <div class="grp-sec" data-col="0">
       <div class="grp">System</div>
       <section class="readouts" id="readouts"></section>
     </div>
 
-    <div class="grp-sec" id="panelblock" hidden>
+    <div class="grp-sec" id="panelblock" data-col="2" hidden>
       <div class="grp">Display panel</div>
       <div class="lbl">Total power on hours</div>
       <div class="n num" style="margin-top:10px"><span id="ph">&mdash;</span><em>hours</em></div>
@@ -581,16 +581,35 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       </details>
     </div>
 
-    <div class="grp-sec">
+    <div class="grp-sec" data-col="1">
       <div class="grp">Storage</div>
-      <div class="cols">
+      <div id="appstore-cell" hidden>
+        <div class="lbl">App space</div>
+        <div class="n num" style="margin-top:10px"><span id="appstore">&mdash;</span><em>GB free</em></div>
+        <div class="sub" id="appstore-sub"></div>
+      </div>
+      <div class="cols" style="margin-top:24px">
         <div id="flashwear-cell"><div class="lbl">Flash wear</div><div class="v num" id="flashval">&mdash;</div><div class="sub">eMMC lifetime estimated</div></div>
         <div id="flashhealth-cell"><div class="lbl">Pre-EOL status</div><div class="v" id="flasheol">&mdash;</div><div class="sub">Drive's own assessment</div></div>
-        <div id="appstore-cell" hidden><div class="lbl">App space</div><div class="v num" id="appstore">&mdash;</div><div class="sub" id="appstore-sub"></div></div>
       </div>
     </div>
 
-    <div class="grp-sec" id="advblock">
+    <div class="grp-sec" id="remoteblock" data-col="2" hidden>
+      <div class="grp">Magic remote</div>
+      <div class="remote-badge" id="remote-badge" hidden style="margin-top:12px">
+        <svg class="rem-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="7" y="2" width="10" height="20" rx="3"></rect>
+          <circle cx="12" cy="6" r="1" fill="currentColor"></circle>
+          <circle cx="12" cy="14" r="2.5"></circle>
+        </svg>
+        <span class="rem-title">Magic Remote</span>
+        <span class="rem-pct num" id="remote-pct">&mdash;</span>
+        <span class="rem-gauge" aria-label="battery meter"><i id="remote-gauge-fill"></i></span>
+        <span class="rem-model" id="remote-model-sub"></span>
+      </div>
+    </div>
+
+    <div class="grp-sec" id="advblock" data-col="1">
       <div class="grp">Advanced</div>
       <details class="disc" id="disc-hwinfo" hidden style="border-top:0;margin-top:0">
       <summary>System info</summary>
@@ -630,17 +649,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
           </div>
           <div class="prot-status"><span class="pill idle" id="spec-tcon">&mdash;</span></div>
         </div>
-      </div>
-      <div class="remote-badge" id="remote-badge" hidden style="margin-top:14px">
-        <svg class="rem-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="7" y="2" width="10" height="20" rx="3"></rect>
-          <circle cx="12" cy="6" r="1" fill="currentColor"></circle>
-          <circle cx="12" cy="14" r="2.5"></circle>
-        </svg>
-        <span class="rem-title">Magic Remote</span>
-        <span class="rem-pct num" id="remote-pct">&mdash;</span>
-        <span class="rem-gauge" aria-label="battery meter"><i id="remote-gauge-fill"></i></span>
-        <span class="rem-model" id="remote-model-sub"></span>
       </div>
     </details>
 
@@ -1198,6 +1206,7 @@ async function tick() {
     const rem = d.remote;
     if (rem && rem.battery !== null && rem.battery !== undefined) {
       q('remote-badge').hidden = false;
+      q('remoteblock').hidden = false;
       q('remote-pct').textContent = rem.battery + '%';
       const gFill = q('remote-gauge-fill');
       gFill.style.width = Math.max(5, Math.min(100, rem.battery)) + '%';
@@ -1206,6 +1215,7 @@ async function tick() {
       q('remote-badge').title = (rem.model || 'Magic Remote') + (rem.firmware ? ' · Firmware: ' + rem.firmware : '') + (rem.mac ? ' · Bluetooth: ' + rem.mac : '');
     } else {
       q('remote-badge').hidden = true;
+      q('remoteblock').hidden = true;
     }
 
     const dr = pic.dynamicRange || '';
@@ -1323,8 +1333,8 @@ async function tick() {
     } else {
       q('spec-tcon-item').hidden = true;
     }
-    const hasRemote = !q('remote-badge').hidden;
-    if (q('disc-hwinfo')) q('disc-hwinfo').hidden = !hasHw && !hasRemote;
+    // The remote has its own section now, so System info stands on its own.
+    if (q('disc-hwinfo')) q('disc-hwinfo').hidden = !hasHw;
 
     /* Capability-driven: an LCD/QNED set has no panel-hours counter, no
        compensation cycle and no Pixel Refresher, so hide the block entirely
@@ -1433,7 +1443,7 @@ async function tick() {
     const st_ = d.appStorage;
     q('appstore-cell').hidden = !st_;
     if (st_) {
-      q('appstore').textContent = (st_.freeMb / 1024).toFixed(1) + ' GB free';
+      q('appstore').textContent = (st_.freeMb / 1024).toFixed(1);
       q('appstore-sub').textContent = `${st_.pct}% of ${(st_.totalMb/1024).toFixed(1)} GB used`;
     }
     // Sets without an ambient sensor still answer, reporting 65535; the server
@@ -2206,11 +2216,22 @@ function flowColumns(host, n) {
   items.forEach(el => cols[0].appendChild(el));
   const h = items.map(el => el.getBoundingClientRect().height);
   cols.forEach(c => { while (c.firstChild) c.removeChild(c.firstChild); });
+  /*
+   * data-col pins a group to a column, so related ones stay together however
+   * tall they happen to be. It is ignored when there are fewer columns than
+   * the number asks for, and anything unpinned goes to the shortest column.
+   */
   const tally = new Array(n).fill(0);
   items.forEach((el, i) => {
     el.classList.remove('lhead');
-    let k = 0;
-    for (let j = 1; j < n; j++) if (tally[j] < tally[k]) k = j;
+    const pin = parseInt(el.getAttribute('data-col'), 10);
+    let k;
+    if (!isNaN(pin) && pin >= 0 && pin < n) {
+      k = pin;
+    } else {
+      k = 0;
+      for (let j = 1; j < n; j++) if (tally[j] < tally[k]) k = j;
+    }
     cols[k].appendChild(el);
     tally[k] += h[i];
   });
