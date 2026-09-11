@@ -27,6 +27,8 @@ Once connected to your MQTT broker, Home Assistant automatically discovers **up 
 | `button` | `button.lg_tv_pause` | Pause | Pause media playback |
 | `button` | `button.lg_tv_play_pause` | Play / Pause | Toggle media playback |
 | `button` | `button.lg_tv_stop` | Stop | Stop media playback |
+| `switch` | `switch.lg_tv_oled_screen_shift` | OLED Screen Shift | Pixel orbiting, on OLED sets |
+| `select` | `select.lg_tv_oled_logo_dimming` | OLED Logo Dimming | Local logo dimming: Off, Light, High |
 | `button` | `button.lg_tv_screensaver` | Start Screensaver | Immediately trigger webOS screensaver |
 | `text` | `text.lg_tv_screen_notification` | Screen Notification | Send custom toast messages to TV screen |
 | `button` | `button.lg_tv_restart` | Restart TV | Reboots the TV (requires `allowPower: true`) |
@@ -49,8 +51,6 @@ Playback reaches an HDMI source over CEC, where the TV has only one key for both
 | `sensor` | `sensor.lg_tv_oled_failure_alerts` | OLED Compensation Failures | Total compensation failure alerts recorded on set |
 | `binary_sensor` | `binary_sensor.lg_tv_oled_asbl_dimmer` | OLED ASBL Protection | State of Auto Static Brightness Limiter / GSR dimmer |
 | `binary_sensor` | `binary_sensor.lg_tv_screen_saver_active` | Screen Saver | Whether a screen saver is on screen now; withheld on sets that do not report it |
-| `sensor` | `sensor.lg_tv_oled_screen_shift` | OLED Screen Shift | Pixel orbiting state (`ON` / `OFF`) |
-| `sensor` | `sensor.lg_tv_oled_logo_dimming` | OLED Logo Dimming | Logo luminance reduction (`Low`, `Strong`, `Off`) |
 
 ### HDMI 2.1 & Live Stream Telemetry
 | Domain | Entity ID | Name | Description |

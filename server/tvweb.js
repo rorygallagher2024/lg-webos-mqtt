@@ -2475,6 +2475,10 @@ function detectLogoLight(cb) {
 
 var SLEEP_TIMER_VALUES = ['off', '10', '30', '60', '90', '120'];
 
+// What the settings service accepts for logoLuminanceAdjust, per
+// getSystemSettingValues on a B8. "strong" is the strongest, not an on/off.
+var LOGO_DIMMING_VALUES = ['off', 'light', 'strong'];
+
 function doControl(action, value, cb) {
   if (!CONFIG.allowControl) return cb({ ok: false, error: 'controls disabled in config' });
 
@@ -2674,6 +2678,28 @@ function doControl(action, value, cb) {
                   function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
 
     // Front panel LEDs. Both live in the "option" category.
+    /*
+     * Both live in the picture category and are OLED panel protections, not
+     * picture settings: screenShift takes on/off, logoLuminanceAdjust takes
+     * off/light/strong. The settings service publishes the accepted values
+     * through getSystemSettingValues, and a rejected one returns false rather
+     * than erroring, so an unsupported value simply does not take.
+     */
+    case 'screenShift':
+      var shiftOn = (value === true || value === 'on' || value === 'ON' || value === 'true');
+      return luna('com.webos.service.settings/setSystemSettings',
+                  { category: 'picture', settings: { screenShift: shiftOn ? 'on' : 'off' } },
+                  function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
+
+    case 'logoDimming':
+      var logoVal = String(value || '').trim().toLowerCase();
+      if (LOGO_DIMMING_VALUES.indexOf(logoVal) === -1) {
+        return cb({ ok: false, error: 'logo dimming takes ' + LOGO_DIMMING_VALUES.join(', ') });
+      }
+      return luna('com.webos.service.settings/setSystemSettings',
+                  { category: 'picture', settings: { logoLuminanceAdjust: logoVal } },
+                  function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
+
     case 'standbyLight':
     case 'logoLight':
       var lightKey = (action === 'standbyLight') ? 'standByLight' : 'logoLight';
@@ -3546,7 +3572,22 @@ function setupHomeAssistant() {
   MQTT_STATUS.tls = useTls;
   mqttStatus('connecting', '');
 
+  /*
+   * Entities published under a different component than they are now. Home
+   * Assistant keys a discovered entity on its config topic, so a sensor that
+   * became a switch is not replaced by the switch - it is left behind, still
+   * holding the last value it was sent.
+   */
+  var RETIRED_ENTITIES = [
+    { type: 'sensor', id: 'oled_screen_shift' },
+    { type: 'sensor', id: 'oled_logo_dimming' }
+  ];
+
   function publishDiscovery() {
+    for (var r = 0; r < RETIRED_ENTITIES.length; r++) {
+      mqttClient.publish(discPfx + '/' + RETIRED_ENTITIES[r].type + '/' + devId + '/' +
+                         RETIRED_ENTITIES[r].id + '/config', '', true);
+    }
     var entities = [
       {
         type: 'sensor', id: 'soc_temperature',
@@ -4014,20 +4055,35 @@ function setupHomeAssistant() {
         }
       },
       {
-        type: 'sensor', id: 'oled_screen_shift',
+        /*
+         * Both of these are settings rather than readings, so they carry their
+         * own state and need no separate sensor. The panel protections beside
+         * them - ASBL, GSR - are hardware behaviour and stay read-only.
+         */
+        type: 'switch', id: 'oled_screen_shift',
         payload: {
           name: 'OLED Screen Shift',
+          command_topic: pfx + '/command/screenShift',
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.oled.screen_shift if value_json.oled else "Unknown" }}',
+          value_template: '{{ ("ON" if value_json.oled.screen_shift == "on" else "OFF") if value_json.oled and value_json.oled.screen_shift else none }}',
+          payload_on: 'on',
+          payload_off: 'off',
+          state_on: 'ON',
+          state_off: 'OFF',
           icon: 'mdi:arrow-all'
         }
       },
       {
-        type: 'sensor', id: 'oled_logo_dimming',
+        type: 'select', id: 'oled_logo_dimming',
         payload: {
           name: 'OLED Logo Dimming',
+          command_topic: pfx + '/command/logoDimming',
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.oled.logo_dimming if value_json.oled else "Unknown" }}',
+          // LG calls the strongest setting "strong"; the TV's own menu shows it
+          // as High, and so does the dashboard.
+          options: ['Off', 'Light', 'High'],
+          command_template: '{{ {"Off":"off","Light":"light","High":"strong"}[value] }}',
+          value_template: '{{ {"off":"Off","light":"Light","strong":"High"}.get(value_json.oled.logo_dimming, "Off") if value_json.oled and value_json.oled.logo_dimming else none }}',
           icon: 'mdi:television-guide'
         }
       },

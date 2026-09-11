@@ -577,14 +577,14 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
               <div class="prot-title">Screen Shift <span class="prot-sub">&middot; Pixel Orbiting</span></div>
               <div class="prot-desc">Subtly shifts the entire picture by micro-increments over time to disperse static edge wear</div>
             </div>
-            <div class="prot-status"><span class="pill" id="shift-pill">&mdash;</span></div>
+            <div class="prot-status"><button class="pill" id="shift-pill" onclick="toggleScreenShift()" title="Switch pixel orbiting on or off">&mdash;</button></div>
           </div>
           <div class="prot-row" id="logo-row" hidden>
             <div class="prot-main">
               <div class="prot-title">Adjust Logo Brightness <span class="prot-sub">&middot; Local Logo Dimming</span></div>
               <div class="prot-desc">Selectively dims only static logo/HUD pixels locally while preserving full brightness for the rest of the picture</div>
             </div>
-            <div class="prot-status"><span class="pill" id="logo-pill">&mdash;</span></div>
+            <div class="prot-status"><button class="pill" id="logo-pill" onclick="cycleLogoDimming()" title="Cycle Off, Light, High">&mdash;</button></div>
           </div>
         </div>
       </details>
@@ -1389,6 +1389,7 @@ async function tick() {
       q('shift-row').hidden = false;
       const pill = q('shift-pill');
       const on = /on/i.test(o.screen_shift);
+      shiftNow = on ? 'on' : 'off';
       pill.textContent = on ? 'On' : 'Off';
       pill.className = 'pill ' + (on ? 'good' : 'idle');
       hasProt = true;
@@ -1400,6 +1401,7 @@ async function tick() {
       q('logo-row').hidden = false;
       const pill = q('logo-pill');
       const val = String(o.logo_dimming).toLowerCase();
+      logoNow = val;
       let label = val.charAt(0).toUpperCase() + val.slice(1);
       if (val === 'strong') label = 'High';
       pill.textContent = label;
@@ -1560,6 +1562,19 @@ async function c(action, value) {
     setTimeout(tick, 320);
     return j;
   } catch (e) { showErr(e.message); }
+}
+/*
+ * The two settable panel protections. Both read back from the next poll, so
+ * neither writes its own label - the state stays the TV's to report.
+ */
+let shiftNow = null, logoNow = null;
+function toggleScreenShift() {
+  c('screenShift', shiftNow === 'on' ? 'off' : 'on');
+}
+function cycleLogoDimming() {
+  const order = ['off', 'light', 'strong'];
+  const next = order[(order.indexOf(logoNow) + 1) % order.length];
+  c('logoDimming', next);
 }
 function toggleLight(which) {
   const el = q(which === 'standbyLight' ? 'lt_standby' : 'lt_logo');
