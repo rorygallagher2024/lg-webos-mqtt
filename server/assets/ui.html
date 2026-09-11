@@ -739,8 +739,8 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <div id="pv-lmt"></div>
   <div class="sub" id="pv-adnote" style="margin-top:8px"></div>
   <div class="btns" style="margin-top:14px;max-width:520px">
-    <button onclick="privAction('resetAdId')">Reset advertising ID</button>
-    <button onclick="privAction('clearAdCookies')">Clear ad cookies</button>
+    <button id="adid-reset" onclick="privAction('resetAdId')">Reset advertising ID</button>
+    <button id="adcookies-clear" onclick="privAction('clearAdCookies')">Clear ad cookies</button>
   </div>
 
   <details class="pv-d">
@@ -755,7 +755,9 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <summary>Background services <span class="cur" id="pv-daemons-cur"></span></summary>
   <div class="pv-sub">Whether LG's data-collection services are currently running. A
     service can be running while its permission is switched off &mdash; it simply has
-    nothing it is allowed to send.</div>
+    nothing it is allowed to send. The two marked <b>on demand</b> are started by the
+    service bus whenever anything asks them a question, so their running state is not a
+    choice the TV made. The other two are supervised jobs and can be held down.</div>
   <div id="pv-daemons"></div>
   </details>
 
@@ -1610,14 +1612,25 @@ async function loadPrivacy() {
     /* "Assigned" set in the heading face read as a section title rather than
        the state of the ID. It is a reading like any other in this panel, so it
        gets a row and a pill. */
+    // available === false means the call does not exist on this firmware, which
+    // is not the same answer as "no identifier assigned".
+    const adOk = ad.available !== false;
     q('pv-adid').innerHTML = pvRow('Advertising ID',
-      ad.present ? 'The value is deliberately not displayed here.'
-                 : 'No identifier is currently assigned.',
-      `<span class="pill ${ad.present ? 'warn' : 'good'}">${ad.present ? 'Assigned' : 'None'}</span>`);
+      !adOk ? 'This firmware does not answer the call that reads it.'
+            : ad.present ? 'The value is deliberately not displayed here.'
+                         : 'No identifier is currently assigned.',
+      !adOk ? '<span class="pill idle">Not readable</span>'
+            : `<span class="pill ${ad.present ? 'warn' : 'good'}">${ad.present ? 'Assigned' : 'None'}</span>`);
     q('pv-lmt').innerHTML = pvRow(
       ad.limitTrackingLabel || 'Limit ad tracking',
-      ad.limitTrackingDetail || '',
-      `<span class="pill ${ad.limitTracking ? 'good' : 'warn'}">${ad.limitTracking ? 'On' : 'Off'}</span>`);
+      adOk ? (ad.limitTrackingDetail || '') : 'Read from the same call, so it is unknown here.',
+      !adOk ? '<span class="pill idle">Unknown</span>'
+            : `<span class="pill ${ad.limitTracking ? 'good' : 'warn'}">${ad.limitTracking ? 'On' : 'Off'}</span>`);
+    // The two ad actions go through the same service, so they cannot work either.
+    for (const id of ['adid-reset', 'adcookies-clear']) {
+      const btn = q(id);
+      if (btn) btn.disabled = !adOk;
+    }
 
     // consent flags
     const c = d.consent || { known: [], other: [] };
@@ -1659,10 +1672,21 @@ async function loadPrivacy() {
       ? onCount + ' of ' + allConsent.length + ' on' : '';
 
     // services
-    q('pv-daemons').innerHTML = (d.daemons || []).map(x => pvRow(
-      x.label, x.detail,
-      `<span class="pill ${x.running ? 'idle' : 'good'}">${x.running ? 'Running' : 'Stopped'}</span>`)).join('');
     const dae = d.daemons || [];
+    q('pv-daemons').innerHTML = dae.map(x => {
+      const state = x.running ? 'Running' : 'Stopped';
+      const cls = x.running ? 'idle' : 'good';
+      if (x.onDemand) {
+        return pvRow(esc(x.label), esc(x.detail) +
+          ' <span class="k">&middot; on demand, so asking it anything starts it</span>',
+          `<span class="pill idle fixed">${state}</span>`);
+      }
+      const note = x.heldDown ? ' <span class="k">&middot; kept stopped at boot</span>' : '';
+      const pill = (x.stoppable && cw)
+        ? `<button class="pill ${cls}" data-svc="${esc(x.name)}" data-next="${x.running ? '0' : '1'}">${state}</button>`
+        : `<span class="pill ${cls}">${state}</span>`;
+      return pvRow(esc(x.label), esc(x.detail) + note, pill);
+    }).join('');
     q('pv-daemons-cur').textContent = dae.length
       ? dae.filter(x => x.running).length + ' of ' + dae.length + ' running' : '';
 
@@ -1705,6 +1729,15 @@ q('pv-consent').addEventListener('click', async (ev) => {
   btn.textContent = '...';
   const r = await c('consent', { key: btn.dataset.key, enabled: btn.dataset.next === '1' });
   if (!r || !r.ok) { btn.disabled = false; loadPrivacy(); return; }
+  loadPrivacy();
+});
+
+q('pv-daemons').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button.pill[data-svc]');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = '...';
+  await c('service', { name: btn.dataset.svc, enabled: btn.dataset.next === '1' });
   loadPrivacy();
 });
 

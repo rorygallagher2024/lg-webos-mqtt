@@ -104,7 +104,8 @@ Store or one that does not.
   content recognition is actually running and sampling frames, your advertising
   identifier and whether ad tracking is limited, every data-collection
   agreement recorded on the TV, and which of LG's collection
-  services are alive. The agreements can be switched off from the panel and the
+  services are alive &mdash; the two the service bus starts on demand are marked
+  as such, and the two upstart supervises can be switched off for good. The agreements can be switched off from the panel and the
   change survives a reboot; acceptance of the terms themselves is left to the
   TV's own menus. Includes buttons to reset the advertising ID, clear ad
   cookies, and toggle the on-TV ad blocker. Deep link: `/?privacy=1`.
