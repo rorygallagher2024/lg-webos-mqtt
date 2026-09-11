@@ -105,31 +105,6 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 .theme-toggle:hover{color:var(--w100);border-color:var(--w35)}
 
 /* Remote peripheral badge */
-.remote-badge{
-  display:inline-flex;align-items:center;gap:7px;
-  padding:4px 9px;border:1px solid var(--w10);border-radius:3px;
-  background:var(--w06);font-size:12px;color:var(--w70);
-  cursor:default;user-select:none;
-}
-.remote-badge .rem-icon{color:var(--w60);flex-shrink:0}
-.remote-badge .rem-title{font-weight:600;color:var(--w90);letter-spacing:.02em}
-.remote-badge .rem-pct{font-weight:500;color:var(--w100)}
-.remote-badge .rem-gauge{
-  width:18px;height:8px;border:1px solid var(--w35);border-radius:2px;
-  position:relative;padding:1px;display:inline-flex;box-sizing:border-box;margin:0 2px;
-}
-.remote-badge .rem-gauge::after{
-  content:'';position:absolute;right:-3px;top:1px;width:2px;height:4px;
-  background:var(--w35);border-radius:0 1px 1px 0;
-}
-.remote-badge .rem-gauge i{
-  display:block;height:100%;border-radius:1px;background:var(--green);
-  transition:width .3s,background .3s;
-}
-.remote-badge .rem-model{
-  font-size:11px;color:var(--w50);letter-spacing:.04em;
-  border-left:1px solid var(--w12);padding-left:7px;margin-left:2px;
-}
 
 .src{text-align:right}
 .src .t{font-family:'Outfit';font-weight:300;font-size:clamp(15px,1.8vw,19px);color:var(--w80)}
@@ -596,17 +571,10 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
     <div class="grp-sec" id="remoteblock" data-col="2" hidden>
       <div class="grp">Magic remote</div>
-      <div class="remote-badge" id="remote-badge" hidden style="margin-top:12px">
-        <svg class="rem-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="7" y="2" width="10" height="20" rx="3"></rect>
-          <circle cx="12" cy="6" r="1" fill="currentColor"></circle>
-          <circle cx="12" cy="14" r="2.5"></circle>
-        </svg>
-        <span class="rem-title">Magic Remote</span>
-        <span class="rem-pct num" id="remote-pct">&mdash;</span>
-        <span class="rem-gauge" aria-label="battery meter"><i id="remote-gauge-fill"></i></span>
-        <span class="rem-model" id="remote-model-sub"></span>
-      </div>
+      <div class="lbl">Battery</div>
+      <div class="n num" style="margin-top:10px"><span id="remote-pct">&mdash;</span><em>%</em></div>
+      <div class="track" style="margin-top:16px;max-width:220px"><b id="remote-gauge-fill" style="width:0%"></b></div>
+      <div class="sub" id="remote-model-sub"></div>
     </div>
 
     <div class="grp-sec" id="advblock" data-col="1">
@@ -1205,16 +1173,14 @@ async function tick() {
 
     const rem = d.remote;
     if (rem && rem.battery !== null && rem.battery !== undefined) {
-      q('remote-badge').hidden = false;
       q('remoteblock').hidden = false;
-      q('remote-pct').textContent = rem.battery + '%';
+      q('remote-pct').textContent = rem.battery;
       const gFill = q('remote-gauge-fill');
       gFill.style.width = Math.max(5, Math.min(100, rem.battery)) + '%';
       gFill.style.background = rem.battery <= 15 ? 'var(--red)' : rem.battery <= 30 ? 'var(--cand)' : 'var(--green)';
       q('remote-model-sub').textContent = rem.model ? rem.model.replace(/^LGE\s*/i, '') : 'MR22';
-      q('remote-badge').title = (rem.model || 'Magic Remote') + (rem.firmware ? ' · Firmware: ' + rem.firmware : '') + (rem.mac ? ' · Bluetooth: ' + rem.mac : '');
+      q('remoteblock').title = (rem.model || 'Magic Remote') + (rem.firmware ? ' · Firmware: ' + rem.firmware : '') + (rem.mac ? ' · Bluetooth: ' + rem.mac : '');
     } else {
-      q('remote-badge').hidden = true;
       q('remoteblock').hidden = true;
     }
 
