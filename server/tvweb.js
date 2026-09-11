@@ -1730,15 +1730,15 @@ function hdmiInputs(cb) {
 
 // ---------------------------------------------------------------- privacy
 /*
- * Read-only view of LG's data collection, plus the two changes the platform
- * itself offers an API for.
+ * View of LG's data collection, and the changes the platform offers an API
+ * for.
  *
- * The consent flags live in /var/luna/preferences/eula. There is no Luna
- * setter for them - the Settings UI writes that file directly - so this
- * REPORTS them and does not attempt to change them. Turning them off is done
- * in the TV's own menus (General > About This TV > User Agreements).
+ * The consent flags are mirrored into /var/luna/preferences/eula, but
+ * com.webos.settingsservice owns them: it regenerates that file at boot, which
+ * is why editing the file looks like it works and reverts. Reads come from the
+ * file because it costs no fork; writes go through the service.
  *
- * The two actions here are genuine Luna calls, not file edits: rotating the
+ * The other actions here are genuine Luna calls, not file edits: rotating the
  * advertising identifier and clearing ad cookies.
  *
  * Labels are deliberately plain. "ACR" and "LMT" mean nothing to most people,

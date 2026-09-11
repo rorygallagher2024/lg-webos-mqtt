@@ -174,28 +174,41 @@ Licence texts ship alongside them in `server/assets/fonts/`.
 
 ---
 
-## Consent flags cannot be changed from outside the Settings UI
+## Consent flags are owned by the settings service, not the file
 
-Writing `/var/luna/preferences/eula` looks like it works and does not. Tested
-on a live set:
+`/var/luna/preferences/eula` is a mirror. `com.webos.settingsservice` holds the
+values under the `eulaStatus` key and regenerates the file, and its `eula.md5`
+sidecar, at boot - so editing the file directly reverts. Flipping
+`thirdPartySharingAllowed` in the file survived inspection, the dashboard and 75
+seconds of runtime, then came back byte-identical after a reboot (md5
+`85aca988...`, mtime set during boot).
 
-1. Flipped `thirdPartySharingAllowed` from `true` to `false`, validating the
-   JSON before replacing the file and regenerating `eula.md5` (which is simply
-   `md5sum` output, path included).
-2. The change persisted, was picked up by the dashboard, and survived 75
-   seconds with nothing rewriting it. All collection daemons stayed healthy.
-3. **After a genuine reboot the file was byte-identical to the original**
-   (md5 back to `85aca988…`, mtime set during boot). The platform restores or
-   regenerates it at startup.
+Writing through the service persists:
 
-So the panel reports these flags and does not offer to change them. A toggle
-here would appear to work, survive inspection, and quietly revert on the next
-restart - worse than no toggle, because it manufactures confidence. Change them
-on the TV under Settings > General > About This TV > User Agreements.
+```
+luna-send -n 1 -f luna://com.webos.settingsservice/getSystemSettings '{"keys":["eulaStatus"]}'
+luna-send -n 1 -f luna://com.webos.settingsservice/setSystemSettings '{"settings":{"eulaStatus":{ ... }}}'
+```
 
-Note also that even a flag that *did* stick would only prove what the TV has
-recorded locally. It would not prove LG honours it, and the value may be
-mirrored against the account server-side.
+Tested on a B8 (webOS 4.4.3): `cookiesAllowed` set to `true`, still `true` after
+a reboot, in both the service and the regenerated file. Reported first on a C8
+(webOS 4.4.0) in
+[#61](https://github.com/rorygallagher2024/lg-webos-mqtt/issues/61).
+
+Two quirks. `getSystemSettings` answers for `eulaStatus` only when no `category`
+is given - `general`, `option` and the rest return "There is no matched result
+from DB". And the setter takes the whole `eulaStatus` object, so changing one
+flag is a read-modify-write.
+
+A flag that sticks still only records what the TV stored. It does not prove LG
+honours it, and the value may be mirrored against the account server-side.
+
+## luna-send prints nothing without a tty
+
+Over a non-interactive ssh command it returns an empty string and exit 0, which
+reads as a call that succeeded silently. Use `ssh -tt`. Calls made by `tvweb.js`
+on the TV itself are unaffected - this bites when testing by hand, and it is an
+easy way to convince yourself a change worked when nothing ran.
 
 ## tvpower reboot does not reboot
 
