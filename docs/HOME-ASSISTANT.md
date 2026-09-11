@@ -92,7 +92,7 @@ Playback reaches an HDMI source over CEC, where the TV has only one key for both
 | `sensor` | `sensor.lg_tv_flash_health` | Flash Storage Health | eMMC remaining health estimate (`>90% (Healthy)`) |
 | `sensor` | `sensor.lg_tv_flash_wear` | Flash Wear Level | JEDEC write-cycle consumption (`0–10%`) |
 | `sensor` | `sensor.lg_tv_uptime` | Uptime | TV uptime in seconds |
-| `sensor` | `sensor.lg_tv_tvweb_version` | TVWeb Version | Version of tvweb itself, not TV firmware (diagnostic) |
+| `sensor` | `sensor.lg_tv_tvweb_version` | Server Version | Version of this server, not TV firmware (diagnostic) |
 
 ---
 

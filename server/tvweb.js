@@ -27,7 +27,7 @@ var zlib = require('zlib');
  * a link to /releases/tag/v<version>, so a value with no tag behind it gives a
  * 404 rather than a wrong page.
  */
-var TVWEB_VERSION = '0.27.0';
+var TVWEB_VERSION = '0.28.0';
 
 // ---------------------------------------------------------------- config
 var CONFIG = {
@@ -3779,14 +3779,15 @@ function setupHomeAssistant() {
       },
       {
         /*
-         * tvweb's own version, not the TV's - the device's sw_version already
-         * carries the firmware. Named for the program so the two cannot be
-         * read as each other on a device page that shows both. Diagnostic: it
-         * belongs beside the firmware, not among the readings.
+         * This server's own version, not the TV's - the device's sw_version
+         * already carries the firmware. The id stays tvweb_version: it is the
+         * unique_id an existing install is already discovered under, and
+         * changing it would orphan that entity and register a second one.
+         * Diagnostic: it belongs beside the firmware, not among the readings.
          */
         type: 'sensor', id: 'tvweb_version',
         payload: {
-          name: 'TVWeb Version',
+          name: 'Server Version',
           state_topic: telemetryTopic,
           value_template: '{{ value_json.tvwebVersion }}',
           entity_category: 'diagnostic',
