@@ -73,7 +73,7 @@ body{
   font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   font-weight:400;font-size:15px;line-height:1.5;
   padding:var(--gut) var(--gut) calc(var(--gut) * 2);
-  max-width:1160px;margin:0 auto;
+  max-width:1440px;margin:0 auto;
   -webkit-font-smoothing:antialiased;
 }
 /* Live numerals sit in tabular figures. A proportional digit set makes a
@@ -105,31 +105,6 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 .theme-toggle:hover{color:var(--w100);border-color:var(--w35)}
 
 /* Remote peripheral badge */
-.remote-badge{
-  display:inline-flex;align-items:center;gap:7px;
-  padding:4px 9px;border:1px solid var(--w10);border-radius:3px;
-  background:var(--w06);font-size:12px;color:var(--w70);
-  cursor:default;user-select:none;
-}
-.remote-badge .rem-icon{color:var(--w60);flex-shrink:0}
-.remote-badge .rem-title{font-weight:600;color:var(--w90);letter-spacing:.02em}
-.remote-badge .rem-pct{font-weight:500;color:var(--w100)}
-.remote-badge .rem-gauge{
-  width:18px;height:8px;border:1px solid var(--w35);border-radius:2px;
-  position:relative;padding:1px;display:inline-flex;box-sizing:border-box;margin:0 2px;
-}
-.remote-badge .rem-gauge::after{
-  content:'';position:absolute;right:-3px;top:1px;width:2px;height:4px;
-  background:var(--w35);border-radius:0 1px 1px 0;
-}
-.remote-badge .rem-gauge i{
-  display:block;height:100%;border-radius:1px;background:var(--green);
-  transition:width .3s,background .3s;
-}
-.remote-badge .rem-model{
-  font-size:11px;color:var(--w50);letter-spacing:.04em;
-  border-left:1px solid var(--w12);padding-left:7px;margin-left:2px;
-}
 
 .src{text-align:right}
 .src .t{font-family:'Outfit';font-weight:300;font-size:clamp(15px,1.8vw,19px);color:var(--w80)}
@@ -172,11 +147,11 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 /* ---- the spectacle ---- */
 .hero{margin:clamp(20px,4vw,34px) 0 0;display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap}
 .hero .big{font-family:'Outfit';font-weight:200;color:var(--hot,var(--w100));transition:color .8s ease;
-  font-size:clamp(68px,13vw,130px);line-height:.86;letter-spacing:-.025em}
+  font-size:clamp(56px,7vw,96px);line-height:.86;letter-spacing:-.025em}
 .hero .deg{font-size:.34em;color:var(--w50);vertical-align:super;letter-spacing:0}
 /* Nothing to show. Drop to ordinary size when temperature is unavailable. */
 .hero .big.none{font-size:clamp(36px,6vw,54px);color:var(--w50)}
-.hero .side{flex:1;min-width:210px;padding-bottom:6px}
+.hero .side{flex:1;min-width:150px;padding-bottom:6px}
 .trace{display:flex;align-items:flex-end;gap:2px;height:46px;margin-bottom:9px}
 .trace i{flex:1;background:var(--w25);min-height:1px;display:block;transition:background .8s ease}
 .trace i.warm{background:color-mix(in srgb,var(--hot,var(--w100)) 45%,transparent)}
@@ -186,7 +161,7 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 
 /* ---- readouts ---- */
 .readouts{margin-top:0;border-top:1px solid var(--w06)}
-.r{display:grid;grid-template-columns:clamp(144px,17%,176px) 1fr 92px;gap:20px;align-items:center;
+.r{display:grid;grid-template-columns:clamp(118px,15%,176px) 1fr 84px;gap:14px;align-items:center;
    padding:15px 0;border-bottom:1px solid var(--w06)}
 .r .v{font-family:'Outfit';font-weight:200;font-size:26px;color:var(--w100);text-align:right;line-height:1}
 .r .v small{font-size:13px;color:var(--w50);margin-left:4px;font-family:'Manrope';font-weight:400}
@@ -210,6 +185,40 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 .cols .sub{overflow:visible;text-overflow:clip}
 
 /* ---- layout grid (2-column on desktop, single on mobile) ---- */
+/* Tabs. The page had grown to four things stacked vertically, three of which
+   matter only some of the time. */
+.tabs{display:flex;gap:2px;margin-top:clamp(20px,3vw,30px);
+      border-bottom:1px solid var(--w12);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{appearance:none;background:none;border:0;border-bottom:2px solid transparent;
+      font-family:'Manrope';font-weight:500;font-size:12px;letter-spacing:.14em;
+      text-transform:uppercase;color:var(--w50);padding:12px 16px;cursor:pointer;
+      white-space:nowrap;margin-bottom:-1px}
+.tabs button:hover{color:var(--w80)}
+@media (max-width:560px){ .tabs button{padding:12px 10px;letter-spacing:.1em} }
+.tabs button[aria-selected="true"]{color:var(--w100);border-bottom-color:var(--w100)}
+#panels{margin-top:clamp(24px,3.5vw,36px)}
+/* A panel is the whole width now, so the columns come from the panel itself
+   rather than from the page splitting in two. */
+.panel .col-sec{display:none}
+/*
+ * Columns are real containers, filled once by flowColumns(). CSS multi-column
+ * balances the whole flow by height, so opening any disclosure re-ran the
+ * balance and moved a group the reader was not even looking at. Assigned
+ * elements cannot migrate.
+ */
+.lcols{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));
+       gap:clamp(30px,4vw,52px);align-items:start}
+.lcol{display:flex;flex-direction:column;gap:clamp(26px,3vw,34px);min-width:0}
+/* The rule between groups separated them when they were one stack. In columns
+   the top of every column is a head, so only the ones below a sibling keep it -
+   otherwise column one starts higher than the rest and misses the rule. */
+/* The gap spaces the column, so a child's own top margin only offsets the
+   first one - which is how column two came to start lower than column one.
+   Two classes deep on purpose: .set and .grp-sec set their own margin later in
+   this sheet and would otherwise win on source order. */
+.lcols .lcol>*{margin-top:0}
+.lcol>.lhead{padding-top:0;border-top:0}
 .grid-wrap{display:grid;grid-template-columns:1fr;gap:clamp(32px,5vw,56px);margin-top:clamp(28px,4vw,44px)}
 @media (min-width:960px){
   .grid-wrap{grid-template-columns:minmax(380px,1.15fr) minmax(340px,1fr);gap:clamp(36px,5vw,60px);align-items:start}
@@ -298,6 +307,16 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 
 /* ---- privacy pane ---- */
 .priv{margin-top:clamp(30px,5vw,48px);padding-top:clamp(24px,4vw,36px);border-top:1px solid var(--w12)}
+.priv.panel{margin-top:0;padding-top:0;border-top:0}
+.priv.panel>.lbl{display:none}
+/* The two status sections sit side by side: each is a handful of short rows,
+   and full width left the pill stranded from the label it belongs to. */
+.pv-top{display:grid;grid-template-columns:1fr;gap:0 clamp(30px,4vw,52px)}
+@media (min-width:900px){ .pv-top{grid-template-columns:repeat(2,1fr);align-items:start} }
+.pv-top .pv-h:first-child{margin-top:0}
+/* The long lists stay one column - a consent row is a sentence, not a tile -
+   but capped so the pill stays near what it describes on a wide screen. */
+.pv-d{max-width:940px}
 .pv-h{font-family:'Outfit';font-weight:300;font-size:clamp(20px,2.4vw,26px);color:var(--w100);margin:22px 0 4px}
 .pv-sub{font-size:13px;color:var(--w60);max-width:62ch;margin-bottom:16px}
 .pv-row{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;
@@ -339,7 +358,8 @@ button.pill[disabled]{cursor:default;opacity:.45}
 .pv-d>summary .cur{margin-left:auto;font-family:'Manrope';font-weight:500;font-size:12px;
   letter-spacing:.12em;text-transform:uppercase;color:var(--w60);white-space:nowrap}
 .pv-note{font-size:13px;color:var(--w60);border-left:2px solid var(--w25);padding:10px 14px;margin:16px 0;max-width:64ch}
-.cfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:18px 20px;max-width:840px;margin-top:4px}
+.cfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(232px,100%),1fr));
+  gap:18px 20px;max-width:840px;margin-top:4px}
 .cfg-f{display:flex;flex-direction:column;gap:7px;min-width:0}
 .cfg-f>label{font-weight:500;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--w60)}
 .cfg-f input{
@@ -352,7 +372,18 @@ button.pill[disabled]{cursor:default;opacity:.45}
 .cfg-f input:focus{border-color:var(--w60)}
 .cfg-f input::placeholder{color:var(--w35)}
 .cfg-f .hint{font-size:12px;color:var(--w35);line-height:1.4}
-.cfg-toggles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;max-width:840px;margin-top:14px}
+.cfg-toggles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));
+  gap:8px;max-width:840px;margin-top:14px}
+/* State and switch to one side, the form it describes to the other. The left
+   is sized to its content - a pill and a button - rather than to half the page. */
+.cfg-cols{display:grid;grid-template-columns:1fr;gap:clamp(26px,4vw,48px);align-items:start}
+@media (min-width:980px){
+  .cfg-cols{grid-template-columns:minmax(250px,0.52fr) minmax(0,1fr)}
+}
+.cfg-side .pv-row{border-bottom:0;padding-top:0}
+/* One switch does not need the width of the column it sits in. */
+.cfg-side .cfg-toggles{max-width:320px}
+.cfg-cols>*{min-width:0}
 .cfg-save{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:22px;max-width:840px}
 .cfg-save button{min-height:48px;padding:0 30px}
 .cfg-msg{font-size:13px;color:var(--w60)}
@@ -368,7 +399,7 @@ button.pill[disabled]{cursor:default;opacity:.45}
    into it would read as a missing port rather than an empty one. State is
    carried by fill and weight, the same way the selected controls are - the
    live port is the bright one. */
-.ports{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:14px}
+.ports{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:9px;margin-top:14px}
 .port{border:1px solid var(--w06);border-radius:4px;padding:13px 14px 14px;
   display:flex;flex-direction:column;min-height:112px}
 .port .ptop{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -462,12 +493,19 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
 
 
-<main class="grid-wrap" id="main-grid">
-  <!-- Left Column: Telemetry & Metrics -->
+<nav class="tabs" id="tabs" role="tablist">
+  <button type="button" role="tab" data-tab="control">Control</button>
+  <button type="button" role="tab" data-tab="metrics">Metrics</button>
+  <button type="button" role="tab" data-tab="privacy">Privacy</button>
+  <button type="button" role="tab" data-tab="mqtt">MQTT</button>
+</nav>
+
+<main id="panels">
+<section class="panel" id="tab-metrics" role="tabpanel" hidden>
   <div class="col-telemetry">
     <div class="col-sec">Metrics</div>
 
-    <div class="grp-sec first">
+    <div class="grp-sec first" data-col="0">
       <div class="grp">Temperature</div>
       <section class="hero" style="margin-top:0">
         <div>
@@ -484,12 +522,12 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       </section>
     </div>
 
-    <div class="grp-sec">
+    <div class="grp-sec" data-col="0">
       <div class="grp">System</div>
       <section class="readouts" id="readouts"></section>
     </div>
 
-    <div class="grp-sec" id="panelblock" hidden>
+    <div class="grp-sec" id="panelblock" data-col="2" hidden>
       <div class="grp">Display panel</div>
       <div class="lbl">Total power on hours</div>
       <div class="n num" style="margin-top:10px"><span id="ph">&mdash;</span><em>hours</em></div>
@@ -534,16 +572,28 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       </details>
     </div>
 
-    <div class="grp-sec">
+    <div class="grp-sec" data-col="1">
       <div class="grp">Storage</div>
-      <div class="cols">
+      <div id="appstore-cell" hidden>
+        <div class="lbl">App space</div>
+        <div class="n num" style="margin-top:10px"><span id="appstore">&mdash;</span><em>GB free</em></div>
+        <div class="sub" id="appstore-sub"></div>
+      </div>
+      <div class="cols" style="margin-top:24px">
         <div id="flashwear-cell"><div class="lbl">Flash wear</div><div class="v num" id="flashval">&mdash;</div><div class="sub">eMMC lifetime estimated</div></div>
         <div id="flashhealth-cell"><div class="lbl">Pre-EOL status</div><div class="v" id="flasheol">&mdash;</div><div class="sub">Drive's own assessment</div></div>
-        <div id="appstore-cell" hidden><div class="lbl">App space</div><div class="v num" id="appstore">&mdash;</div><div class="sub" id="appstore-sub"></div></div>
       </div>
     </div>
 
-    <div class="grp-sec">
+    <div class="grp-sec" id="remoteblock" data-col="2" hidden>
+      <div class="grp">Magic remote</div>
+      <div class="lbl">Battery</div>
+      <div class="n num" style="margin-top:10px"><span id="remote-pct">&mdash;</span><em>%</em></div>
+      <div class="track" style="margin-top:16px;max-width:220px"><b id="remote-gauge-fill" style="width:0%"></b></div>
+      <div class="sub" id="remote-model-sub"></div>
+    </div>
+
+    <div class="grp-sec" id="advblock" data-col="1">
       <div class="grp">Advanced</div>
       <details class="disc" id="disc-hwinfo" hidden style="border-top:0;margin-top:0">
       <summary>System info</summary>
@@ -584,17 +634,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
           <div class="prot-status"><span class="pill idle" id="spec-tcon">&mdash;</span></div>
         </div>
       </div>
-      <div class="remote-badge" id="remote-badge" hidden style="margin-top:14px">
-        <svg class="rem-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="7" y="2" width="10" height="20" rx="3"></rect>
-          <circle cx="12" cy="6" r="1" fill="currentColor"></circle>
-          <circle cx="12" cy="14" r="2.5"></circle>
-        </svg>
-        <span class="rem-title">Magic Remote</span>
-        <span class="rem-pct num" id="remote-pct">&mdash;</span>
-        <span class="rem-gauge" aria-label="battery meter"><i id="remote-gauge-fill"></i></span>
-        <span class="rem-model" id="remote-model-sub"></span>
-      </div>
     </details>
 
       <details class="disc" id="disc-hdmi">
@@ -610,7 +649,9 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     </div>
   </div>
 
-  <!-- Right Column: Interactive Controls -->
+</section>
+
+<section class="panel" id="tab-control" role="tabpanel" hidden>
   <div class="col-controls">
     <div class="col-sec">Control</div>
     <div id="err"></div>
@@ -707,14 +748,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       </form>
     </div>
 
-    <div class="set"><div class="lbl">Privacy &amp; data collection</div>
-      <div class="btns"><button id="privtoggle" onclick="togglePrivacy()">Show privacy panel</button></div>
-    </div>
-
-    <div class="set"><div class="lbl">Home Assistant Integration</div>
-      <div class="btns"><button id="mqtttoggle" onclick="toggleMqtt()">MQTT settings</button></div>
-    </div>
-
     <div class="set"><div class="lbl">Power</div>
       <div class="btns">
         <button id="poff" onclick="pw('powerOff')">Power off</button>
@@ -723,24 +756,30 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="sub" id="pwnote"></div>
     </div>
   </div>
-</main>
+</section>
 
-<section class="priv" id="privpane" hidden>
+<section class="priv panel" id="privpane" role="tabpanel" hidden>
   <div class="lbl">Privacy &amp; data collection</div>
 
-  <div class="pv-h" id="pv-acr-h">Screen content recognition</div>
-  <div class="pv-sub" id="pv-live-sub">&mdash;</div>
-  <div id="pv-live"></div>
+  <div class="pv-top">
+    <div>
+      <div class="pv-h" id="pv-acr-h">Screen content recognition</div>
+      <div class="pv-sub" id="pv-live-sub">&mdash;</div>
+      <div id="pv-live"></div>
+    </div>
 
-  <div class="pv-h">Advertising identifier</div>
-  <div class="pv-sub">A unique ID your TV hands to advertisers. Resetting it breaks the
-    link between your TV and any profile built from past activity.</div>
-  <div id="pv-adid"></div>
-  <div id="pv-lmt"></div>
-  <div class="sub" id="pv-adnote" style="margin-top:8px"></div>
-  <div class="btns" style="margin-top:14px;max-width:520px">
-    <button id="adid-reset" onclick="privAction('resetAdId')">Reset advertising ID</button>
-    <button id="adcookies-clear" onclick="privAction('clearAdCookies')">Clear ad cookies</button>
+    <div>
+      <div class="pv-h">Advertising identifier</div>
+      <div class="pv-sub">A unique ID your TV hands to advertisers. Resetting it breaks the
+        link between your TV and any profile built from past activity.</div>
+      <div id="pv-adid"></div>
+      <div id="pv-lmt"></div>
+      <div class="sub" id="pv-adnote" style="margin-top:8px"></div>
+      <div class="btns" style="margin-top:14px;max-width:520px">
+        <button id="adid-reset" onclick="privAction('resetAdId')">Reset advertising ID</button>
+        <button id="adcookies-clear" onclick="privAction('clearAdCookies')">Clear ad cookies</button>
+      </div>
+    </div>
   </div>
 
   <details class="pv-d">
@@ -784,18 +823,27 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   </details>
 </section>
 
-<section class="priv" id="mqttpane" hidden>
+<section class="priv panel" id="mqttpane" role="tabpanel" hidden>
   <div class="lbl">MQTT &amp; Home Assistant</div>
 
-  <div class="pv-row" style="margin-top:12px">
-    <div>
-      <div class="n">Bridge status</div>
-      <div class="d" id="cfg-status-detail">&mdash;</div>
+  <div class="cfg-cols">
+  <div class="cfg-side">
+    <div class="pv-row" style="margin-top:0">
+      <div>
+        <div class="n">Bridge status</div>
+        <div class="d" id="cfg-status-detail">&mdash;</div>
+      </div>
+      <div><span class="pill idle" id="cfg-status-pill">&mdash;</span></div>
     </div>
-    <div><span class="pill idle" id="cfg-status-pill">&mdash;</span></div>
+
+    <div class="cfg-toggles" style="margin-top:18px">
+      <button id="cfg-enabled" onclick="cfgToggle('cfg-enabled')">MQTT bridge</button>
+    </div>
+    <div class="sub" id="cfg-enabled-note" style="margin-top:8px"></div>
   </div>
 
-  <div class="pv-h">Broker</div>
+  <div class="cfg-main">
+  <div class="pv-h" style="margin-top:0">Broker</div>
   <div class="pv-sub">Where this TV publishes its telemetry. Home Assistant picks the
     entities up automatically once the broker is reachable.</div>
 
@@ -823,7 +871,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   </div>
 
   <div class="cfg-toggles">
-    <button id="cfg-enabled" onclick="cfgToggle('cfg-enabled')">MQTT bridge</button>
     <button id="cfg-tls" onclick="cfgToggle('cfg-tls')">TLS</button>
     <button id="cfg-verify" onclick="cfgToggle('cfg-verify')">Verify certificate</button>
   </div>
@@ -868,7 +915,10 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     <span class="cfg-msg" id="cfg-msg">Saving restarts the server. The dashboard reconnects on its own.</span>
   </div>
   <div class="sub" id="cfg-file" style="margin-top:14px"></div>
+  </div>
+  </div>
 </section>
+</main>
 
 <footer>
   <span id="uptime">&mdash;</span>
@@ -1088,6 +1138,7 @@ async function tick() {
     const d = await r.json();
     document.body.classList.remove('stale');
     q('err').style.display = 'none';
+    const firstData = !lastOk;
     lastOk = Date.now();
 
     const model = (d.device && d.device.model) || '';
@@ -1144,15 +1195,15 @@ async function tick() {
 
     const rem = d.remote;
     if (rem && rem.battery !== null && rem.battery !== undefined) {
-      q('remote-badge').hidden = false;
-      q('remote-pct').textContent = rem.battery + '%';
+      q('remoteblock').hidden = false;
+      q('remote-pct').textContent = rem.battery;
       const gFill = q('remote-gauge-fill');
       gFill.style.width = Math.max(5, Math.min(100, rem.battery)) + '%';
       gFill.style.background = rem.battery <= 15 ? 'var(--red)' : rem.battery <= 30 ? 'var(--cand)' : 'var(--green)';
       q('remote-model-sub').textContent = rem.model ? rem.model.replace(/^LGE\s*/i, '') : 'MR22';
-      q('remote-badge').title = (rem.model || 'Magic Remote') + (rem.firmware ? ' · Firmware: ' + rem.firmware : '') + (rem.mac ? ' · Bluetooth: ' + rem.mac : '');
+      q('remoteblock').title = (rem.model || 'Magic Remote') + (rem.firmware ? ' · Firmware: ' + rem.firmware : '') + (rem.mac ? ' · Bluetooth: ' + rem.mac : '');
     } else {
-      q('remote-badge').hidden = true;
+      q('remoteblock').hidden = true;
     }
 
     const dr = pic.dynamicRange || '';
@@ -1270,8 +1321,8 @@ async function tick() {
     } else {
       q('spec-tcon-item').hidden = true;
     }
-    const hasRemote = !q('remote-badge').hidden;
-    if (q('disc-hwinfo')) q('disc-hwinfo').hidden = !hasHw && !hasRemote;
+    // The remote has its own section now, so System info stands on its own.
+    if (q('disc-hwinfo')) q('disc-hwinfo').hidden = !hasHw;
 
     /* Capability-driven: an LCD/QNED set has no panel-hours counter, no
        compensation cycle and no Pixel Refresher, so hide the block entirely
@@ -1380,7 +1431,7 @@ async function tick() {
     const st_ = d.appStorage;
     q('appstore-cell').hidden = !st_;
     if (st_) {
-      q('appstore').textContent = (st_.freeMb / 1024).toFixed(1) + ' GB free';
+      q('appstore').textContent = (st_.freeMb / 1024).toFixed(1);
       q('appstore-sub').textContent = `${st_.pct}% of ${(st_.totalMb/1024).toFixed(1)} GB used`;
     }
     // Sets without an ambient sensor still answer, reporting 65535; the server
@@ -1484,6 +1535,9 @@ async function tick() {
     q('uptime').textContent = 'Up ' + (dd ? dd + 'd ' : '') + hh + 'h ' + mm + 'm   ·   load ' + (d.loadavg || []).join(' ');
     q('clock').textContent = new Date().toLocaleTimeString();
     setVersion(d.tvwebVersion);
+    // Several groups stay hidden until the first payload says the TV has them,
+    // so the columns are only worth filling once that has happened.
+    if (firstData) relayout(true);
   } catch (e) {
     document.body.classList.add('stale');
     if (Date.now() - lastOk > 6000) showErr(e.message || 'TV unreachable');
@@ -1562,7 +1616,7 @@ fetch(api('/api/caps')).then(r => r.json()).then(cp => {
 /* ---- privacy panel ----------------------------------------------------
    Loaded on demand: it costs several Luna calls, so there is no reason to
    poll it alongside the 2s telemetry tick. */
-let privOpen = false;
+
 
 function pvPill(on, goodWhenOff) {
   // For privacy, "off" is the desirable state, so the colouring is inverted
@@ -1852,13 +1906,40 @@ function onProcToggle(el) {
   if (el) el.addEventListener('toggle', function () { onProcToggle(el); });
 })();
 
-function togglePrivacy() {
-  privOpen = !privOpen;
-  q('privpane').hidden = !privOpen;
-  q('privtoggle').textContent = privOpen ? 'Hide privacy panel' : 'Show privacy panel';
-  q('privtoggle').classList.toggle('on', privOpen);
-  if (privOpen) { loadPrivacy(); q('privpane').scrollIntoView({behavior:'smooth', block:'start'}); }
+/*
+ * Tabs. The privacy and MQTT panels load on demand - privacy costs several Luna
+ * calls, and two of those start the service they ask - so neither is fetched
+ * until its tab is actually shown.
+ */
+const TABS = {
+  control: 'tab-control',
+  metrics: 'tab-metrics',
+  privacy: 'privpane',
+  mqtt:    'mqttpane'
+};
+let activeTab = null;
+
+function showTab(name) {
+  if (!TABS[name]) name = 'control';
+  activeTab = name;
+  for (const [key, id] of Object.entries(TABS)) {
+    const el = q(id);
+    if (el) el.hidden = key !== name;
+  }
+  document.querySelectorAll('#tabs button').forEach(b =>
+    b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  try { localStorage.setItem('tab', name); } catch (e) { /* private window */ }
+  relayout(false);   // the panel just became measurable
+  cfgPollStatus(name === 'mqtt');
+  if (name === 'privacy') loadPrivacy();
+  if (name === 'mqtt') loadSettings();
 }
+
+document.querySelectorAll('#tabs button').forEach(b =>
+  b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+// Kept so the old control still works from anywhere that calls it.
+function togglePrivacy() { showTab(activeTab === 'privacy' ? 'control' : 'privacy'); }
 
 async function privAction(action) {
   const nice = action === 'resetAdId' ? 'reset the advertising ID' : 'clear ad cookies';
@@ -1881,21 +1962,24 @@ async function privAction(action) {
 }
 
 // ---- MQTT & Home Assistant settings ----
-let mqttOpen = false, cfgPasswordSet = false;
+let cfgPasswordSet = false;
 
-function toggleMqtt() {
-  mqttOpen = !mqttOpen;
-  q('mqttpane').hidden = !mqttOpen;
-  q('mqtttoggle').textContent = mqttOpen ? 'Hide MQTT settings' : 'MQTT settings';
-  q('mqtttoggle').classList.toggle('on', mqttOpen);
-  cfgPollStatus(mqttOpen);
-  if (mqttOpen) { loadSettings(); q('mqttpane').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-}
+function toggleMqtt() { showTab(activeTab === 'mqtt' ? 'control' : 'mqtt'); }
 
 function cfgToggle(id) {
   const b = q(id);
   b.classList.toggle('on');
   if (id === 'cfg-tls') cfgSyncTls();
+  if (id === 'cfg-enabled') cfgSyncEnabled();
+}
+
+// The switch is part of the form, so it means nothing until the save restarts
+// the server. Saying so beats a switch that looks like it has already acted.
+function cfgSyncEnabled() {
+  const on = q('cfg-enabled').classList.contains('on');
+  q('cfg-enabled-note').textContent = on
+    ? 'The TV publishes telemetry and accepts commands over MQTT.'
+    : 'Nothing is published. The dashboard is unaffected.';
 }
 
 // Certificate verification is meaningless without TLS, so it follows it.
@@ -1988,6 +2072,7 @@ async function loadSettings() {
     q('cfg-devname').value = d.name;
     q('cfg-interval').value = m.telemetryIntervalMs;
     q('cfg-enabled').classList.toggle('on', m.enabled);
+    cfgSyncEnabled();
     q('cfg-tls').classList.toggle('on', m.tls);
     q('cfg-verify').classList.toggle('on', m.tlsRejectUnauthorized);
     cfgSyncTls();
@@ -2059,28 +2144,121 @@ async function waitForServer() {
   q('cfg-save-btn').disabled = false;
 }
 
-// Deep link straight to the privacy view: /?privacy=1 . Handy for a bookmark,
-// and it means the panel can be captured without a click.
-if (new URLSearchParams(location.search).get('privacy') === '1') {
-  if (new URLSearchParams(location.search).get('only') === '1' && q('main-grid')) {
-    q('main-grid').hidden = true;
-  }
-  togglePrivacy();
-  if (new URLSearchParams(location.search).get('expand') === '1') {
-    document.querySelectorAll('.pv-d').forEach(d => d.open = true);
-  }
-}
+/*
+ * Which tab to open on. ?tab= names one; the older ?privacy=1 and ?controls=1
+ * still work, since they are in bookmarks and in the screenshot tooling. Failing
+ * both, the last tab this browser used.
+ */
+(function initTab() {
+  const p = new URLSearchParams(location.search);
+  let want = p.get('tab');
+  if (!want && p.get('privacy') === '1') want = 'privacy';
+  if (!want && p.get('controls') === '1') want = 'control';
+  // ?open= names a disclosure inside Metrics, so it has to pick that tab too -
+  // otherwise the link opens something on a panel that is not showing.
+  if (!want && p.get('open')) want = 'metrics';
+  if (!want) { try { want = localStorage.getItem('tab'); } catch (e) { /* private window */ } }
+  showTab(want || 'control');
+  if (p.get('expand') === '1') document.querySelectorAll('.pv-d').forEach(d => d.open = true);
+})();
 
 const openSection = new URLSearchParams(location.search).get('open');
 if (openSection === 'system' && q('disc-hwinfo')) q('disc-hwinfo').open = true;
 if (openSection === 'hdmi' && q('disc-hdmi')) q('disc-hdmi').open = true;
 if (openSection === 'processes' && q('disc-proc')) q('disc-proc').open = true;
 
-if (new URLSearchParams(location.search).get('controls') === '1') {
-  const tel = document.querySelector('.col-telemetry');
-  if (tel) tel.hidden = true;
-  if (q('main-grid')) q('main-grid').style.gridTemplateColumns = '1fr';
+/*
+ * Fill the column containers. Runs when the number of columns changes and once
+ * the first stats arrive - several groups are hidden until then, and measuring
+ * before they appear puts everything in one column.
+ *
+ * Deliberately not run on expand: that is the whole point. A group stays where
+ * the reader last saw it.
+ */
+function flowColumns(host, n) {
+  if (!host) return;
+  if (!host._items) host._items = Array.from(host.children);
+  const items = host._items;
+  while (host.firstChild) host.removeChild(host.firstChild);
+
+  if (n < 2) {
+    items.forEach(el => host.appendChild(el));
+    return;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'lcols';
+  wrap.style.setProperty('--n', n);
+  const cols = [];
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement('div');
+    c.className = 'lcol';
+    wrap.appendChild(c);
+    cols.push(c);
+  }
+  host.appendChild(wrap);
+
+  // Measure in one column, then give each group to whichever column is
+  // shortest so far. Filling in document order left one column holding a
+  // single group and stranded the last one at the foot of the page.
+  items.forEach(el => cols[0].appendChild(el));
+  const h = items.map(el => el.getBoundingClientRect().height);
+  cols.forEach(c => { while (c.firstChild) c.removeChild(c.firstChild); });
+  /*
+   * data-col pins a group to a column, so related ones stay together however
+   * tall they happen to be. It is ignored when there are fewer columns than
+   * the number asks for, and anything unpinned goes to the shortest column.
+   */
+  const tally = new Array(n).fill(0);
+  items.forEach((el, i) => {
+    el.classList.remove('lhead');
+    const pin = parseInt(el.getAttribute('data-col'), 10);
+    let k;
+    if (!isNaN(pin) && pin >= 0 && pin < n) {
+      k = pin;
+    } else {
+      k = 0;
+      for (let j = 1; j < n; j++) if (tally[j] < tally[k]) k = j;
+    }
+    cols[k].appendChild(el);
+    tally[k] += h[i];
+  });
+  /*
+   * Mark the top group of each column, rather than styling :first-child: the
+   * column heading is in the list too and is display:none here, so the first
+   * child is not always the first thing anyone can see.
+   */
+  cols.forEach(c => {
+    const head = Array.prototype.find.call(c.children,
+      el => el.getBoundingClientRect().height > 0);
+    if (head) head.classList.add('lhead');
+  });
 }
+
+/*
+ * A hidden panel measures zero, which put every group in the first column, so
+ * a host is only laid out while its tab is showing - and then only when the
+ * column count has actually changed.
+ */
+function layoutHost(host, n, force) {
+  if (!host || host.offsetParent === null) return;
+  if (!force && host._cols === n) return;
+  host._cols = n;
+  flowColumns(host, n);
+}
+
+function relayout(force) {
+  const w = window.innerWidth;
+  layoutHost(document.querySelector('.col-controls'), w >= 820 ? 2 : 1, force);
+  layoutHost(document.querySelector('.col-telemetry'), w >= 1280 ? 3 : (w >= 820 ? 2 : 1), force);
+}
+
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => relayout(false), 150);
+});
+relayout(true);
 
 let pollTimer = null;
 
