@@ -35,12 +35,15 @@ A custom Home Assistant dashboard for an LG TV:
 </p>
 
 ### Metrics
-Surfaces data that you won't find in your TV settings, including
+Surfaces data that you won't find in your TV settings, including:
 
 OLED Panel health and maintenance overview
+
 <img width="429" height="304" alt="Screenshot 2026-09-11 at 20 43 39" src="https://github.com/user-attachments/assets/825ef48d-9560-474c-9d3e-7feb045724b5" />
 
+
 System monitoring
+
 <img width="432" height="396" alt="Screenshot 2026-09-11 at 20 45 02" src="https://github.com/user-attachments/assets/2e6cfe5a-c905-426e-8b4d-8f52d4f31c11" />
 
 ### Privacy & telemetry
