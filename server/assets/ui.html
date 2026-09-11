@@ -1708,16 +1708,38 @@ async function loadPrivacy() {
       })));
     let html = '';
     for (const [id, title, note] of (d.consentGroups || [['unknown', '']])) {
-      const inGroup = rows.filter(f => (f.group || 'unknown') === id);
+      let inGroup = rows.filter(f => (f.group || 'unknown') === id);
       if (!inGroup.length) continue;
       const on = inGroup.filter(f => f.enabled).length;
+      // Counted before the collapse below, or the heading would report on the
+      // rows that survived rather than on the flags.
+      const groupTotal = inGroup.length;
+      /*
+       * Flags with no name, no description and no agreement behind them are
+       * one line rather than one row each: five rows reading "tied to no
+       * agreement on this firmware" tell a reader nothing they cannot learn
+       * from one, and the count still says if any of them is on.
+       */
+      let anon = [];
+      if (id === 'unknown') {
+        anon = inGroup.filter(f => !f.settable && !f.documents);
+        inGroup = inGroup.filter(f => !anon.includes(f));
+      }
       // A server that predates the grouping sends no titles; one unlabelled
       // heading above every row is worse than none.
       html += '<div class="pv-grp">' +
               (title ? `<div class="pv-g"><span>${esc(title)}</span>` +
-                       `<span class="c">${on} of ${inGroup.length} on</span></div>` : '') +
+                       `<span class="c">${on} of ${groupTotal} on</span></div>` : '') +
               (note ? `<div class="pv-gn">${esc(note)}</div>` : '') +
               inGroup.map(f => pvRow(esc(f.name), f.detail, pvConsentPill(f, cw))).join('') +
+              (anon.length ? pvRow(
+                anon.length + ' unidentified flag' + (anon.length === 1 ? '' : 's'),
+                'Recorded by the TV, tied to no agreement on this firmware and not writable. ' +
+                  '<span class="k">' + anon.map(f => esc(f.key)).join(', ') + '</span>',
+                `<span class="pill fixed ${anon.some(f => f.enabled) ? 'warn' : 'good'}">` +
+                  (anon.some(f => f.enabled)
+                    ? anon.filter(f => f.enabled).length + ' on'
+                    : 'All off') + '</span>') : '') +
               '</div>';
     }
     q('pv-consent').innerHTML = html || '<div class="d">Could not read the agreements file.</div>';
