@@ -210,6 +210,31 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 .cols .sub{overflow:visible;text-overflow:clip}
 
 /* ---- layout grid (2-column on desktop, single on mobile) ---- */
+/* Tabs. The page had grown to four things stacked vertically, three of which
+   matter only some of the time. */
+.tabs{display:flex;gap:2px;margin-top:clamp(20px,3vw,30px);
+      border-bottom:1px solid var(--w12);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{appearance:none;background:none;border:0;border-bottom:2px solid transparent;
+      font-family:'Manrope';font-weight:500;font-size:12px;letter-spacing:.14em;
+      text-transform:uppercase;color:var(--w50);padding:12px 16px;cursor:pointer;
+      white-space:nowrap;margin-bottom:-1px}
+.tabs button:hover{color:var(--w80)}
+@media (max-width:560px){ .tabs button{padding:12px 10px;letter-spacing:.1em} }
+.tabs button[aria-selected="true"]{color:var(--w100);border-bottom-color:var(--w100)}
+#panels{margin-top:clamp(24px,3.5vw,36px)}
+/* A panel is the whole width now, so the columns come from the panel itself
+   rather than from the page splitting in two. */
+.panel .col-sec{display:none}
+/* Columns that flow rather than a grid: a grid aligns rows, so a short group
+   leaves a hole beside a tall one. Each group stays whole. */
+.col-controls>*,.col-telemetry>*{break-inside:avoid}
+@media (min-width:820px){
+  .col-controls,.col-telemetry{column-count:2;column-gap:clamp(30px,4vw,52px)}
+}
+@media (min-width:1280px){
+  .col-telemetry{column-count:3}
+}
 .grid-wrap{display:grid;grid-template-columns:1fr;gap:clamp(32px,5vw,56px);margin-top:clamp(28px,4vw,44px)}
 @media (min-width:960px){
   .grid-wrap{grid-template-columns:minmax(380px,1.15fr) minmax(340px,1fr);gap:clamp(36px,5vw,60px);align-items:start}
@@ -298,6 +323,16 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 
 /* ---- privacy pane ---- */
 .priv{margin-top:clamp(30px,5vw,48px);padding-top:clamp(24px,4vw,36px);border-top:1px solid var(--w12)}
+.priv.panel{margin-top:0;padding-top:0;border-top:0}
+.priv.panel>.lbl{display:none}
+/* The two status sections sit side by side: each is a handful of short rows,
+   and full width left the pill stranded from the label it belongs to. */
+.pv-top{display:grid;grid-template-columns:1fr;gap:0 clamp(30px,4vw,52px)}
+@media (min-width:900px){ .pv-top{grid-template-columns:repeat(2,1fr);align-items:start} }
+.pv-top .pv-h:first-child{margin-top:0}
+/* The long lists stay one column - a consent row is a sentence, not a tile -
+   but capped so the pill stays near what it describes on a wide screen. */
+.pv-d,.pv-top{max-width:1180px}
 .pv-h{font-family:'Outfit';font-weight:300;font-size:clamp(20px,2.4vw,26px);color:var(--w100);margin:22px 0 4px}
 .pv-sub{font-size:13px;color:var(--w60);max-width:62ch;margin-bottom:16px}
 .pv-row{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;
@@ -462,8 +497,15 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
 
 
-<main class="grid-wrap" id="main-grid">
-  <!-- Left Column: Telemetry & Metrics -->
+<nav class="tabs" id="tabs" role="tablist">
+  <button type="button" role="tab" data-tab="control">Control</button>
+  <button type="button" role="tab" data-tab="metrics">Metrics</button>
+  <button type="button" role="tab" data-tab="privacy">Privacy</button>
+  <button type="button" role="tab" data-tab="mqtt">MQTT</button>
+</nav>
+
+<main id="panels">
+<section class="panel" id="tab-metrics" role="tabpanel" hidden>
   <div class="col-telemetry">
     <div class="col-sec">Metrics</div>
 
@@ -610,7 +652,9 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     </div>
   </div>
 
-  <!-- Right Column: Interactive Controls -->
+</section>
+
+<section class="panel" id="tab-control" role="tabpanel" hidden>
   <div class="col-controls">
     <div class="col-sec">Control</div>
     <div id="err"></div>
@@ -707,14 +751,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       </form>
     </div>
 
-    <div class="set"><div class="lbl">Privacy &amp; data collection</div>
-      <div class="btns"><button id="privtoggle" onclick="togglePrivacy()">Show privacy panel</button></div>
-    </div>
-
-    <div class="set"><div class="lbl">Home Assistant Integration</div>
-      <div class="btns"><button id="mqtttoggle" onclick="toggleMqtt()">MQTT settings</button></div>
-    </div>
-
     <div class="set"><div class="lbl">Power</div>
       <div class="btns">
         <button id="poff" onclick="pw('powerOff')">Power off</button>
@@ -723,24 +759,30 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="sub" id="pwnote"></div>
     </div>
   </div>
-</main>
+</section>
 
-<section class="priv" id="privpane" hidden>
+<section class="priv panel" id="privpane" role="tabpanel" hidden>
   <div class="lbl">Privacy &amp; data collection</div>
 
-  <div class="pv-h" id="pv-acr-h">Screen content recognition</div>
-  <div class="pv-sub" id="pv-live-sub">&mdash;</div>
-  <div id="pv-live"></div>
+  <div class="pv-top">
+    <div>
+      <div class="pv-h" id="pv-acr-h">Screen content recognition</div>
+      <div class="pv-sub" id="pv-live-sub">&mdash;</div>
+      <div id="pv-live"></div>
+    </div>
 
-  <div class="pv-h">Advertising identifier</div>
-  <div class="pv-sub">A unique ID your TV hands to advertisers. Resetting it breaks the
-    link between your TV and any profile built from past activity.</div>
-  <div id="pv-adid"></div>
-  <div id="pv-lmt"></div>
-  <div class="sub" id="pv-adnote" style="margin-top:8px"></div>
-  <div class="btns" style="margin-top:14px;max-width:520px">
-    <button id="adid-reset" onclick="privAction('resetAdId')">Reset advertising ID</button>
-    <button id="adcookies-clear" onclick="privAction('clearAdCookies')">Clear ad cookies</button>
+    <div>
+      <div class="pv-h">Advertising identifier</div>
+      <div class="pv-sub">A unique ID your TV hands to advertisers. Resetting it breaks the
+        link between your TV and any profile built from past activity.</div>
+      <div id="pv-adid"></div>
+      <div id="pv-lmt"></div>
+      <div class="sub" id="pv-adnote" style="margin-top:8px"></div>
+      <div class="btns" style="margin-top:14px;max-width:520px">
+        <button id="adid-reset" onclick="privAction('resetAdId')">Reset advertising ID</button>
+        <button id="adcookies-clear" onclick="privAction('clearAdCookies')">Clear ad cookies</button>
+      </div>
+    </div>
   </div>
 
   <details class="pv-d">
@@ -784,7 +826,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   </details>
 </section>
 
-<section class="priv" id="mqttpane" hidden>
+<section class="priv panel" id="mqttpane" role="tabpanel" hidden>
   <div class="lbl">MQTT &amp; Home Assistant</div>
 
   <div class="pv-row" style="margin-top:12px">
@@ -869,6 +911,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   </div>
   <div class="sub" id="cfg-file" style="margin-top:14px"></div>
 </section>
+</main>
 
 <footer>
   <span id="uptime">&mdash;</span>
@@ -1562,7 +1605,7 @@ fetch(api('/api/caps')).then(r => r.json()).then(cp => {
 /* ---- privacy panel ----------------------------------------------------
    Loaded on demand: it costs several Luna calls, so there is no reason to
    poll it alongside the 2s telemetry tick. */
-let privOpen = false;
+
 
 function pvPill(on, goodWhenOff) {
   // For privacy, "off" is the desirable state, so the colouring is inverted
@@ -1852,13 +1895,39 @@ function onProcToggle(el) {
   if (el) el.addEventListener('toggle', function () { onProcToggle(el); });
 })();
 
-function togglePrivacy() {
-  privOpen = !privOpen;
-  q('privpane').hidden = !privOpen;
-  q('privtoggle').textContent = privOpen ? 'Hide privacy panel' : 'Show privacy panel';
-  q('privtoggle').classList.toggle('on', privOpen);
-  if (privOpen) { loadPrivacy(); q('privpane').scrollIntoView({behavior:'smooth', block:'start'}); }
+/*
+ * Tabs. The privacy and MQTT panels load on demand - privacy costs several Luna
+ * calls, and two of those start the service they ask - so neither is fetched
+ * until its tab is actually shown.
+ */
+const TABS = {
+  control: 'tab-control',
+  metrics: 'tab-metrics',
+  privacy: 'privpane',
+  mqtt:    'mqttpane'
+};
+let activeTab = null;
+
+function showTab(name) {
+  if (!TABS[name]) name = 'control';
+  activeTab = name;
+  for (const [key, id] of Object.entries(TABS)) {
+    const el = q(id);
+    if (el) el.hidden = key !== name;
+  }
+  document.querySelectorAll('#tabs button').forEach(b =>
+    b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  try { localStorage.setItem('tab', name); } catch (e) { /* private window */ }
+  cfgPollStatus(name === 'mqtt');
+  if (name === 'privacy') loadPrivacy();
+  if (name === 'mqtt') loadSettings();
 }
+
+document.querySelectorAll('#tabs button').forEach(b =>
+  b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+// Kept so the old control still works from anywhere that calls it.
+function togglePrivacy() { showTab(activeTab === 'privacy' ? 'control' : 'privacy'); }
 
 async function privAction(action) {
   const nice = action === 'resetAdId' ? 'reset the advertising ID' : 'clear ad cookies';
@@ -1881,16 +1950,9 @@ async function privAction(action) {
 }
 
 // ---- MQTT & Home Assistant settings ----
-let mqttOpen = false, cfgPasswordSet = false;
+let cfgPasswordSet = false;
 
-function toggleMqtt() {
-  mqttOpen = !mqttOpen;
-  q('mqttpane').hidden = !mqttOpen;
-  q('mqtttoggle').textContent = mqttOpen ? 'Hide MQTT settings' : 'MQTT settings';
-  q('mqtttoggle').classList.toggle('on', mqttOpen);
-  cfgPollStatus(mqttOpen);
-  if (mqttOpen) { loadSettings(); q('mqttpane').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-}
+function toggleMqtt() { showTab(activeTab === 'mqtt' ? 'control' : 'mqtt'); }
 
 function cfgToggle(id) {
   const b = q(id);
@@ -2059,28 +2121,28 @@ async function waitForServer() {
   q('cfg-save-btn').disabled = false;
 }
 
-// Deep link straight to the privacy view: /?privacy=1 . Handy for a bookmark,
-// and it means the panel can be captured without a click.
-if (new URLSearchParams(location.search).get('privacy') === '1') {
-  if (new URLSearchParams(location.search).get('only') === '1' && q('main-grid')) {
-    q('main-grid').hidden = true;
-  }
-  togglePrivacy();
-  if (new URLSearchParams(location.search).get('expand') === '1') {
-    document.querySelectorAll('.pv-d').forEach(d => d.open = true);
-  }
-}
+/*
+ * Which tab to open on. ?tab= names one; the older ?privacy=1 and ?controls=1
+ * still work, since they are in bookmarks and in the screenshot tooling. Failing
+ * both, the last tab this browser used.
+ */
+(function initTab() {
+  const p = new URLSearchParams(location.search);
+  let want = p.get('tab');
+  if (!want && p.get('privacy') === '1') want = 'privacy';
+  if (!want && p.get('controls') === '1') want = 'control';
+  // ?open= names a disclosure inside Metrics, so it has to pick that tab too -
+  // otherwise the link opens something on a panel that is not showing.
+  if (!want && p.get('open')) want = 'metrics';
+  if (!want) { try { want = localStorage.getItem('tab'); } catch (e) { /* private window */ } }
+  showTab(want || 'control');
+  if (p.get('expand') === '1') document.querySelectorAll('.pv-d').forEach(d => d.open = true);
+})();
 
 const openSection = new URLSearchParams(location.search).get('open');
 if (openSection === 'system' && q('disc-hwinfo')) q('disc-hwinfo').open = true;
 if (openSection === 'hdmi' && q('disc-hdmi')) q('disc-hdmi').open = true;
 if (openSection === 'processes' && q('disc-proc')) q('disc-proc').open = true;
-
-if (new URLSearchParams(location.search).get('controls') === '1') {
-  const tel = document.querySelector('.col-telemetry');
-  if (tel) tel.hidden = true;
-  if (q('main-grid')) q('main-grid').style.gridTemplateColumns = '1fr';
-}
 
 let pollTimer = null;
 
