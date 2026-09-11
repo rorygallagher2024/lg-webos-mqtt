@@ -2,7 +2,7 @@
 
 A server that runs **on** a rooted LG webOS TV. It serves a live dashboard to
 any browser on the network, and will optionally bridge the TV into Home
-Assistant over MQTT as a single auto-discovered device with up to 65 entities.
+Assistant over MQTT as a single auto-discovered device with up to 68 entities.
 
 The dashboard needs nothing but the TV. 
 
@@ -24,7 +24,7 @@ Four tabs: Control, Metrics, Privacy and MQTT.
 
 ### Home Assistant (Auto-Discovered Device via MQTT)
 
-Up to 65 native entities arrive over MQTT Discovery as a single unified device
+Up to 68 native entities arrive over MQTT Discovery as a single unified device
 <p align="center">
   <a href="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235"><img width="800" alt="Home Assistant MQTT entities" src="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235" /></a>
 </p>
@@ -81,7 +81,7 @@ and firmware updates use.
    dashboard. Includes an on-TV blocker for LG's ad and telemetry
    endpoints, and a switch for the two diagnostics services that upload to LG.
    
-3. **Integrating the TV into Home Assistant.** Optional, over MQTT: up to 65
+3. **Integrating the TV into Home Assistant.** Optional, over MQTT: up to 68
    entities arrive as a single auto-discovered device &mdash; no YAML, no LG
    account &mdash; so the TV can be automated and its telemetry recorded
    alongside everything else in the house.
@@ -374,7 +374,7 @@ Full detail, including the MQTT ACL guidance and optional TLS, is in
 ## Documentation
 
 * [docs/SECURITY.md](docs/SECURITY.md) &mdash; threat model, SSH migration, MQTT hardening
-* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; up to 65 entities, universal media player, example automations
+* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; up to 68 entities, universal media player, example automations
 * [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) &mdash; architecture, `/proc/lg` reference, platform quirks
 
 ---

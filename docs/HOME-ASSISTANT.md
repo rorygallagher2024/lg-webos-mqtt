@@ -6,7 +6,7 @@ Entity reference and example automations.
 
 ## Entities
 
-Once connected to your MQTT broker, Home Assistant automatically discovers **up to 65 native entities** under a single unified device:
+Once connected to your MQTT broker, Home Assistant automatically discovers **up to 68 native entities** under a single unified device:
 
 ### Controls & Switches
 | Domain | Entity ID | Name | Description |
@@ -31,6 +31,8 @@ Once connected to your MQTT broker, Home Assistant automatically discovers **up 
 | `text` | `text.lg_tv_screen_notification` | Screen Notification | Send custom toast messages to TV screen |
 | `button` | `button.lg_tv_restart` | Restart TV | Reboots the TV (requires `allowPower: true`) |
 | `button` | `button.lg_tv_power_off` | Power Off TV | Powers off the TV (requires `allowPower: true`) |
+
+Playback reaches an HDMI source over CEC, where the TV has only one key for both halves of play/pause. Pause and Play / Pause behave as expected there; Play toggles rather than only resuming. On the built-in apps all four are exact.
 
 ### OLED Panel Health (OLED sets only)
 | Domain | Entity ID | Name | Description |
@@ -67,6 +69,7 @@ Once connected to your MQTT broker, Home Assistant automatically discovers **up 
 | `sensor` | `sensor.lg_tv_panel_dimming` | Panel Dimming | Dynamic backlight/panel dimming state |
 | `sensor` | `sensor.lg_tv_audio_output` | Audio Output | Audio scenario (e.g. *Optical / Headphone*, *Internal*) |
 | `sensor` | `sensor.lg_tv_active_app` | Active App | Current foreground app or friendly CEC device |
+| `sensor` | `sensor.lg_tv_play_state` | Player State | State of the TV's own media pipeline (`playing`, `paused`, `stopped`) |
 
 ### Hardware, Remote & System Diagnostics
 | Domain | Entity ID | Name | Description |

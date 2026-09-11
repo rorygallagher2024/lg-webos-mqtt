@@ -3516,18 +3516,7 @@ function setupHomeAssistant() {
   MQTT_STATUS.tls = useTls;
   mqttStatus('connecting', '');
 
-  /*
-   * Entities this once published and no longer does. Home Assistant keeps a
-   * discovered entity until its config topic is cleared, so without this an
-   * upgrade leaves the retired ones sitting in the device forever.
-   */
-  var RETIRED_ENTITIES = [];
-
   function publishDiscovery() {
-    for (var r = 0; r < RETIRED_ENTITIES.length; r++) {
-      mqttClient.publish(discPfx + '/' + RETIRED_ENTITIES[r].type + '/' + devId + '/' +
-                         RETIRED_ENTITIES[r].id + '/config', '', true);
-    }
     var entities = [
       {
         type: 'sensor', id: 'soc_temperature',
