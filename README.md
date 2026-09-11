@@ -130,6 +130,7 @@ versions and panel types.
 | Model | webOS | Firmware | Panel | Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | OLED65B8SLC | 4.4.3 | 05.50.70 | OLED | Development set |
+| OLED65C8PUA | 4.4.0 | 05.50.15 | OLED | No `getAdid` on this firmware |
 | OLED65C9AUA | 4.9.x (4.5+) | 05.50.00 | OLED | |
 | OLED55C9PLA | 4.9.0 | 05.30.40 | OLED | Working fine |
 | OLED55C1PUB | 6.x (6.3+) | 03.53.45 | OLED | SSH install and MQTT bridge confirmed |
