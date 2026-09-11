@@ -1075,24 +1075,6 @@ function renderApps(currentAppId) {
   }).join('');
 }
 
-/* getSoundOut reports raw scenario names like "mastervolume_headphone".
-   Nothing outside LG's codebase should have to read those. */
-const AUDIO_LABELS = {
-  mastervolume_tv_speaker: 'TV speaker',
-  mastervolume_headphone: 'Headphone',
-  mastervolume_external_arc: 'HDMI ARC',
-  mastervolume_external_optical: 'Optical',
-  mastervolume_bt_soundbar: 'Bluetooth',
-  mastervolume_external_speaker: 'External speaker',
-  mastervolume_lineout: 'Line out',
-  tv_speaker_headphone: 'TV speaker + headphone',
-  internal: 'TV speaker'
-};
-const audioLabel = raw => AUDIO_LABELS[raw] ||
-  // Unknown scenario: strip the prefix and tidy it rather than show it raw.
-  (raw ? String(raw).replace(/^mastervolume_/, '').replace(/_/g, ' ')
-           .replace(/^./, ch => ch.toUpperCase()) : '');
-
 const SLOTS = 56;
 /*
  * A section whose every cell has been hidden - Storage on a set with no wear
@@ -1199,7 +1181,7 @@ async function tick() {
       }
 
       q('ds-cur').textContent = pic.mode || '';
-      if (q('snd-cur')) q('snd-cur').textContent = audioLabel(d.audio_output) || '';
+      if (q('snd-cur')) q('snd-cur').textContent = d.audio_output || '';
     }
 
     const rem = d.remote;
