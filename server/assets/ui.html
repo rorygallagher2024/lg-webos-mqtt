@@ -226,19 +226,18 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:24p
 /* A panel is the whole width now, so the columns come from the panel itself
    rather than from the page splitting in two. */
 .panel .col-sec{display:none}
-/* Columns that flow rather than a grid: a grid aligns rows, so a short group
-   leaves a hole beside a tall one. Each group stays whole. */
-.col-controls>*,.col-telemetry>*{break-inside:avoid}
-@media (min-width:820px){
-  .col-controls,.col-telemetry{column-count:2;column-gap:clamp(30px,4vw,52px)}
-}
-@media (min-width:1280px){
-  .col-telemetry{column-count:3}
-}
-/* Advanced spans the columns. Left in the flow it is balanced with everything
-   else, so opening a disclosure re-ran the balance and shuffled Storage into
-   another column under the reader. */
-#advblock{column-span:all;break-inside:auto;margin-top:clamp(26px,3vw,34px)}
+/*
+ * Columns are real containers, filled once by flowColumns(). CSS multi-column
+ * balances the whole flow by height, so opening any disclosure re-ran the
+ * balance and moved a group the reader was not even looking at. Assigned
+ * elements cannot migrate.
+ */
+.lcols{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));
+       gap:clamp(30px,4vw,52px);align-items:start}
+.lcol{display:flex;flex-direction:column;gap:clamp(26px,3vw,34px);min-width:0}
+/* Advanced sits under the columns rather than in one: its tables and port
+   cards want the width when open. Capped, so it is not a band across 1440px. */
+.lspan{margin-top:clamp(26px,3vw,34px);max-width:1100px}
 .grid-wrap{display:grid;grid-template-columns:1fr;gap:clamp(32px,5vw,56px);margin-top:clamp(28px,4vw,44px)}
 @media (min-width:960px){
   .grid-wrap{grid-template-columns:minmax(380px,1.15fr) minmax(340px,1fr);gap:clamp(36px,5vw,60px);align-items:start}
@@ -589,7 +588,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       </div>
     </div>
 
-    <div class="grp-sec" id="advblock">
+    <div class="grp-sec lspan" id="advblock">
       <div class="grp">Advanced</div>
       <details class="disc" id="disc-hwinfo" hidden style="border-top:0;margin-top:0">
       <summary>System info</summary>
@@ -1139,6 +1138,7 @@ async function tick() {
     const d = await r.json();
     document.body.classList.remove('stale');
     q('err').style.display = 'none';
+    const firstData = !lastOk;
     lastOk = Date.now();
 
     const model = (d.device && d.device.model) || '';
@@ -1535,6 +1535,9 @@ async function tick() {
     q('uptime').textContent = 'Up ' + (dd ? dd + 'd ' : '') + hh + 'h ' + mm + 'm   ·   load ' + (d.loadavg || []).join(' ');
     q('clock').textContent = new Date().toLocaleTimeString();
     setVersion(d.tvwebVersion);
+    // Several groups stay hidden until the first payload says the TV has them,
+    // so the columns are only worth filling once that has happened.
+    if (firstData) relayout(true);
   } catch (e) {
     document.body.classList.add('stale');
     if (Date.now() - lastOk > 6000) showErr(e.message || 'TV unreachable');
@@ -1926,6 +1929,7 @@ function showTab(name) {
   document.querySelectorAll('#tabs button').forEach(b =>
     b.setAttribute('aria-selected', String(b.dataset.tab === name)));
   try { localStorage.setItem('tab', name); } catch (e) { /* private window */ }
+  relayout(false);   // the panel just became measurable
   cfgPollStatus(name === 'mqtt');
   if (name === 'privacy') loadPrivacy();
   if (name === 'mqtt') loadSettings();
@@ -2162,6 +2166,80 @@ const openSection = new URLSearchParams(location.search).get('open');
 if (openSection === 'system' && q('disc-hwinfo')) q('disc-hwinfo').open = true;
 if (openSection === 'hdmi' && q('disc-hdmi')) q('disc-hdmi').open = true;
 if (openSection === 'processes' && q('disc-proc')) q('disc-proc').open = true;
+
+/*
+ * Fill the column containers. Runs when the number of columns changes and once
+ * the first stats arrive - several groups are hidden until then, and measuring
+ * before they appear puts everything in one column.
+ *
+ * Deliberately not run on expand: that is the whole point. A group stays where
+ * the reader last saw it.
+ */
+function flowColumns(host, n) {
+  if (!host) return;
+  if (!host._items) host._items = Array.from(host.children);
+  const items = host._items;
+  while (host.firstChild) host.removeChild(host.firstChild);
+
+  const span = items.filter(el => el.classList.contains('lspan'));
+  const rest = items.filter(el => !el.classList.contains('lspan'));
+
+  if (n < 2) {
+    items.forEach(el => host.appendChild(el));
+    return;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'lcols';
+  wrap.style.setProperty('--n', n);
+  const cols = [];
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement('div');
+    c.className = 'lcol';
+    wrap.appendChild(c);
+    cols.push(c);
+  }
+  host.appendChild(wrap);
+
+  // Measure in one column, then fill columns in document order to an even
+  // share. Order matters more than a perfect balance on a page of settings.
+  rest.forEach(el => cols[0].appendChild(el));
+  const h = rest.map(el => el.getBoundingClientRect().height);
+  cols.forEach(c => { while (c.firstChild) c.removeChild(c.firstChild); });
+  const target = h.reduce((a, b) => a + b, 0) / n;
+  let col = 0, acc = 0;
+  rest.forEach((el, i) => {
+    if (acc > 0 && col < n - 1 && acc + h[i] / 2 > target) { col++; acc = 0; }
+    cols[col].appendChild(el);
+    acc += h[i];
+  });
+  span.forEach(el => host.appendChild(el));
+}
+
+/*
+ * A hidden panel measures zero, which put every group in the first column, so
+ * a host is only laid out while its tab is showing - and then only when the
+ * column count has actually changed.
+ */
+function layoutHost(host, n, force) {
+  if (!host || host.offsetParent === null) return;
+  if (!force && host._cols === n) return;
+  host._cols = n;
+  flowColumns(host, n);
+}
+
+function relayout(force) {
+  const w = window.innerWidth;
+  layoutHost(document.querySelector('.col-controls'), w >= 820 ? 2 : 1, force);
+  layoutHost(document.querySelector('.col-telemetry'), w >= 1280 ? 3 : (w >= 820 ? 2 : 1), force);
+}
+
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => relayout(false), 150);
+});
+relayout(true);
 
 let pollTimer = null;
 
