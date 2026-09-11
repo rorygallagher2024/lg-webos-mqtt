@@ -1951,6 +1951,9 @@ function consentGroup(key) {
  */
 var CONSENT_NAMES = {
   networkAllowed:      'Network use',
+  /* webOS 9 only, and named after the TV's own eulaGroupName for each. */
+  marketingOnAllowed:  'Marketing',
+  shoppingOnAllowed:   'Shopping',
   generalTermsAllowed: 'Terms of Use and Privacy Policy',
   chpAllowed:          'LG Channels',
   acrOnAllowed:        'Screen recognition (master consent)',
