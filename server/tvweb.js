@@ -1570,6 +1570,7 @@ function collectStats(cb) {
             playerType: pipe.playerType || null,
             fullScreen: pipe.isFullScreen !== false
           };
+          hasMediaState = true;
         }
         lunaCached('com.webos.applicationManager/getForegroundAppInfo', {}, 4000, function (app) {
           if (app && app.appId) {
@@ -2451,6 +2452,15 @@ var hasLightSensor = false;
  * block existed gave a B8 six entities it could never answer.
  */
 var hdmiSeen = {};
+
+/*
+ * Whether this set reports a media play state at all. com.webos.service.acb
+ * does not exist on webOS 9 - a C2 answers "Service does not exist" - so the
+ * sensor there could only ever read unknown. Latched like the HDMI fields,
+ * because the service also returns nothing when no pipeline is running, which
+ * is not the same as the service being absent.
+ */
+var hasMediaState = false;
 
 /*
  * Front-panel lights. The "option" settings category carries standByLight,
@@ -4439,6 +4449,20 @@ function setupHomeAssistant() {
     }
 
     /*
+     * Play state, on a set whose media service never answers - webOS 9 has no
+     * com.webos.service.acb at all.
+     */
+    if (!hasMediaState) {
+      var keptMedia = [];
+      for (var mi = 0; mi < entities.length; mi++) {
+        if (entities[mi].id === 'play_state') {
+          mqttClient.publish(discPfx + '/sensor/' + devId + '/play_state/config', '', true);
+        } else { keptMedia.push(entities[mi]); }
+      }
+      entities = keptMedia;
+    }
+
+    /*
      * Withhold colorimetry if /proc/lg/pe/hdr_status does not exist.
      */
     if (!fs.existsSync('/proc/lg/pe/hdr_status')) {
@@ -4596,7 +4620,7 @@ function setupHomeAssistant() {
   }
 
   var lastPicSig = '';
-  var lastHdmiCap = '';
+  var lastCapSig = '';
 
   function publishTelemetry() {
     if (!mqttClient.connected) return;
@@ -4631,17 +4655,19 @@ function setupHomeAssistant() {
         publishDiscovery();
       }
       /*
-       * The HDMI diagnostics only appear once a source has been active, so a
-       * set that started on the Home screen looks incapable at first connect.
-       * Publishing again each time another field shows for the first time
-       * turns that entity on; a field is never unlatched, so this settles.
+       * The HDMI diagnostics and the play state only appear once a source has
+       * been active, so a set that started on the Home screen looks incapable
+       * at first connect. Publishing again each time one of them shows for the
+       * first time turns that entity on; nothing is ever unlatched, so this
+       * settles rather than flapping.
        */
-      var hdmiCap = [];
-      for (var hs in hdmiSeen) hdmiCap.push(hs);
-      hdmiCap = hdmiCap.sort().join(',');
-      if (hdmiCap !== lastHdmiCap) {
-        lastHdmiCap = hdmiCap;
-        console.log('mqtt: HDMI diagnostics reported (' + hdmiCap + ') - republishing discovery');
+      var cap = [];
+      for (var hs in hdmiSeen) cap.push(hs);
+      if (hasMediaState) cap.push('play_state');
+      cap = cap.sort().join(',');
+      if (cap !== lastCapSig) {
+        lastCapSig = cap;
+        console.log('mqtt: set reported (' + cap + ') for the first time - republishing discovery');
         publishDiscovery();
       }
     });
