@@ -310,6 +310,22 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 .pill.warn{color:var(--cand);border-color:var(--cand)}
 .pill.bad{color:var(--red);border-color:var(--red)}
 .pill.idle{color:var(--w50);border-color:var(--w25)}
+/* A settable flag keeps the pill vocabulary of the read-only rows: the row
+   should read the same, it just answers to a click. */
+button.pill{background:transparent;font-family:'Manrope';cursor:pointer}
+button.pill:hover:not([disabled]){background:rgba(var(--fg),.08)}
+button.pill[disabled]{cursor:default;opacity:.45}
+/* A flag the panel will not write keeps its colour - the value still matters -
+   but has to read as inert next to 19 rows that respond to a click. */
+.pill.fixed{opacity:.45}
+.pv-g{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--w60);
+      margin:22px 0 2px;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.pv-g:first-child{margin-top:4px}
+.pv-g .c{letter-spacing:0;text-transform:none;color:var(--w35);font-size:12px;white-space:nowrap}
+.pv-gn{font-size:13px;color:var(--w50);max-width:58ch;margin:4px 0 2px}
+/* The raw flag name, kept visible on rows that now show a friendlier one: it is
+   what the API, the TV and the issue tracker all call it. */
+.pv-row .k{color:var(--w35)}
 /* Collapsible privacy sections. The consent list alone runs to 21 rows, so the
    long sections fold. The summary keeps the pv-h size rather than borrowing the
    control column's small caps, so folding a section does not demote it. */
@@ -732,9 +748,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <div class="pv-sub">These are the agreements recorded on the TV. <b>Off is the private
     setting.</b></div>
   <div id="pv-consent"></div>
-  <div class="pv-note">These cannot be changed from here &mdash; the TV owns them. Change
-    them on the TV itself under <b>Settings &rarr; General &rarr; About This TV &rarr;
-    User Agreements</b>, then reopen this panel to confirm.</div>
+  <div class="pv-note" id="pv-consent-note"></div>
   </details>
 
   <details class="pv-d">
@@ -748,19 +762,22 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <details class="pv-d">
   <summary>On-TV ad &amp; telemetry sinkhole <span class="cur" id="pv-adblock-cur"></span></summary>
   <div class="pv-sub">Sinkholes known LG telemetry, ad servers, and Automatic Content Recognition (ACR) tracking endpoints directly on the TV by bind-mounting a local blackhole table over /etc/hosts.</div>
-  <div class="pv-note">Two of the blocked domains are LG infrastructure rather than pure ad hosts:
-    <b>ngfts.lge.com</b> (content and firmware delivery) and <b>lgtvsdp.com</b> (the service
-    platform behind the LG Content Store). With this on, <b>firmware updates and the app store
-    may stop working</b>. That is the trade &mdash; turn it off if you need either.</div>
+  <div class="pv-note"><b>Ads &amp; telemetry</b> blocks the ad, tracking and diagnostics hosts,
+    and leaves LG's own service platform reachable. <b>Everything</b> adds
+    <b>lgtvsdp.com</b> (the server the Content Store installs from) and <b>ngfts.lge.com</b>
+    (content and firmware delivery), so with it on <b>the app store and firmware updates may
+    stop working</b>.</div>
   <div class="pv-row">
     <div>
       <div class="n">LG Ad &amp; Analytics Blackhole</div>
-      <div class="d">Blocks ad.lgsmartad.com, ibis.lgappstv.com, rdx.lgtvcommon.com, and 12 other tracking endpoints.</div>
+      <div class="d" id="adblock-detail">&mdash;</div>
     </div>
-    <div><span class="pill idle" id="adblock-pill">Inactive</span></div>
+    <div><span class="pill idle" id="adblock-pill">Off</span></div>
   </div>
-  <div class="btns" style="margin-top:14px;max-width:320px">
-    <button id="adblock-toggle" onclick="toggleAdBlock()">Enable ad blocker</button>
+  <div class="btns" style="margin-top:14px;max-width:520px">
+    <button id="ab-off" onclick="setAdBlockMode('off')">Off</button>
+    <button id="ab-ads" onclick="setAdBlockMode('ads')">Ads &amp; telemetry</button>
+    <button id="ab-full" onclick="setAdBlockMode('full')">Everything</button>
   </div>
   </details>
 </section>
@@ -1494,6 +1511,7 @@ async function c(action, value) {
     const j = await r.json();
     if (!j.ok) showErr(j.error || 'Action failed'); else q('err').style.display = 'none';
     setTimeout(tick, 320);
+    return j;
   } catch (e) { showErr(e.message); }
 }
 function toggleLight(which) {
@@ -1551,6 +1569,13 @@ function pvPill(on, goodWhenOff) {
   return `<span class="pill ${cls}">${on ? 'On' : 'Off'}</span>`;
 }
 
+function pvConsentPill(f, writable) {
+  if (!writable) return pvPill(f.enabled, true);
+  if (!f.settable) return pvPill(f.enabled, true).replace('class="pill ', 'class="pill fixed ');
+  return `<button class="pill ${f.enabled ? 'warn' : 'good'}" data-key="${esc(f.key)}" ` +
+         `data-next="${f.enabled ? '0' : '1'}">${f.enabled ? 'On' : 'Off'}</button>`;
+}
+
 function pvRow(name, detail, pillHtml) {
   return `<div class="pv-row"><div><div class="n">${name}</div>` +
          `<div class="d">${detail}</div></div><div>${pillHtml}</div></div>`;
@@ -1596,13 +1621,35 @@ async function loadPrivacy() {
 
     // consent flags
     const c = d.consent || { known: [], other: [] };
-    let html = c.known.map(f => pvRow(f.label, f.detail, pvPill(f.enabled, true))).join('');
-    if (c.other && c.other.length) {
-      html += c.other.map(f => pvRow(f.key,
-        'Recorded by the TV. No published description for this one.',
-        pvPill(f.enabled, true))).join('');
+    const cw = !!d.consentWritable;
+    // Labelled rows show their label; the rest are named by their raw key,
+    // which is all the name they have.
+    const rows = c.known.map(f => ({ ...f, name: f.label, detail: esc(f.detail || '') }))
+      .concat((c.other || []).map(f => ({
+        ...f,
+        name: f.label || f.key,
+        // A named row still shows its key; an unnamed one is already titled by it.
+        detail: esc(f.detail || '') + (f.label ? ` <span class="k">${esc(f.key)}</span>` : '')
+      })));
+    let html = '';
+    for (const [id, title, note] of (d.consentGroups || [['unknown', '']])) {
+      const inGroup = rows.filter(f => (f.group || 'unknown') === id);
+      if (!inGroup.length) continue;
+      const on = inGroup.filter(f => f.enabled).length;
+      // A server that predates the grouping sends no titles; one unlabelled
+      // heading above every row is worse than none.
+      html += (title ? `<div class="pv-g"><span>${esc(title)}</span>` +
+                       `<span class="c">${on} of ${inGroup.length} on</span></div>` : '') +
+              (note ? `<div class="pv-gn">${esc(note)}</div>` : '') +
+              inGroup.map(f => pvRow(esc(f.name), f.detail, pvConsentPill(f, cw))).join('');
     }
     q('pv-consent').innerHTML = html || '<div class="d">Could not read the agreements file.</div>';
+    q('pv-consent-note').innerHTML = cw
+      ? 'These write to the TV and survive a reboot. A flag records what the TV stored ' +
+        '&mdash; it is not proof LG honours it. Dimmed rows are read-only, each for the ' +
+        'reason given beside it.'
+      : 'Controls are disabled in config.json, so these can only be read. Change them on the TV ' +
+        'under <b>Settings &rarr; General &rarr; About This TV &rarr; User Agreements</b>.';
     /* A folded section still has to say where it stands, or folding it just
        hides the answer. Off is the private setting, so the count is of the
        agreements that are on. */
@@ -1621,26 +1668,51 @@ async function loadPrivacy() {
 
     // ad blocker
     const ab = d.adblock || {};
-    const abActive = !!ab.enabled;
+    const mode = ab.mode || (ab.enabled ? 'full' : 'off');
+    const AB = {
+      off:  { pill: 'idle', label: 'Off',
+              detail: 'Nothing is blocked. LG telemetry and ad hosts resolve normally.' },
+      ads:  { pill: 'good', label: 'Ads & telemetry',
+              detail: `Blocks ${ab.adCount} ad, tracking and diagnostics hosts. LG's store and ` +
+                      `update endpoints still resolve.` },
+      full: { pill: 'good', label: 'Everything',
+              detail: `Blocks all ${ab.count} hosts, including ${(ab.platform || []).join(', ')}.` }
+    }[mode] || {};
     const pill = q('adblock-pill');
     if (pill) {
-      pill.textContent = abActive ? 'Active' : 'Inactive';
-      pill.className = 'pill ' + (abActive ? 'good' : 'idle');
+      pill.textContent = AB.label || mode;
+      pill.className = 'pill ' + (AB.pill || 'idle');
     }
-    q('pv-adblock-cur').textContent = abActive ? 'Active' : 'Inactive';
-    const abBtn = q('adblock-toggle');
-    if (abBtn) {
-      abBtn.textContent = abActive ? 'Disable ad blocker' : 'Enable ad blocker';
-      abBtn.classList.toggle('on', abActive);
+    q('adblock-detail').textContent = AB.detail || '';
+    q('pv-adblock-cur').textContent = AB.label || mode;
+    for (const m of ['off', 'ads', 'full']) {
+      const btn = q('ab-' + m);
+      if (btn) btn.classList.toggle('on', m === mode);
     }
   } catch (e) {
     q('pv-live').innerHTML = '<div class="d">Could not load privacy information &mdash; ' + e.message + '</div>';
   }
 }
 
-async function toggleAdBlock() {
-  await c('toggleAdBlock', 'toggle');
-  setTimeout(loadPrivacy, 600);
+/*
+ * Delegated: the rows are re-rendered on every load, so per-button listeners
+ * would have to be reattached each time.
+ */
+q('pv-consent').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button.pill[data-key]');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = '...';
+  const r = await c('consent', { key: btn.dataset.key, enabled: btn.dataset.next === '1' });
+  if (!r || !r.ok) { btn.disabled = false; loadPrivacy(); return; }
+  loadPrivacy();
+});
+
+async function setAdBlockMode(mode) {
+  for (const m of ['off', 'ads', 'full']) { const b = q('ab-' + m); if (b) b.disabled = true; }
+  await c('setAdBlock', mode);
+  await loadPrivacy();
+  for (const m of ['off', 'ads', 'full']) { const b = q('ab-' + m); if (b) b.disabled = false; }
 }
 
 function renderHdmiDiag(diag, colSpace) {

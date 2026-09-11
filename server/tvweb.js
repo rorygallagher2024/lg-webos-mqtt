@@ -27,7 +27,7 @@ var zlib = require('zlib');
  * a link to /releases/tag/v<version>, so a value with no tag behind it gives a
  * 404 rather than a wrong page.
  */
-var TVWEB_VERSION = '0.20.0';
+var TVWEB_VERSION = '0.21.0';
 
 // ---------------------------------------------------------------- config
 var CONFIG = {
@@ -849,26 +849,78 @@ function refreshInstalledApps(cb) {
 
 var ADBLOCK_HOSTS_FILE = '/var/lib/tvweb/adblock_hosts';
 var ADBLOCK_FLAG_FILE = '/var/lib/tvweb/adblock_enabled';
-var ADBLOCK_DOMAINS = [
+/* Ad, tracking and telemetry hosts. Nothing on the TV needs to reach them. */
+var ADBLOCK_ADS = [
   'ad.lgsmartad.com',
   'ibis.lgappstv.com',
   'ibs.lgappstv.com',
   'lgsmartad.com',
   'rdx.lgtvcommon.com',
   'aic.lgtvcommon.com',
-  'aic-ngfts.lge.com',
-  'ngfts.lge.com',
-  'lgtvsdp.com',
-  'us.lgtvsdp.com',
-  'gb.lgtvsdp.com',
-  'eu.lgtvsdp.com',
   'smartclip.com',
   'smartclip-services.com',
   'yumenetworks.com'
 ];
 
+/*
+ * LG's own service platform and content delivery. These carry ads and
+ * recommendations, but they carry the Content Store and firmware updates too:
+ * com.webos.appInstallService on a B8 points at http://GB.lgtvsdp.com. That is
+ * what the "everything" tier costs, and why it is not the default.
+ */
+var ADBLOCK_PLATFORM = [
+  'lgtvsdp.com',
+  'us.lgtvsdp.com',
+  'gb.lgtvsdp.com',
+  'eu.lgtvsdp.com',
+  /* webOS 9 moved the store: a C2 on 9.2.2 installs from GB.nextlgsdp.com. */
+  'nextlgsdp.com',
+  'us.nextlgsdp.com',
+  'gb.nextlgsdp.com',
+  'eu.nextlgsdp.com',
+  'ngfts.lge.com',
+  'aic-ngfts.lge.com'
+];
+
+var ADBLOCK_DOMAINS = ADBLOCK_ADS.concat(ADBLOCK_PLATFORM);
+
+/*
+ * The store's own server, as the TV has it. lgtvsdp.com on webOS 4 and
+ * nextlgsdp.com on webOS 9 are both in the list above, but a set this has not
+ * seen could name a third - and then the full tier would claim to block the
+ * store while leaving it reachable.
+ */
+function storeHost() {
+  try {
+    var j = JSON.parse(rd('/var/palm/data/com.webos.appInstallService/serverInfo') || '{}');
+    var m = /^[a-z]+:\/\/([^\/:?#]+)/i.exec(String(j.serverUrl || ''));
+    return m ? m[1].toLowerCase() : null;
+  } catch (e) { return null; }
+}
+
+function adBlockPlatform() {
+  var list = ADBLOCK_PLATFORM.slice();
+  var host = storeHost();
+  if (host && list.indexOf(host) === -1) list.push(host);
+  return list;
+}
+
+function adBlockList(mode) {
+  return mode === 'full' ? ADBLOCK_ADS.concat(adBlockPlatform()) : ADBLOCK_ADS;
+}
+
 var cachedAdBlockActive = null;
 var lastAdBlockCheck = 0;
+
+/*
+ * Which tier is mounted. The flag file holds the mode; installs made before
+ * there was a choice wrote '1', which was today's "full".
+ */
+function adBlockMode() {
+  if (!isAdBlockActive()) return 'off';
+  var flag = rd(ADBLOCK_FLAG_FILE);
+  return flag === 'ads' ? 'ads' : 'full';
+}
 
 function isAdBlockActive() {
   var now = Date.now();
@@ -885,9 +937,10 @@ function isAdBlockActive() {
   }
 }
 
-function setAdBlock(enable, cb) {
+function setAdBlock(mode, cb) {
   var active = isAdBlockActive();
-  if (enable && !active) {
+  if (mode !== 'off') {
+    var list = adBlockList(mode);
     var lines = [
       '127.0.0.1\tlocalhost.localdomain\tlocalhost',
       '::1\tlocalhost ip6-localhost ip6-loopback',
@@ -898,24 +951,37 @@ function setAdBlock(enable, cb) {
       '',
       '# LG Ad & Telemetry Blackhole (lg-webos-mqtt)'
     ];
-    for (var i = 0; i < ADBLOCK_DOMAINS.length; i++) {
-      lines.push('0.0.0.0\t' + ADBLOCK_DOMAINS[i]);
+    for (var i = 0; i < list.length; i++) {
+      lines.push('0.0.0.0\t' + list[i]);
     }
     lines.push('');
     try {
+      /*
+       * Truncate and rewrite in place. The bind mount is to this file's inode,
+       * so switching tier while mounted takes effect immediately - and writing
+       * a new file and renaming it over this one would leave the mount showing
+       * the old contents.
+       */
       fs.writeFileSync(ADBLOCK_HOSTS_FILE, lines.join('\n'), 'utf8');
-      fs.writeFileSync(ADBLOCK_FLAG_FILE, '1', 'utf8');
+      fs.writeFileSync(ADBLOCK_FLAG_FILE, mode, 'utf8');
     } catch (e) {
       if (cb) cb({ ok: false, error: 'could not write adblock hosts: ' + e.message });
+      return;
+    }
+    if (active) {   // already mounted: the rewrite above is the whole change
+      cachedAdBlockActive = null;
+      cachedPrivacy = null;
+      lastStats = null;
+      if (cb) cb({ ok: true, enabled: true, mode: mode });
       return;
     }
     execFile('/bin/mount', ['--bind', ADBLOCK_HOSTS_FILE, '/etc/hosts'], { timeout: 3000 }, function (err) {
       cachedAdBlockActive = null;
       cachedPrivacy = null;
       lastStats = null;
-      if (cb) cb({ ok: !err, enabled: isAdBlockActive() });
+      if (cb) cb({ ok: !err, enabled: isAdBlockActive(), mode: adBlockMode() });
     });
-  } else if (!enable && active) {
+  } else if (mode === 'off' && active) {
     try {
       if (fs.existsSync(ADBLOCK_FLAG_FILE)) fs.unlinkSync(ADBLOCK_FLAG_FILE);
     } catch (e) {}
@@ -923,10 +989,10 @@ function setAdBlock(enable, cb) {
       cachedAdBlockActive = null;
       cachedPrivacy = null;
       lastStats = null;
-      if (cb) cb({ ok: !err, enabled: isAdBlockActive() });
+      if (cb) cb({ ok: !err, enabled: isAdBlockActive(), mode: adBlockMode() });
     });
   } else {
-    if (cb) cb({ ok: true, enabled: active });
+    if (cb) cb({ ok: true, enabled: active, mode: adBlockMode() });
   }
 }
 
@@ -1730,15 +1796,15 @@ function hdmiInputs(cb) {
 
 // ---------------------------------------------------------------- privacy
 /*
- * Read-only view of LG's data collection, plus the two changes the platform
- * itself offers an API for.
+ * View of LG's data collection, and the changes the platform offers an API
+ * for.
  *
- * The consent flags live in /var/luna/preferences/eula. There is no Luna
- * setter for them - the Settings UI writes that file directly - so this
- * REPORTS them and does not attempt to change them. Turning them off is done
- * in the TV's own menus (General > About This TV > User Agreements).
+ * The consent flags are mirrored into /var/luna/preferences/eula, but
+ * com.webos.settingsservice owns them: it regenerates that file at boot, which
+ * is why editing the file looks like it works and reverts. Reads come from the
+ * file because it costs no fork; writes go through the service.
  *
- * The two actions here are genuine Luna calls, not file edits: rotating the
+ * The other actions here are genuine Luna calls, not file edits: rotating the
  * advertising identifier and clearing ad cookies.
  *
  * Labels are deliberately plain. "ACR" and "LMT" mean nothing to most people,
@@ -1759,6 +1825,136 @@ var CONSENT_LABELS = {
   remoteDiagAllowed:       ['Remote diagnostics upload', 'Lets LG collect and upload diagnostic reports from your TV'],
   voiceAllowed:            ['Voice recordings', 'Allows voice data to be collected and processed'],
   voice2Allowed:           ['Voice recordings (secondary flag)', 'A second voice-data consent record']
+};
+
+/*
+ * Never offered as toggles.
+ *
+ * The first three record acceptance of the terms and of network use rather
+ * than a collection choice, and what a set does when they are false is
+ * untested. allAllowed is the Select-All: whether writing it cascades to the
+ * other twenty is also untested, and a single click that silently grants
+ * everything is the one failure this panel must not have.
+ */
+var CONSENT_LOCKED = {
+  generalTermsAllowed: 'Acceptance of the terms themselves.',
+  networkAllowed:      'Acceptance of network use.',
+  firstUseAllowed:     'Part of first-boot setup.',
+  allAllowed:          'The Select-All. Read-only because whether writing it cascades to the ' +
+                       'other flags is untested.'
+};
+
+/*
+ * /var/palm/license/eulaInfoNetwork.json maps each flag to the licence
+ * documents accepting it implies. The mapping is firmware-specific - chpAllowed
+ * names S_CHP on a C8 and only S_SVC on this B8 - so it is read from the set
+ * rather than hardcoded.
+ *
+ * It is what separates an undescribed flag the TV can at least account for from
+ * one it cannot. Flags in no group get no toggle: nobody can consent to
+ * something neither we nor the platform can name.
+ */
+var consentGroups = null;
+var consentMapFound = false;
+
+function loadConsentGroups() {
+  if (consentGroups) return consentGroups;
+  consentGroups = {};
+  try {
+    var j = JSON.parse(rd('/var/palm/license/eulaInfoNetwork.json') || '{}');
+    var list = (j.eulaMappingList && j.eulaMappingList.eulaInfo) || [];
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i];
+      if (!e || !e.settingKey) continue;
+      // "mandatory" is the set that actually has to be accepted; the notice and
+      // select-all entries are the same document on every group.
+      consentGroups[e.settingKey] = (e.mandatory || e.generalSelectAll || []).slice().sort();
+      consentMapFound = true;
+    }
+  } catch (err) { /* no mapping on this set: every unlabelled flag stays read-only */ }
+  return consentGroups;
+}
+
+function consentSettable(key) {
+  if (CONSENT_LOCKED[key]) return false;
+  if (CONSENT_LABELS[key]) return true;
+  return !!loadConsentGroups()[key];
+}
+
+// Every labelled flag accepting exactly the same documents. That is the only
+// honest description available for a flag LG never published one for, and
+// naming just the first of several would pick one arbitrarily.
+function consentPeers(key, groups) {
+  var mine = groups[key], names = [];
+  if (!mine || !mine.length) return names;
+  for (var other in groups) {
+    if (!groups.hasOwnProperty(other) || other === key) continue;
+    if (!CONSENT_LABELS[other]) continue;
+    if (groups[other].join(',') === mine.join(',')) names.push('"' + CONSENT_LABELS[other][0] + '"');
+  }
+  return names;
+}
+
+/*
+ * Display grouping. 21 flat rows is a list nobody reads to the end of, and the
+ * groups put the flags LG never described in one place instead of scattering
+ * them between ones that are explained.
+ */
+var CONSENT_GROUPS = [
+  ['advertising', 'Advertising'],
+  ['watching',    'What the TV watches and hears'],
+  ['analytics',   'Analytics and sharing'],
+  ['unknown',     'No published description',
+   'The TV records these and LG publishes nothing about what they mean. ' +
+   'The ones it cannot tie to any agreement are left read-only.'],
+  ['platform',    'Set on the TV itself',
+   'Acceptance records rather than collection choices. Changed in the TV\'s own menus, ' +
+   'under Settings \u203a General \u203a About This TV \u203a User Agreements.']
+];
+
+var CONSENT_GROUP_OF = {
+  customAdAllowed: 'advertising',
+  customadsAllowed: 'advertising',
+  cookiesAllowed: 'advertising',
+  acrAdAllowed: 'advertising',
+
+  acrAllowed: 'watching',
+  acrGdprAllowed: 'watching',
+  voiceAllowed: 'watching',
+  voice2Allowed: 'watching',
+
+  additionalDataAllowed: 'analytics',
+  remoteDiagAllowed: 'analytics',
+  thirdPartySharingAllowed: 'analytics',
+
+  // Read-only, and structural rather than a collection choice.
+  networkAllowed: 'platform',
+  generalTermsAllowed: 'platform',
+  firstUseAllowed: 'platform',
+  allAllowed: 'platform'
+};
+
+function consentGroup(key) {
+  return CONSENT_GROUP_OF[key] || 'unknown';
+}
+
+/*
+ * A name only, for flags LG publishes no description of. Deliberately separate
+ * from CONSENT_LABELS: a label there means "we can say what this collects",
+ * which is what makes a flag settable. Naming a row must never be what decides
+ * that - a title is not an understanding of what it grants.
+ *
+ * Names from #61, read off the licence documents each flag accepts on a C8.
+ * The descriptions offered alongside them are not taken: they assert firmware-
+ * specific findings (and, for generalTermsAllowed, an untested outcome) that do
+ * not hold on 4.4.3. What a flag is grouped with is derived at runtime instead.
+ */
+var CONSENT_NAMES = {
+  networkAllowed:      'Network use',
+  generalTermsAllowed: 'Terms of Use and Privacy Policy',
+  chpAllowed:          'LG Channels',
+  acrOnAllowed:        'Screen recognition (master consent)',
+  allAllowed:          'Select All'
 };
 
 // Daemons worth naming, with what they actually do.
@@ -1795,17 +1991,53 @@ function mapPowerState(raw) {
 
 var cachedPrivacy = null, lastPrivacyCheck = 0;
 
+/*
+ * A flag with no published description. What can be said about it comes from
+ * the licence mapping, and whether it can be changed follows from the same
+ * place - see loadConsentGroups.
+ */
+function describeUnlabelled(key, on, groups) {
+  var row = { key: key, enabled: on, settable: consentSettable(key), group: consentGroup(key) };
+  if (CONSENT_NAMES[key]) row.label = CONSENT_NAMES[key];
+  var docs = groups[key];
+  /*
+   * The document ids (S_ADG and friends) go in the payload but never on the
+   * page: LG publishes no index for them, and this TV carries no file that
+   * resolves one to a title, so on screen they are noise wearing the costume
+   * of an explanation.
+   */
+  if (docs) row.documents = docs;
+  if (CONSENT_LOCKED[key]) {
+    row.detail = CONSENT_LOCKED[key];
+    return row;
+  }
+  if (!docs) {
+    row.detail = consentMapFound
+      ? 'Tied to no agreement on this firmware.'
+      : 'This TV publishes no agreement mapping, so there is nothing to go on.';
+    return row;
+  }
+  var peers = consentPeers(key, groups);
+  row.detail = peers.length
+    ? 'Accepted under the same agreement as ' + peers.join(' and ') + '.'
+    : 'Filed under an agreement the TV does not name.';
+  return row;
+}
+
 function readConsentFlags() {
   var raw = rd('/var/luna/preferences/eula');
   if (!raw) return null;
+  var groups = loadConsentGroups();
   var out = { known: [], other: [] };
   var re = /"([a-zA-Z0-9_]+Allowed)"\s*:\s*(true|false)/g, m;
   while ((m = re.exec(raw)) !== null) {
     var key = m[1], on = m[2] === 'true';
     if (CONSENT_LABELS[key]) {
-      out.known.push({ key: key, label: CONSENT_LABELS[key][0], detail: CONSENT_LABELS[key][1], enabled: on });
+      out.known.push({ key: key, label: CONSENT_LABELS[key][0], detail: CONSENT_LABELS[key][1],
+                       enabled: on, settable: consentSettable(key),
+                       group: consentGroup(key) });
     } else {
-      out.other.push({ key: key, enabled: on });
+      out.other.push(describeUnlabelled(key, on, groups));
     }
   }
   return out;
@@ -1831,7 +2063,8 @@ function collectPrivacy(cb) {
   var now = Date.now();
   if (cachedPrivacy && (now - lastPrivacyCheck < 20000)) return cb(cachedPrivacy);
 
-  var out = { ok: true, consent: readConsentFlags() };
+  var out = { ok: true, consent: readConsentFlags(), consentWritable: CONFIG.allowControl,
+              consentGroups: CONSENT_GROUPS };
 
   luna('com.webos.service.acr/getACRSolutionStatus', {}, function (acr) {
     // `false` here means the recognition engine is not running at all.
@@ -1864,7 +2097,10 @@ function collectPrivacy(cb) {
           out.daemons = daemons;
           out.adblock = {
             enabled: isAdBlockActive(),
-            count: ADBLOCK_DOMAINS.length
+            mode: adBlockMode(),
+            count: adBlockList('full').length,
+            adCount: ADBLOCK_ADS.length,
+            platform: adBlockPlatform()
           };
           cachedPrivacy = out;
           lastPrivacyCheck = Date.now();
@@ -2008,18 +2244,22 @@ function doControl(action, value, cb) {
         cb({ ok: ok });
       });
 
+    /*
+     * Two tiers: "ads" blocks the ad and telemetry hosts, "full" takes LG's
+     * store and update endpoints with them. Callers that predate the choice
+     * pass a boolean and still mean off/full.
+     */
     case 'adblock':
     case 'setAdBlock':
     case 'toggleAdBlock':
-      var enableBlock;
-      if (action === 'toggleAdBlock' || value === 'toggle') {
-        enableBlock = !isAdBlockActive();
-      } else {
-        enableBlock = (value === true || value === 'ON' || value === 'true' || value === 1);
+      var abMode = String(value == null ? '' : value).toLowerCase();
+      if (action === 'toggleAdBlock' || abMode === 'toggle') {
+        abMode = isAdBlockActive() ? 'off' : 'full';
+      } else if (abMode !== 'off' && abMode !== 'ads' && abMode !== 'full') {
+        abMode = (value === true || abMode === 'on' || abMode === 'true' || abMode === '1')
+          ? 'full' : 'off';
       }
-      return setAdBlock(enableBlock, function (res) {
-        cb(res);
-      });
+      return setAdBlock(abMode, function (res) { cb(res); });
 
     /*
      * Rotate the advertising identifier. A real Luna call, not a file edit -
@@ -2038,6 +2278,56 @@ function doControl(action, value, cb) {
               ok: !!(r && r.returnValue !== false),
               changed: !!(was && now && was !== now)
             });
+          });
+        });
+      });
+
+    /*
+     * Flip one consent flag. The setter replaces the whole eulaStatus object,
+     * so the current one is read back immediately before writing rather than
+     * reused from cache - the TV's own menus change these too.
+     */
+    case 'consent':
+      var ckey = (value && value.key) ? String(value.key) : '';
+      var cOn = !!(value && (value.enabled === true || value.enabled === 'true'));
+      if (!ckey) return cb({ ok: false, error: 'no consent flag named' });
+      if (!consentSettable(ckey)) return cb({ ok: false, error: ckey + ' is not changeable from here' });
+      return luna('com.webos.settingsservice/getSystemSettings', { keys: ['eulaStatus'] }, function (r) {
+        var cur = r && r.settings && r.settings.eulaStatus;
+        if (!cur || typeof cur !== 'object') return cb({ ok: false, error: 'could not read the consent flags' });
+        if (!cur.hasOwnProperty(ckey)) return cb({ ok: false, error: 'no such consent flag: ' + ckey });
+        if (cur[ckey] === cOn) {
+          cachedPrivacy = null;
+          return cb({ ok: true, key: ckey, enabled: cOn, changed: false });
+        }
+        var next = {};
+        for (var ek in cur) if (cur.hasOwnProperty(ek)) next[ek] = cur[ek];
+        next[ckey] = cOn;
+        luna('com.webos.settingsservice/setSystemSettings', { settings: { eulaStatus: next } }, function (w) {
+          cachedPrivacy = null;
+          if (!(w && w.returnValue)) {
+            console.log('consent: ' + ckey + ' ' + cur[ckey] + ' -> ' + cOn + ' (refused)');
+            return cb({ ok: false, error: (w && w.errorText) || 'the TV refused the change' });
+          }
+          /*
+           * Read it back. returnValue means the service took the call, not that
+           * it stored anything - writing /var/luna/preferences/eula directly
+           * looks exactly as successful and reverts at boot. On firmware this
+           * has never run against, that difference is the whole question, and a
+           * toggle that reports success without checking is the failure this
+           * panel exists to avoid.
+           */
+          luna('com.webos.settingsservice/getSystemSettings', { keys: ['eulaStatus'] }, function (v) {
+            var now = v && v.settings && v.settings.eulaStatus;
+            var applied = !!(now && now[ckey] === cOn);
+            // Consent records: without a line here there is no telling
+            // afterwards whether a change came from the panel or the TV.
+            console.log('consent: ' + ckey + ' ' + cur[ckey] + ' -> ' + cOn +
+                        (applied ? '' : ' (accepted but not applied)'));
+            cachedPrivacy = null;
+            cb(applied
+              ? { ok: true, key: ckey, enabled: cOn, changed: true }
+              : { ok: false, error: 'the TV accepted the change without applying it' });
           });
         });
       });
@@ -2601,6 +2891,11 @@ if (!webEnabled && !mqttEnabled) {
   try {
     if (fs.existsSync(ADBLOCK_FLAG_FILE) && !isAdBlockActive() && fs.existsSync(ADBLOCK_HOSTS_FILE)) {
       execFile('/bin/mount', ['--bind', ADBLOCK_HOSTS_FILE, '/etc/hosts'], { timeout: 3000 }, function (err) {
+        // The isAdBlockActive() above cached "not mounted" moments ago, and
+        // that answer is good for 30s - long enough to report the sinkhole off
+        // on every boot it restores.
+        cachedAdBlockActive = null;
+        cachedPrivacy = null;
         if (!err) console.log('adblock: restored /etc/hosts bind-mount from previous boot');
       });
     }

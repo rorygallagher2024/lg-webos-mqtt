@@ -39,11 +39,13 @@ A custom Home Assistant dashboard for an LG TV:
 Behind a toggle in the controls, or at `/?privacy=1`. Reports live state from
 the TV rather than repeating a settings menu: whether LG's content recognition
 engine is running and sampling frames, your advertising identifier, and every
-agreement recorded on the set. Includes an on-TV ad & telemetry sinkhole via
-bind-mounting over `/etc/hosts` that persists across reboots.
+agreement recorded on the set &mdash; most of which can be switched off from
+here. Includes an on-TV ad & telemetry sinkhole via bind-mounting over
+`/etc/hosts` that persists across reboots, in a tier that spares the Content
+Store or one that does not.
 
 <p align="center">
-  <a href="docs/screenshots/privacy.png"><img src="docs/screenshots/privacy.png" alt="Privacy panel showing content recognition status, advertising identifier, data collection agreements, and ad blocker" width="700"></a>
+  <a href="docs/screenshots/privacy.png"><img src="docs/screenshots/privacy.png" alt="Privacy panel showing content recognition status, advertising identifier, the data collection agreements grouped by subject with toggles, background services, and the ad sinkhole tiers" width="700"></a>
 </p>
 
 ---
@@ -89,18 +91,22 @@ bind-mounting over `/etc/hosts` that persists across reboots.
   (resolution, refresh rate, colour depth, pixel clock) and a read-only list of
   what is resident in memory. Both load on demand.
 * **Bi-directional control.** Volume, mute, input select, media playback (play/pause/stop/skip via native remote key injection), app launching, picture presets, sound outputs, screen blanking, sleep timer, standby LED, on-screen notifications, power and restart (from the dashboard or Home Assistant). The picture presets on offer are the ones the TV will accept for whatever is playing &mdash; a Dolby Vision source has its own set.
-* **On-TV ad & telemetry sinkhole.** Sinkholes 15 known LG tracking, ad and ACR
-  endpoints directly on the set by bind-mounting a local blackhole table over
-  `/etc/hosts`. Automatically restored on boot. **Note that two of those domains
-  are LG infrastructure, not pure ad hosts** &mdash; `ngfts.lge.com` (content and
-  firmware delivery) and `lgtvsdp.com` (the service platform behind the LG Content
-  Store) &mdash; so with the sinkhole on, firmware updates and the app store may
-  stop working. That is the trade; turn it off if you need either.
+* **On-TV ad & telemetry sinkhole.** Blackholes LG's tracking, ad and ACR
+  endpoints on the set itself by bind-mounting a hosts table over `/etc/hosts`.
+  Automatically restored on boot. Two tiers: *ads & telemetry* blocks the nine
+  ad and diagnostics hosts and leaves LG's own service platform reachable;
+  *everything* adds the ten that carry the Content Store and firmware delivery,
+  so on that tier the app store and updates may stop working. The store server
+  differs by platform &mdash; `com.webos.appInstallService` installs from
+  `lgtvsdp.com` on webOS 4 and `nextlgsdp.com` on webOS 9 &mdash; and both are
+  in that tier.
 * **Privacy panel.** Behind a toggle in the controls: whether LG's screen
   content recognition is actually running and sampling frames, your advertising
   identifier and whether ad tracking is limited, every data-collection
   agreement recorded on the TV, and which of LG's collection
-  services are alive. Includes buttons to reset the advertising ID, clear ad
+  services are alive. The agreements can be switched off from the panel and the
+  change survives a reboot; acceptance of the terms themselves is left to the
+  TV's own menus. Includes buttons to reset the advertising ID, clear ad
   cookies, and toggle the on-TV ad blocker. Deep link: `/?privacy=1`.
 * **Self-contained dashboard.** Fonts and assets are served by the TV, so the
   page works with no internet access.
