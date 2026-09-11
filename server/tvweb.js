@@ -521,15 +521,22 @@ function getActiveHdmiDiagnostics() {
     var isVrr = (vrrMatch && vrrMatch[1] === '1') ||
                 (vrrMinMax && (parseInt(vrrMinMax[1], 10) > 0 || parseInt(vrrMinMax[2], 10) > 0));
 
+    /*
+     * Null where the line is absent, not 0 or false. An HDMI 2.0 port has a
+     * status file and reports as connected, but carries none of the 2.1 lines:
+     * a B8 gives the port number and nothing else. Defaulting meant a cable
+     * error count of 0 and a VRR of OFF on a set with no counter and no VRR
+     * hardware, which reads as a measurement rather than as silence.
+     */
     return {
       port: p,
       phy_mode: phyMode,
       chroma: format,
       hdcp: hdcp,
-      phy_errors: errMatch ? parseInt(errMatch[1], 10) : 0,
-      allm: allmMatch ? (allmMatch[1] === '1') : false,
-      vrr: !!isVrr,
-      qms: qmsMatch ? (qmsMatch[1] === '1') : false
+      phy_errors: errMatch ? parseInt(errMatch[1], 10) : null,
+      allm: allmMatch ? (allmMatch[1] === '1') : null,
+      vrr: (vrrMatch || vrrMinMax) ? !!isVrr : null,
+      qms: qmsMatch ? (qmsMatch[1] === '1') : null
     };
   }
   return null;
@@ -803,14 +810,21 @@ function detectDeviceInfo(cb) {
   );
 }
 
+// Keyed on both the soundOutput setting and the audio service's scenario name
+// with its mastervolume_ prefix removed - the two use the same output names,
+// except that a scenario can also name a combination.
 var SOUND_OUTPUT_MAP = {
   tv_speaker: 'TV Speaker',
   external_arc: 'HDMI ARC',
   optical: 'Optical',
+  external_optical: 'Optical',
   headphone: 'Headphone / AUX',
   bt_soundbar: 'Bluetooth',
+  external_speaker: 'External Speaker',
   lineout: 'Line Out',
-  soundbar: 'LG Sound Sync'
+  soundbar: 'LG Sound Sync',
+  tv_speaker_headphone: 'TV Speaker + Headphone',
+  internal: 'TV Speaker'
 };
 
 function formatSoundOutput(so) {
@@ -1393,7 +1407,11 @@ function collectStats(cb) {
   if (n) prevNet = n;
 
   var hdmiDiag = getActiveHdmiDiagnostics();
-  if (hdmiDiag) hasHdmiDiag = true;
+  if (hdmiDiag) {
+    for (var hf in hdmiDiag) {
+      if (hf !== 'port' && hdmiDiag[hf] !== null) hdmiSeen[hf] = true;
+    }
+  }
   var peInfo = getPictureEngineInfo();
 
   var out = {
@@ -1489,7 +1507,6 @@ function collectStats(cb) {
       hasLogo: hasLogoLight === true
     };
     out.gpuMhz = gpuClockMhz();
-    out.screenSaver = screenSaverOn();
   lunaCached('com.palm.connectionmanager/getStatus', {}, 60000, function (cm) {
     // Network name, so the Wi-Fi figures say which network they refer to.
     var w = cm && cm.wifi;
@@ -1518,7 +1535,14 @@ function collectStats(cb) {
     if (sound) {
       out.volume = sound.volume;
       out.muted = !!sound.muted;
-      out.audio_output = sound.scenario || 'internal';
+      /*
+       * The audio scenario names the output the way the audio service does -
+       * "mastervolume_headphone" - which is an internal identifier, not a
+       * reading. The prefix is the volume domain, and the rest is the same
+       * output name the sound setting uses.
+       */
+      out.audio_output = sound.scenario ?
+        formatSoundOutput(String(sound.scenario).replace(/^mastervolume_/, '')) : 'Internal';
     }
     lunaCached('com.webos.service.settings/getSystemSettings',
       { category: 'sound', keys: ['soundOutput', 'soundMode'] }, 15000,
@@ -1550,6 +1574,14 @@ function collectStats(cb) {
         lunaCached('com.webos.applicationManager/getForegroundAppInfo', {}, 4000, function (app) {
           if (app && app.appId) {
             var shortApp = String(app.appId).replace('com.webos.app.', '');
+            /*
+             * The screen saver is an app - com.webos.app.screensaver - and
+             * takes the foreground while it draws. There is no status call for
+             * it: tvpower has no getter, and the ss line in /proc/lg/sys/status
+             * that this once read is the PLL spread spectrum flag, which is on
+             * permanently and has nothing to do with the screen.
+             */
+            out.screenSaver = (shortApp === 'screensaver');
             out.app = shortApp;
             out.app_id = app.appId;
             out.app_name = inputNameMap[shortApp] || shortApp;
@@ -1706,13 +1738,7 @@ function gpuClockMhz() {
  * A set that does not publish the field reports nothing rather than "off",
  * which would claim a screen saver is not running on a TV that never says.
  */
-function screenSaverOn() {
-  var raw = rd('/proc/lg/sys/status');
-  if (!raw) return null;
-  var m = raw.match(/^\s*ss\s*:\s*(\w+)/im);
-  if (!m) return null;
-  return /^(on|1|true)$/i.test(m[1]);
-}
+
 
 /*
  * App storage. Separate partition from cmn_data, and the one that actually
@@ -2413,14 +2439,18 @@ var INPUTS = { hdmi1: 1, hdmi2: 1, hdmi3: 1, hdmi4: 1, livetv: 1 };
 var hasLightSensor = false;
 
 /*
- * Whether this set reports HDMI 2.1 diagnostics at all.
+ * Which HDMI diagnostics this set reports, one flag per field.
  *
  * Latched rather than read live, because hdmi_diag is absent whenever no HDMI
  * source is active - on the Home screen, on Live TV, on an app - and that is
- * not the same as the set being unable to report it. Once seen, the entities
- * stay; a set that never reports them never gets them.
+ * not the same as the set being unable to report it. Once seen, the entity
+ * stays; a field the set never reports never gets one.
+ *
+ * Per field because the block is not all or nothing. An HDMI 2.0 port reports
+ * as connected and fills in none of the 2.1 lines, so asking only whether the
+ * block existed gave a B8 six entities it could never answer.
  */
-var hasHdmiDiag = false;
+var hdmiSeen = {};
 
 /*
  * Front-panel lights. The "option" settings category carries standByLight,
@@ -3720,7 +3750,7 @@ function setupHomeAssistant() {
         payload: {
           name: 'Auto Low Latency Mode (ALLM)',
           state_topic: telemetryTopic,
-          value_template: '{{ ("ON" if value_json.hdmi_diag.allm else "OFF") if value_json.hdmi_diag else none }}',
+          value_template: '{{ ("ON" if value_json.hdmi_diag.allm else "OFF") if value_json.hdmi_diag and value_json.hdmi_diag.allm is not none else none }}',
           icon: 'mdi:gamepad-variant'
         }
       },
@@ -3729,7 +3759,7 @@ function setupHomeAssistant() {
         payload: {
           name: 'Variable Refresh Rate (VRR)',
           state_topic: telemetryTopic,
-          value_template: '{{ ("ON" if value_json.hdmi_diag.vrr else "OFF") if value_json.hdmi_diag else none }}',
+          value_template: '{{ ("ON" if value_json.hdmi_diag.vrr else "OFF") if value_json.hdmi_diag and value_json.hdmi_diag.vrr is not none else none }}',
           icon: 'mdi:speedometer'
         }
       },
@@ -3750,7 +3780,7 @@ function setupHomeAssistant() {
         payload: {
           name: 'Audio Output',
           state_topic: telemetryTopic,
-          value_template: '{{ value_json.audio_output or "internal" }}',
+          value_template: '{{ value_json.audio_output or "Internal" }}',
           icon: 'mdi:speaker'
         }
       },
@@ -3774,6 +3804,7 @@ function setupHomeAssistant() {
           value_template: '{{ value_json.uptime }}',
           unit_of_measurement: 's',
           device_class: 'duration',
+          suggested_display_precision: 0,
           icon: 'mdi:clock-outline'
         }
       },
@@ -4193,8 +4224,7 @@ function setupHomeAssistant() {
         /*
          * The other half of that button. turnOnScreenSaver reports success
          * whether or not anything answered the request, so this is the only
-         * confirmation that one is actually on screen. Withheld on sets whose
-         * kernel does not publish it - see publishDiscovery.
+         * confirmation that one is actually on screen.
          */
         type: 'binary_sensor', id: 'screen_saver_active',
         payload: {
@@ -4281,11 +4311,11 @@ function setupHomeAssistant() {
      * looks like a real reading. Retained discovery configs are cleared so
      * they disappear from HA rather than lingering as orphans.
      */
-    // Everything sourced from hdmi_diag, and nothing else - these six stand or
-    // fall together, since one absent block leaves all of them with no source.
+    // Each of these has one field behind it, and is published only once this
+    // set has reported that field - see hdmiSeen.
     var HDMI_DIAG_ONLY = {
-      hdmi_link_mode: 1, hdmi_chroma: 1, hdmi_hdcp: 1,
-      hdmi_cable_errors: 1, hdmi_allm: 1, hdmi_vrr: 1
+      hdmi_link_mode: 'phy_mode', hdmi_chroma: 'chroma', hdmi_hdcp: 'hdcp',
+      hdmi_cable_errors: 'phy_errors', hdmi_allm: 'allm', hdmi_vrr: 'vrr'
     };
 
     var OLED_ONLY = {
@@ -4435,20 +4465,20 @@ function setupHomeAssistant() {
     }
 
     /*
-     * HDMI 2.1 diagnostics, on a set that has never reported any. A B8 has no
-     * FRL link, no chroma report and no PHY error counter, and six entities
-     * that can only ever read unknown are worse than none.
+     * HDMI diagnostics this set has never reported. A B8 has no FRL link, no
+     * chroma report, no PHY error counter and no VRR hardware, and an entity
+     * that can only ever read unknown - or worse, a confident 0 - is worse
+     * than none.
      */
-    if (!hasHdmiDiag) {
-      var keptHdmi = [];
-      for (var hi = 0; hi < entities.length; hi++) {
-        if (HDMI_DIAG_ONLY[entities[hi].id]) {
-          mqttClient.publish(discPfx + '/' + entities[hi].type + '/' + devId + '/' +
-                             entities[hi].id + '/config', '', true);
-        } else { keptHdmi.push(entities[hi]); }
-      }
-      entities = keptHdmi;
+    var keptHdmi = [];
+    for (var hi = 0; hi < entities.length; hi++) {
+      var hNeeds = HDMI_DIAG_ONLY[entities[hi].id];
+      if (hNeeds && !hdmiSeen[hNeeds]) {
+        mqttClient.publish(discPfx + '/' + entities[hi].type + '/' + devId + '/' +
+                           entities[hi].id + '/config', '', true);
+      } else { keptHdmi.push(entities[hi]); }
     }
+    entities = keptHdmi;
 
     /*
      * GPU clock. Withheld on sets whose kernel does not expose the PLL output
@@ -4462,21 +4492,6 @@ function setupHomeAssistant() {
         } else { keptGpu.push(entities[gi]); }
       }
       entities = keptGpu;
-    }
-
-    /*
-     * Screen saver state, from the same file. A set that never publishes it
-     * would otherwise get an entity reading OFF forever, which asserts that no
-     * screen saver is running on a TV that has never said either way.
-     */
-    if (screenSaverOn() === null) {
-      var keptSs = [];
-      for (var si = 0; si < entities.length; si++) {
-        if (entities[si].id === 'screen_saver_active') {
-          mqttClient.publish(discPfx + '/binary_sensor/' + devId + '/screen_saver_active/config', '', true);
-        } else { keptSs.push(entities[si]); }
-      }
-      entities = keptSs;
     }
 
     /*
@@ -4525,7 +4540,7 @@ function setupHomeAssistant() {
   }
 
   var lastPicSig = '';
-  var lastHdmiCap = false;
+  var lastHdmiCap = '';
 
   function publishTelemetry() {
     if (!mqttClient.connected) return;
@@ -4562,12 +4577,15 @@ function setupHomeAssistant() {
       /*
        * The HDMI diagnostics only appear once a source has been active, so a
        * set that started on the Home screen looks incapable at first connect.
-       * Publishing again the first time they show turns the entities on; the
-       * flag never clears, so this happens once.
+       * Publishing again each time another field shows for the first time
+       * turns that entity on; a field is never unlatched, so this settles.
        */
-      if (hasHdmiDiag && !lastHdmiCap) {
-        lastHdmiCap = true;
-        console.log('mqtt: HDMI diagnostics reported - republishing discovery');
+      var hdmiCap = [];
+      for (var hs in hdmiSeen) hdmiCap.push(hs);
+      hdmiCap = hdmiCap.sort().join(',');
+      if (hdmiCap !== lastHdmiCap) {
+        lastHdmiCap = hdmiCap;
+        console.log('mqtt: HDMI diagnostics reported (' + hdmiCap + ') - republishing discovery');
         publishDiscovery();
       }
     });

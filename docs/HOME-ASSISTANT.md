@@ -67,8 +67,13 @@ Playback reaches an HDMI source over CEC, where the TV has only one key for both
 | `sensor` | `sensor.lg_tv_picture_mode` | Picture Mode | Current profile (e.g. *Dolby Vision Cinema*, *Game*) |
 | `sensor` | `sensor.lg_tv_oled_light` | OLED Light | OLED panel backlight level (`0–100%`) |
 | `sensor` | `sensor.lg_tv_panel_dimming` | Panel Dimming | Dynamic backlight/panel dimming state |
-| `sensor` | `sensor.lg_tv_audio_output` | Audio Output | Audio scenario (e.g. *Optical / Headphone*, *Internal*) |
+| `sensor` | `sensor.lg_tv_audio_output` | Audio Output | Output the audio service is driving (e.g. *HDMI ARC*, *Headphone / AUX*) |
 | `sensor` | `sensor.lg_tv_active_app` | Active App | Current foreground app or friendly CEC device |
+
+The six HDMI entities are published per field, and only once the set has
+reported that field. An HDMI 2.0 port reports as connected but carries none of
+the 2.1 lines, so a 2018 set such as a B8 gets none of them rather than a row
+of Unknowns and a cable error count of zero.
 | `sensor` | `sensor.lg_tv_play_state` | Player State | State of the TV's own media pipeline (`playing`, `paused`, `stopped`) |
 
 ### Hardware, Remote & System Diagnostics
