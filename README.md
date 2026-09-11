@@ -14,12 +14,13 @@ There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the T
 
 ### Web Dashboard & Controls
 
-Live telemetry and full local control in a two-column layout.
+Four tabs &mdash; Control, Metrics, Privacy and MQTT &mdash; so the remote
+controls are not behind a screen of telemetry, or the other way round.
 
 <p align="center">
-  <a href="docs/screenshots/dashboard.png"><img src="docs/screenshots/dashboard.png" alt="LG webOS TV live dashboard: dark theme (OLED65B8SLC)" width="440"></a>
+  <a href="docs/screenshots/dashboard.png"><img src="docs/screenshots/dashboard.png" alt="Metrics tab: SoC temperature, system readouts, storage and display panel counters, dark theme (OLED65B8SLC)" width="440"></a>
   &nbsp;
-  <a href="docs/screenshots/dashboard-light.png"><img src="docs/screenshots/dashboard-light.png" alt="LG webOS TV live dashboard: light theme (OLED65B8SLC)" width="440"></a>
+  <a href="docs/screenshots/dashboard-light.png"><img src="docs/screenshots/dashboard-light.png" alt="Control tab: panel, source, volume, playback, picture, sound, apps and power, light theme (OLED65B8SLC)" width="440"></a>
 </p>
 
 ### Home Assistant (Auto-Discovered Device via MQTT)
@@ -36,7 +37,7 @@ A custom Home Assistant dashboard for an LG TV:
 
 ### Privacy Panel & On-TV Ad Blocker
 
-Behind a toggle in the controls, or at `/?privacy=1`. Reports live state from
+The Privacy tab, or `/?tab=privacy`. Reports live state from
 the TV rather than repeating a settings menu: whether LG's content recognition
 engine is running and sampling frames, your advertising identifier, and every
 agreement recorded on the set &mdash; most of which can be switched off from
@@ -108,7 +109,7 @@ Store or one that does not.
   as such, and the two upstart supervises can be switched off for good. The agreements can be switched off from the panel and the
   change survives a reboot; acceptance of the terms themselves is left to the
   TV's own menus. Includes buttons to reset the advertising ID, clear ad
-  cookies, and toggle the on-TV ad blocker. Deep link: `/?privacy=1`.
+  cookies, and toggle the on-TV ad blocker. Deep link: `/?tab=privacy`.
 * **Self-contained dashboard.** Fonts and assets are served by the TV, so the
   page works with no internet access.
 * **Dark and light themes.** High-contrast light mode with dark text alongside
@@ -215,13 +216,17 @@ reason to run one, but not a requirement &mdash; see
 
 ### Setting it up from the dashboard
 
-Open the dashboard, then **MQTT settings** in the controls column. Fill in the
+Open the dashboard, then the **MQTT** tab. Fill in the
 broker address and credentials, switch **MQTT bridge** on, and save. The server
 writes `config.json` on the TV and restarts itself; the page reconnects on its
 own after a few seconds.
 
 Nothing else is needed. Home Assistant picks up the device within a few seconds
 of the bridge connecting.
+
+<p align="center">
+  <a href="docs/screenshots/mqtt.png"><img src="docs/screenshots/mqtt.png" alt="MQTT tab: bridge status and switch beside the broker, topic and device fields" width="700"></a>
+</p>
 
 The panel reports whether the bridge is connected to the broker and how long ago
 it last published, so a wrong address or a rejected password shows up there
