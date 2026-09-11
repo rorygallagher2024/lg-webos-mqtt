@@ -1761,6 +1761,18 @@ var CONSENT_LABELS = {
   voice2Allowed:           ['Voice recordings (secondary flag)', 'A second voice-data consent record']
 };
 
+/*
+ * Not offered as toggles. These record acceptance of the terms and of network
+ * use rather than a collection choice, and what a set does when they are false
+ * is untested - a TV that re-runs its first-boot wizard is a poor trade for a
+ * flag nobody asked to change.
+ */
+var CONSENT_LOCKED = {
+  generalTermsAllowed: true,
+  networkAllowed: true,
+  firstUseAllowed: true
+};
+
 // Daemons worth naming, with what they actually do.
 var PRIVACY_DAEMONS = {
   acr2:       ['Content recognition service', 'Identifies what is on screen'],
@@ -1803,9 +1815,10 @@ function readConsentFlags() {
   while ((m = re.exec(raw)) !== null) {
     var key = m[1], on = m[2] === 'true';
     if (CONSENT_LABELS[key]) {
-      out.known.push({ key: key, label: CONSENT_LABELS[key][0], detail: CONSENT_LABELS[key][1], enabled: on });
+      out.known.push({ key: key, label: CONSENT_LABELS[key][0], detail: CONSENT_LABELS[key][1],
+                       enabled: on, settable: !CONSENT_LOCKED[key] });
     } else {
-      out.other.push({ key: key, enabled: on });
+      out.other.push({ key: key, enabled: on, settable: !CONSENT_LOCKED[key] });
     }
   }
   return out;
@@ -1831,7 +1844,7 @@ function collectPrivacy(cb) {
   var now = Date.now();
   if (cachedPrivacy && (now - lastPrivacyCheck < 20000)) return cb(cachedPrivacy);
 
-  var out = { ok: true, consent: readConsentFlags() };
+  var out = { ok: true, consent: readConsentFlags(), consentWritable: CONFIG.allowControl };
 
   luna('com.webos.service.acr/getACRSolutionStatus', {}, function (acr) {
     // `false` here means the recognition engine is not running at all.
@@ -2039,6 +2052,35 @@ function doControl(action, value, cb) {
               changed: !!(was && now && was !== now)
             });
           });
+        });
+      });
+
+    /*
+     * Flip one consent flag. The setter replaces the whole eulaStatus object,
+     * so the current one is read back immediately before writing rather than
+     * reused from cache - the TV's own menus change these too.
+     */
+    case 'consent':
+      var ckey = (value && value.key) ? String(value.key) : '';
+      var cOn = !!(value && (value.enabled === true || value.enabled === 'true'));
+      if (!ckey) return cb({ ok: false, error: 'no consent flag named' });
+      if (CONSENT_LOCKED[ckey]) return cb({ ok: false, error: ckey + ' is not changeable from here' });
+      return luna('com.webos.settingsservice/getSystemSettings', { keys: ['eulaStatus'] }, function (r) {
+        var cur = r && r.settings && r.settings.eulaStatus;
+        if (!cur || typeof cur !== 'object') return cb({ ok: false, error: 'could not read the consent flags' });
+        if (!cur.hasOwnProperty(ckey)) return cb({ ok: false, error: 'no such consent flag: ' + ckey });
+        if (cur[ckey] === cOn) {
+          cachedPrivacy = null;
+          return cb({ ok: true, key: ckey, enabled: cOn, changed: false });
+        }
+        var next = {};
+        for (var ek in cur) if (cur.hasOwnProperty(ek)) next[ek] = cur[ek];
+        next[ckey] = cOn;
+        luna('com.webos.settingsservice/setSystemSettings', { settings: { eulaStatus: next } }, function (w) {
+          var wrote = !!(w && w.returnValue);
+          cachedPrivacy = null;
+          cb(wrote ? { ok: true, key: ckey, enabled: cOn, changed: true }
+                   : { ok: false, error: (w && w.errorText) || 'the TV refused the change' });
         });
       });
 

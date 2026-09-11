@@ -310,6 +310,14 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 .pill.warn{color:var(--cand);border-color:var(--cand)}
 .pill.bad{color:var(--red);border-color:var(--red)}
 .pill.idle{color:var(--w50);border-color:var(--w25)}
+/* A settable flag keeps the pill vocabulary of the read-only rows: the row
+   should read the same, it just answers to a click. */
+button.pill{background:transparent;font-family:'Manrope';cursor:pointer}
+button.pill:hover:not([disabled]){background:rgba(var(--fg),.08)}
+button.pill[disabled]{cursor:default;opacity:.45}
+/* A flag the panel will not write keeps its colour - the value still matters -
+   but has to read as inert next to 19 rows that respond to a click. */
+.pill.fixed{opacity:.45}
 /* Collapsible privacy sections. The consent list alone runs to 21 rows, so the
    long sections fold. The summary keeps the pv-h size rather than borrowing the
    control column's small caps, so folding a section does not demote it. */
@@ -732,9 +740,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <div class="pv-sub">These are the agreements recorded on the TV. <b>Off is the private
     setting.</b></div>
   <div id="pv-consent"></div>
-  <div class="pv-note">These cannot be changed from here &mdash; the TV owns them. Change
-    them on the TV itself under <b>Settings &rarr; General &rarr; About This TV &rarr;
-    User Agreements</b>, then reopen this panel to confirm.</div>
+  <div class="pv-note" id="pv-consent-note"></div>
   </details>
 
   <details class="pv-d">
@@ -1494,6 +1500,7 @@ async function c(action, value) {
     const j = await r.json();
     if (!j.ok) showErr(j.error || 'Action failed'); else q('err').style.display = 'none';
     setTimeout(tick, 320);
+    return j;
   } catch (e) { showErr(e.message); }
 }
 function toggleLight(which) {
@@ -1551,6 +1558,13 @@ function pvPill(on, goodWhenOff) {
   return `<span class="pill ${cls}">${on ? 'On' : 'Off'}</span>`;
 }
 
+function pvConsentPill(f, writable) {
+  if (!writable) return pvPill(f.enabled, true);
+  if (!f.settable) return pvPill(f.enabled, true).replace('class="pill ', 'class="pill fixed ');
+  return `<button class="pill ${f.enabled ? 'warn' : 'good'}" data-key="${esc(f.key)}" ` +
+         `data-next="${f.enabled ? '0' : '1'}">${f.enabled ? 'On' : 'Off'}</button>`;
+}
+
 function pvRow(name, detail, pillHtml) {
   return `<div class="pv-row"><div><div class="n">${name}</div>` +
          `<div class="d">${detail}</div></div><div>${pillHtml}</div></div>`;
@@ -1596,13 +1610,20 @@ async function loadPrivacy() {
 
     // consent flags
     const c = d.consent || { known: [], other: [] };
-    let html = c.known.map(f => pvRow(f.label, f.detail, pvPill(f.enabled, true))).join('');
+    const cw = !!d.consentWritable;
+    let html = c.known.map(f => pvRow(f.label, f.detail, pvConsentPill(f, cw))).join('');
     if (c.other && c.other.length) {
       html += c.other.map(f => pvRow(f.key,
         'Recorded by the TV. No published description for this one.',
-        pvPill(f.enabled, true))).join('');
+        pvConsentPill(f, cw))).join('');
     }
     q('pv-consent').innerHTML = html || '<div class="d">Could not read the agreements file.</div>';
+    q('pv-consent-note').innerHTML = cw
+      ? 'These write to the TV and survive a reboot. A flag records what the TV stored ' +
+        '&mdash; it is not proof LG honours it. The dimmed rows are acceptance of the terms ' +
+        'themselves and are left to the TV\'s own menus.'
+      : 'Controls are disabled in config.json, so these can only be read. Change them on the TV ' +
+        'under <b>Settings &rarr; General &rarr; About This TV &rarr; User Agreements</b>.';
     /* A folded section still has to say where it stands, or folding it just
        hides the answer. Off is the private setting, so the count is of the
        agreements that are on. */
@@ -1637,6 +1658,20 @@ async function loadPrivacy() {
     q('pv-live').innerHTML = '<div class="d">Could not load privacy information &mdash; ' + e.message + '</div>';
   }
 }
+
+/*
+ * Delegated: the rows are re-rendered on every load, so per-button listeners
+ * would have to be reattached each time.
+ */
+q('pv-consent').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button.pill[data-key]');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = '...';
+  const r = await c('consent', { key: btn.dataset.key, enabled: btn.dataset.next === '1' });
+  if (!r || !r.ok) { btn.disabled = false; loadPrivacy(); return; }
+  loadPrivacy();
+});
 
 async function toggleAdBlock() {
   await c('toggleAdBlock', 'toggle');
