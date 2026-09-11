@@ -6,7 +6,8 @@ Assistant over MQTT as a single auto-discovered device with up to 61 entities.
 
 The dashboard needs nothing but the TV. 
 
-If you use Home Assistant, you can also enable smart home control via MQTT. See  &mdash; [step 3](#3-home-assistant--mqtt-optional)
+If you use Home Assistant, you can also enable smart home control via MQTT. See  &mdash; [here](#3-home-assistant--mqtt-optional)
+
 There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the TV.
 
 ---
