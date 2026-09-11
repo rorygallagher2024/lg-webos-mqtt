@@ -27,7 +27,7 @@ var zlib = require('zlib');
  * a link to /releases/tag/v<version>, so a value with no tag behind it gives a
  * 404 rather than a wrong page.
  */
-var TVWEB_VERSION = '0.27.0';
+var TVWEB_VERSION = '0.28.0';
 
 // ---------------------------------------------------------------- config
 var CONFIG = {
@@ -1008,18 +1008,39 @@ function setAdBlock(mode, cb) {
   }
 }
 
+/*
+ * Measured on a B8 against the built-in player, watching playStateNow move:
+ * KEY_PAUSE pauses, KEY_PLAY resumes, and KEY_PLAYPAUSE, KEY_PAUSECD and
+ * KEY_PLAYCD do nothing at all. Pause was previously sent as KEY_PAUSECD,
+ * which is why it never worked.
+ *
+ * Over CEC to an external box, KEY_PLAY behaves as a toggle instead.
+ */
 var RCU_KEY_CODES = {
   play: 207,
-  pause: 201,
-  playPause: 164,
-  playpause: 164,
+  pause: 119,
   stop: 128,
   fastForward: 208,
   fastforward: 208,
   rewind: 168
 };
 
+/*
+ * No key toggles the built-in player, so this asks what it is doing and sends
+ * the other one. An external input reports "playing" whatever the box on the
+ * end is doing, and KEY_PLAY is a toggle over CEC, so that path just sends it.
+ */
+function sendPlayPause(cb) {
+  luna('com.webos.service.acb/getForegroundAppInfo', {}, function (acb) {
+    var pipe = (acb && Array.isArray(acb.acbs)) ? acb.acbs[0] : null;
+    var external = !pipe || pipe.playerType === 'external input';
+    var paused = !!(pipe && String(pipe.playStateNow) === 'paused');
+    sendMediaKey(external || paused ? 'play' : 'pause', cb);
+  });
+}
+
 function sendMediaKey(cmd, cb) {
+  if (cmd === 'playPause' || cmd === 'playpause') return sendPlayPause(cb);
   var code = RCU_KEY_CODES[cmd];
   if (!code) {
     if (cb) cb(false);
@@ -1508,6 +1529,24 @@ function collectStats(cb) {
           output_raw: rawSnd,
           mode: (snd && snd.settings && snd.settings.soundMode) || 'standard'
         };
+        /*
+         * The TV's own media pipeline. applicationManager says which app is in
+         * front; this says what that app's player is doing.
+         *
+         * It describes the TV, not the source: with an external input it reads
+         * "playing" for as long as the HDMI pipeline is up, whatever the box on
+         * the other end is doing. Useful for the built-in apps, not a transport
+         * state for anything on HDMI.
+         */
+        lunaCached('com.webos.service.acb/getForegroundAppInfo', {}, 4000, function (acb) {
+        var pipe = (acb && Array.isArray(acb.acbs)) ? acb.acbs[0] : null;
+        if (pipe && pipe.playStateNow) {
+          out.media = {
+            state: String(pipe.playStateNow),
+            playerType: pipe.playerType || null,
+            fullScreen: pipe.isFullScreen !== false
+          };
+        }
         lunaCached('com.webos.applicationManager/getForegroundAppInfo', {}, 4000, function (app) {
           if (app && app.appId) {
             var shortApp = String(app.appId).replace('com.webos.app.', '');
@@ -1564,6 +1603,7 @@ function collectStats(cb) {
               });
             }
           );
+        });
         });
       }
     );
@@ -3585,6 +3625,19 @@ function setupHomeAssistant() {
         }
       },
       {
+        type: 'sensor', id: 'play_state',
+        payload: {
+          name: 'Player State',
+          state_topic: telemetryTopic,
+          // Absent on a set whose media service does not answer, rather than
+          // reported as stopped - nothing playing and nothing to ask are
+          // different things. On an external input this tracks the HDMI
+          // pipeline rather than the source's own transport state.
+          value_template: '{{ value_json.media.state if value_json.media else None }}',
+          icon: 'mdi:play-pause'
+        }
+      },
+      {
         type: 'sensor', id: 'dynamic_range',
         payload: {
           name: 'Dynamic Range',
@@ -3726,14 +3779,15 @@ function setupHomeAssistant() {
       },
       {
         /*
-         * tvweb's own version, not the TV's - the device's sw_version already
-         * carries the firmware. Named for the program so the two cannot be
-         * read as each other on a device page that shows both. Diagnostic: it
-         * belongs beside the firmware, not among the readings.
+         * This server's own version, not the TV's - the device's sw_version
+         * already carries the firmware. The id stays tvweb_version: it is the
+         * unique_id an existing install is already discovered under, and
+         * changing it would orphan that entity and register a second one.
+         * Diagnostic: it belongs beside the firmware, not among the readings.
          */
         type: 'sensor', id: 'tvweb_version',
         payload: {
-          name: 'TVWeb Version',
+          name: 'Server Version',
           state_topic: telemetryTopic,
           value_template: '{{ value_json.tvwebVersion }}',
           entity_category: 'diagnostic',
