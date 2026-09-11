@@ -873,6 +873,11 @@ var ADBLOCK_PLATFORM = [
   'us.lgtvsdp.com',
   'gb.lgtvsdp.com',
   'eu.lgtvsdp.com',
+  /* webOS 9 moved the store: a C2 on 9.2.2 installs from GB.nextlgsdp.com. */
+  'nextlgsdp.com',
+  'us.nextlgsdp.com',
+  'gb.nextlgsdp.com',
+  'eu.nextlgsdp.com',
   'ngfts.lge.com',
   'aic-ngfts.lge.com'
 ];

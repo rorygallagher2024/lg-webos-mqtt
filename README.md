@@ -95,10 +95,11 @@ Store or one that does not.
   endpoints on the set itself by bind-mounting a hosts table over `/etc/hosts`.
   Automatically restored on boot. Two tiers: *ads & telemetry* blocks the nine
   ad and diagnostics hosts and leaves LG's own service platform reachable;
-  *everything* adds the six that carry the Content Store and firmware delivery
-  (`lgtvsdp.com` is the server `com.webos.appInstallService` installs from, and
-  `ngfts.lge.com` delivers content and firmware), so on that tier the app store
-  and updates may stop working.
+  *everything* adds the ten that carry the Content Store and firmware delivery,
+  so on that tier the app store and updates may stop working. The store server
+  differs by platform &mdash; `com.webos.appInstallService` installs from
+  `lgtvsdp.com` on webOS 4 and `nextlgsdp.com` on webOS 9 &mdash; and both are
+  in that tier.
 * **Privacy panel.** Behind a toggle in the controls: whether LG's screen
   content recognition is actually running and sampling frames, your advertising
   identifier and whether ad tracking is limited, every data-collection
