@@ -174,7 +174,7 @@ Licence texts ship alongside them in `server/assets/fonts/`.
 
 ---
 
-## Consent flags are owned by the settings service, not the file
+## Consent flags are rebuilt from LG's agreement documents at boot
 
 `/var/luna/preferences/eula` is a mirror. `com.webos.settingsservice` holds the
 values under the `eulaStatus` key and regenerates the file, and its `eula.md5`
@@ -183,17 +183,35 @@ sidecar, at boot - so editing the file directly reverts. Flipping
 seconds of runtime, then came back byte-identical after a reboot (md5
 `85aca988...`, mtime set during boot).
 
-Writing through the service persists:
+Writing through the service works, but the flag alone does not survive a boot.
 
-```
-luna-send -n 1 -f luna://com.webos.settingsservice/getSystemSettings '{"keys":["eulaStatus"]}'
-luna-send -n 1 -f luna://com.webos.settingsservice/setSystemSettings '{"settings":{"eulaStatus":{ ... }}}'
-```
+`eulaStatus` is derived from a second record: `eulaInfoNetwork`, LG's agreement
+documents with an accepted flag on each. At boot the firmware rebuilds every
+mapped flag from the accepted documents, so a flag written on its own is
+overwritten by whatever its agreement still says. Reported on a C8 (webOS 4.4.0)
+in [#61](https://github.com/rorygallagher2024/lg-webos-mqtt/issues/61).
 
-Tested on a B8 (webOS 4.4.3): `cookiesAllowed` set to `true`, still `true` after
-a reboot, in both the service and the regenerated file. Reported first on a C8
-(webOS 4.4.0) in
-[#61](https://github.com/rorygallagher2024/lg-webos-mqtt/issues/61).
+**Both firmwares rebuild.** An earlier note here said a B8 on 4.4.3 did not, on
+the strength of `cookiesAllowed` surviving a reboot. That flag is absent from
+`eulaMappingList`, so the rebuild never touches it - the one flag that was
+exempt, generalised to all of them. Measured properly on the same B8:
+
+| Write | After a reboot |
+| :--- | :--- |
+| `thirdPartySharingAllowed` false, document left accepted | back to `true` |
+| the same flag through the panel, withdrawing `S_ADG` | still `false` |
+
+So a write has to move both records. Switching a flag on accepts the documents
+it needs; switching it off withdraws those no remaining flag requires, and any
+flag resting on one goes off with it. A document needed by a flag that cannot
+be switched off is never withdrawn, which is what keeps Terms of Use in place.
+
+Several flags share one document, so they can only be switched off together.
+The panel names them before they are clicked.
+
+`eulaInfoNetwork` also carries the document titles - `S_ADG` is the "Viewing
+Information Agreement" - and is the only place on the set that names them. The
+file that caches it does not exist on webOS 9, so it is read from the service.
 
 Two quirks. `getSystemSettings` answers for `eulaStatus` only when no `category`
 is given - `general`, `option` and the rest return "There is no matched result
