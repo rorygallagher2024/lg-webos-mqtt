@@ -1762,16 +1762,74 @@ var CONSENT_LABELS = {
 };
 
 /*
- * Not offered as toggles. These record acceptance of the terms and of network
- * use rather than a collection choice, and what a set does when they are false
- * is untested - a TV that re-runs its first-boot wizard is a poor trade for a
- * flag nobody asked to change.
+ * Never offered as toggles.
+ *
+ * The first three record acceptance of the terms and of network use rather
+ * than a collection choice, and what a set does when they are false is
+ * untested. allAllowed is the Select-All: whether writing it cascades to the
+ * other twenty is also untested, and a single click that silently grants
+ * everything is the one failure this panel must not have.
  */
 var CONSENT_LOCKED = {
-  generalTermsAllowed: true,
-  networkAllowed: true,
-  firstUseAllowed: true
+  generalTermsAllowed: 'Acceptance of the terms themselves rather than a collection choice. ' +
+                       'Left to the TV\'s own menus.',
+  networkAllowed:      'Acceptance of network use rather than a collection choice. ' +
+                       'Left to the TV\'s own menus.',
+  firstUseAllowed:     'Part of first-boot setup rather than a collection choice. ' +
+                       'Left to the TV\'s own menus.',
+  allAllowed:          'The Select-All. Read-only here: whether writing it cascades to the other ' +
+                       'flags is untested, and a click that grants everything at once is the one ' +
+                       'mistake this panel must not allow.'
 };
+
+/*
+ * /var/palm/license/eulaInfoNetwork.json maps each flag to the licence
+ * documents accepting it implies. The mapping is firmware-specific - chpAllowed
+ * names S_CHP on a C8 and only S_SVC on this B8 - so it is read from the set
+ * rather than hardcoded.
+ *
+ * It is what separates an undescribed flag the TV can at least account for from
+ * one it cannot. Flags in no group get no toggle: nobody can consent to
+ * something neither we nor the platform can name.
+ */
+var consentGroups = null;
+
+function loadConsentGroups() {
+  if (consentGroups) return consentGroups;
+  consentGroups = {};
+  try {
+    var j = JSON.parse(rd('/var/palm/license/eulaInfoNetwork.json') || '{}');
+    var list = (j.eulaMappingList && j.eulaMappingList.eulaInfo) || [];
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i];
+      if (!e || !e.settingKey) continue;
+      // "mandatory" is the set that actually has to be accepted; the notice and
+      // select-all entries are the same document on every group.
+      consentGroups[e.settingKey] = (e.mandatory || e.generalSelectAll || []).slice().sort();
+    }
+  } catch (err) { /* no mapping on this set: every unlabelled flag stays read-only */ }
+  return consentGroups;
+}
+
+function consentSettable(key) {
+  if (CONSENT_LOCKED[key]) return false;
+  if (CONSENT_LABELS[key]) return true;
+  return !!loadConsentGroups()[key];
+}
+
+// Every labelled flag accepting exactly the same documents. That is the only
+// honest description available for a flag LG never published one for, and
+// naming just the first of several would pick one arbitrarily.
+function consentPeers(key, groups) {
+  var mine = groups[key], names = [];
+  if (!mine || !mine.length) return names;
+  for (var other in groups) {
+    if (!groups.hasOwnProperty(other) || other === key) continue;
+    if (!CONSENT_LABELS[other]) continue;
+    if (groups[other].join(',') === mine.join(',')) names.push('"' + CONSENT_LABELS[other][0] + '"');
+  }
+  return names;
+}
 
 // Daemons worth naming, with what they actually do.
 var PRIVACY_DAEMONS = {
@@ -1807,18 +1865,44 @@ function mapPowerState(raw) {
 
 var cachedPrivacy = null, lastPrivacyCheck = 0;
 
+/*
+ * A flag with no published description. What can be said about it comes from
+ * the licence mapping, and whether it can be changed follows from the same
+ * place - see loadConsentGroups.
+ */
+function describeUnlabelled(key, on, groups) {
+  var row = { key: key, enabled: on, settable: consentSettable(key) };
+  if (CONSENT_LOCKED[key]) {
+    row.detail = CONSENT_LOCKED[key];
+    return row;
+  }
+  var docs = groups[key];
+  if (!docs) {
+    row.detail = 'Recorded by the TV, but tied to no agreement on this firmware. ' +
+                 'Left read-only rather than guessed at.';
+    return row;
+  }
+  var peers = consentPeers(key, groups);
+  row.detail = peers.length
+    ? 'No published description. The TV accepts it under the same agreement as ' +
+      peers.join(' and ') + '.'
+    : 'No published description. The TV records it under ' + docs.join(', ') + '.';
+  return row;
+}
+
 function readConsentFlags() {
   var raw = rd('/var/luna/preferences/eula');
   if (!raw) return null;
+  var groups = loadConsentGroups();
   var out = { known: [], other: [] };
   var re = /"([a-zA-Z0-9_]+Allowed)"\s*:\s*(true|false)/g, m;
   while ((m = re.exec(raw)) !== null) {
     var key = m[1], on = m[2] === 'true';
     if (CONSENT_LABELS[key]) {
       out.known.push({ key: key, label: CONSENT_LABELS[key][0], detail: CONSENT_LABELS[key][1],
-                       enabled: on, settable: !CONSENT_LOCKED[key] });
+                       enabled: on, settable: consentSettable(key) });
     } else {
-      out.other.push({ key: key, enabled: on, settable: !CONSENT_LOCKED[key] });
+      out.other.push(describeUnlabelled(key, on, groups));
     }
   }
   return out;
@@ -2064,7 +2148,7 @@ function doControl(action, value, cb) {
       var ckey = (value && value.key) ? String(value.key) : '';
       var cOn = !!(value && (value.enabled === true || value.enabled === 'true'));
       if (!ckey) return cb({ ok: false, error: 'no consent flag named' });
-      if (CONSENT_LOCKED[ckey]) return cb({ ok: false, error: ckey + ' is not changeable from here' });
+      if (!consentSettable(ckey)) return cb({ ok: false, error: ckey + ' is not changeable from here' });
       return luna('com.webos.settingsservice/getSystemSettings', { keys: ['eulaStatus'] }, function (r) {
         var cur = r && r.settings && r.settings.eulaStatus;
         if (!cur || typeof cur !== 'object') return cb({ ok: false, error: 'could not read the consent flags' });
@@ -2078,6 +2162,10 @@ function doControl(action, value, cb) {
         next[ckey] = cOn;
         luna('com.webos.settingsservice/setSystemSettings', { settings: { eulaStatus: next } }, function (w) {
           var wrote = !!(w && w.returnValue);
+          // These are consent records. Without a line here there is no way to
+          // tell afterwards whether a change came from the panel or the TV.
+          console.log('consent: ' + ckey + ' ' + cur[ckey] + ' -> ' + cOn +
+                      (wrote ? '' : ' (refused)'));
           cachedPrivacy = null;
           cb(wrote ? { ok: true, key: ckey, enabled: cOn, changed: true }
                    : { ok: false, error: (w && w.errorText) || 'the TV refused the change' });

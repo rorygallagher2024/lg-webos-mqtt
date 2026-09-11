@@ -1613,15 +1613,14 @@ async function loadPrivacy() {
     const cw = !!d.consentWritable;
     let html = c.known.map(f => pvRow(f.label, f.detail, pvConsentPill(f, cw))).join('');
     if (c.other && c.other.length) {
-      html += c.other.map(f => pvRow(f.key,
-        'Recorded by the TV. No published description for this one.',
-        pvConsentPill(f, cw))).join('');
+      // The server describes these from the TV's own licence mapping.
+      html += c.other.map(f => pvRow(f.key, esc(f.detail || ''), pvConsentPill(f, cw))).join('');
     }
     q('pv-consent').innerHTML = html || '<div class="d">Could not read the agreements file.</div>';
     q('pv-consent-note').innerHTML = cw
       ? 'These write to the TV and survive a reboot. A flag records what the TV stored ' +
-        '&mdash; it is not proof LG honours it. The dimmed rows are acceptance of the terms ' +
-        'themselves and are left to the TV\'s own menus.'
+        '&mdash; it is not proof LG honours it. Dimmed rows are read-only, each for the ' +
+        'reason given beside it.'
       : 'Controls are disabled in config.json, so these can only be read. Change them on the TV ' +
         'under <b>Settings &rarr; General &rarr; About This TV &rarr; User Agreements</b>.';
     /* A folded section still has to say where it stands, or folding it just
