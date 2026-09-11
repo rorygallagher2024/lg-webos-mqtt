@@ -848,6 +848,13 @@ function refreshInstalledApps(cb) {
 }
 
 var ADBLOCK_HOSTS_FILE = '/var/lib/tvweb/adblock_hosts';
+/*
+ * Written into the table and looked for in the live /etc/hosts. Asking
+ * /proc/mounts whether anything is mounted there answers a different question:
+ * webosbrew bind-mounts that path itself on some installs, and this then
+ * reported the blocker as on while none of these domains were in effect.
+ */
+var ADBLOCK_MARKER = '# LG Ad & Telemetry Blackhole (lg-webos-mqtt)';
 var ADBLOCK_FLAG_FILE = '/var/lib/tvweb/adblock_enabled';
 /* Ad, tracking and telemetry hosts. Nothing on the TV needs to reach them. */
 var ADBLOCK_ADS = [
@@ -928,8 +935,8 @@ function isAdBlockActive() {
     return cachedAdBlockActive;
   }
   try {
-    var mounts = fs.readFileSync('/proc/mounts', 'utf8');
-    cachedAdBlockActive = mounts.indexOf(' /etc/hosts ') !== -1;
+    var hosts = fs.readFileSync('/etc/hosts', 'utf8');
+    cachedAdBlockActive = hosts.indexOf(ADBLOCK_MARKER) !== -1;
     lastAdBlockCheck = now;
     return cachedAdBlockActive;
   } catch (e) {
@@ -949,7 +956,7 @@ function setAdBlock(mode, cb) {
       'ff02::1\tip6-allnodes',
       'ff02::2\tip6-allrouters',
       '',
-      '# LG Ad & Telemetry Blackhole (lg-webos-mqtt)'
+      ADBLOCK_MARKER
     ];
     for (var i = 0; i < list.length; i++) {
       lines.push('0.0.0.0\t' + list[i]);
@@ -968,7 +975,12 @@ function setAdBlock(mode, cb) {
       if (cb) cb({ ok: false, error: 'could not write adblock hosts: ' + e.message });
       return;
     }
-    if (active) {   // already mounted: the rewrite above is the whole change
+    /*
+     * Our table is already the live one, so rewriting it in place is the whole
+     * change and the tier switches without a remount. Anything else mounted
+     * there belongs to someone else, and a bind mount stacks on top of it.
+     */
+    if (active) {
       cachedAdBlockActive = null;
       cachedPrivacy = null;
       lastStats = null;
