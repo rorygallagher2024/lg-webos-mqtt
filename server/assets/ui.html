@@ -337,7 +337,10 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 .pv-row .n{font-size:15px;color:var(--w100)}
 .pv-row .d{font-size:13px;color:var(--w60);margin-top:3px;max-width:58ch}
 .pill{font-family:'Manrope';font-weight:500;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
-      padding:5px 10px;border:1px solid;border-radius:2px;white-space:nowrap}
+      display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;
+      min-width:112px;height:28px;padding:0 12px;line-height:1;
+      border:1px solid;border-radius:2px;white-space:nowrap}
+button.pill{min-height:0;color:inherit}
 .pill.good{color:var(--green);border-color:var(--green)}
 .pill.warn{color:var(--cand);border-color:var(--cand)}
 .pill.bad{color:var(--red);border-color:var(--red)}
@@ -397,6 +400,7 @@ button.pill[disabled]{cursor:default;opacity:.45}
 .cfg-side .pv-row{border-bottom:0;padding-top:0}
 /* One switch does not need the width of the column it sits in. */
 .cfg-side .cfg-toggles{max-width:320px}
+.pv-top .btns button{white-space:nowrap}
 .cfg-cols>*{min-width:0}
 .cfg-save{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:22px;max-width:840px}
 .cfg-save button{min-height:48px;padding:0 30px}
