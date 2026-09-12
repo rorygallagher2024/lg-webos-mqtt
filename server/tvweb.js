@@ -2525,6 +2525,11 @@ var SCREENSAVERS = {
     description: 'Drifting stars on black. Nothing on screen stays still, so nothing can mark the panel.',
     qml: 'screensavers/starfield.qml'
   },
+  fireworks: {
+    label: 'Fireworks',
+    description: 'Bursts of colour on black, a few seconds apart.',
+    qml: 'screensavers/fireworks.qml'
+  },
   vitals: {
     label: 'Panel vitals',
     description: "The set's own readings - panel hours, pixel refresher countdown, temperature.",
@@ -4565,9 +4570,9 @@ function setupHomeAssistant() {
           name: 'Screen Saver',
           command_topic: pfx + '/command/screensaverMode',
           state_topic: telemetryTopic,
-          options: ['LG default', 'Clock', 'Starfield', 'Panel vitals'],
-          command_template: '{{ {"LG default":"stock","Clock":"clock","Starfield":"starfield","Panel vitals":"vitals"}[value] }}',
-          value_template: '{{ {"stock":"LG default","clock":"Clock","starfield":"Starfield","vitals":"Panel vitals"}.get(value_json.screensaverMode, "LG default") }}',
+          options: ['LG default', 'Clock', 'Starfield', 'Fireworks', 'Panel vitals'],
+          command_template: '{{ {"LG default":"stock","Clock":"clock","Starfield":"starfield","Fireworks":"fireworks","Panel vitals":"vitals"}[value] }}',
+          value_template: '{{ {"stock":"LG default","clock":"Clock","starfield":"Starfield","fireworks":"Fireworks","vitals":"Panel vitals"}.get(value_json.screensaverMode, "LG default") }}',
           icon: 'mdi:television-shimmer'
         }
       },

@@ -48,9 +48,11 @@ System monitoring
 
 ### Screen savers
 
-The Screensaver tab, or `/?tab=screensaver`. Three in place of LG's: a clock, a
-starfield, and one showing the set's own panel hours and refresher countdown.
-Each draws dim or bright, and all of them move so nothing marks the panel.
+The Screensaver tab, or `/?tab=screensaver`. Four in place of LG's: a clock, a
+starfield, fireworks, and one showing the set's own panel hours and refresher
+countdown. Each draws dim or bright, and all of them move so nothing marks the
+panel. The fireworks are written from scratch on QtQuick.Particles, not taken
+from the ones LG shipped on older sets.
 
 <p align="center">
   <a href="docs/screenshots/screensaver.png"><img src="docs/screenshots/screensaver.png" alt="Screensaver tab: LG default, Clock, Starfield and Panel vitals, with a dim and bright toggle" width="700"></a>
@@ -93,8 +95,8 @@ and firmware updates use.
    dashboard. Includes an on-TV blocker for LG's ad and telemetry
    endpoints, and a switch for the two diagnostics services that upload to LG.
    
-3. **Replacing the screen saver.** A clock, a starfield, or the TV's own
-   readings, each dim or bright, in place of LG's.
+3. **Replacing the screen saver.** A clock, a starfield, fireworks, or the
+   TV's own readings, each dim or bright, in place of LG's.
 
 4. **Integrating the TV into Home Assistant.** Optional, over MQTT: up to 69
    entities arrive as a single auto-discovered device &mdash; no YAML, no LG
@@ -147,10 +149,10 @@ and firmware updates use.
   change survives a reboot; acceptance of the terms themselves is left to the
   TV's own menus. Includes buttons to reset the advertising ID, clear ad
   cookies, and toggle the on-TV ad blocker. Deep link: `/?tab=privacy`.
-* **Custom screen savers.** Three in place of LG's: a clock, a starfield, and
-  one showing the set's own panel hours and refresher countdown. Each can be
-  drawn dim or bright, and all of them move so nothing marks the panel. Deep
-  link: `/?tab=screensaver`.
+* **Custom screen savers.** Four in place of LG's: a clock, a starfield,
+  fireworks, and one showing the set's own panel hours and refresher countdown.
+  Each can be drawn dim or bright, and all of them move so nothing marks the
+  panel. Deep link: `/?tab=screensaver`.
 * **Self-contained dashboard.** Fonts and assets are served by the TV, so the
   page works with no internet access.
 * **Dark and light themes.** High-contrast light mode with dark text alongside
