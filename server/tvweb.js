@@ -2572,16 +2572,7 @@ function setScreensaver(mode, cb) {
       mkdirp(path.join(SCREENSAVER_DIR, 'qml'));
       fs.writeFileSync(path.join(SCREENSAVER_DIR, 'appinfo.json'),
                        fs.readFileSync(path.join(SCREENSAVER_APP_DIR, 'appinfo.json')));
-      /*
-       * The vitals screen saver reads /api/stats from the server on this TV.
-       * The port is configurable and the API refuses an unauthenticated read
-       * when a token is set, so the address is written in at staging time
-       * rather than guessed by the QML.
-       */
-      var qml = fs.readFileSync(src, 'utf8').replace(/__TVWEB_URL__/g,
-        'http://127.0.0.1:' + (CONFIG.port || 8080) + '/api/stats' +
-        (CONFIG.token ? '?k=' + encodeURIComponent(CONFIG.token) : ''));
-      fs.writeFileSync(path.join(SCREENSAVER_DIR, 'qml', 'main.qml'), qml);
+      writeScreensaverQml(src);
       fs.writeFileSync(path.join(SCREENSAVER_DIR, SCREENSAVER_MARKER), mode);
     } catch (e) {
       return cb({ ok: false, error: 'could not stage the screen saver: ' + e.message });
@@ -2608,6 +2599,43 @@ function setScreensaver(mode, cb) {
  * that no longer exists: every later request is then refused as busy until the
  * set is power cycled. A key press lets it finish and exit on its own terms.
  */
+/*
+ * The vitals screen saver reads /api/stats from the server on this TV. The
+ * port is configurable and the API refuses an unauthenticated read when a
+ * token is set, so the address is written in here rather than guessed by the
+ * QML.
+ */
+function writeScreensaverQml(src) {
+  var qml = fs.readFileSync(src, 'utf8').replace(/__TVWEB_URL__/g,
+    'http://127.0.0.1:' + (CONFIG.port || 8080) + '/api/stats' +
+    (CONFIG.token ? '?k=' + encodeURIComponent(CONFIG.token) : ''));
+  fs.writeFileSync(path.join(SCREENSAVER_DIR, 'qml', 'main.qml'), qml);
+}
+
+/*
+ * The mount points at a directory, and what was staged into it stays there
+ * across reboots - so an upgrade that ships a corrected screen saver would
+ * otherwise never reach the TV until someone picked the mode again. Rewriting
+ * the file in place needs no unmount and no restart: the next screen saver to
+ * launch reads it.
+ */
+function restageScreensaver() {
+  var mode = screensaverMode();
+  if (mode === 'stock') return;
+  var src = assetPath(SCREENSAVERS[mode].qml);
+  if (!src) return;
+  try {
+    var staged = path.join(SCREENSAVER_DIR, 'qml', 'main.qml');
+    var before = fs.existsSync(staged) ? fs.readFileSync(staged, 'utf8') : '';
+    writeScreensaverQml(src);
+    if (fs.readFileSync(staged, 'utf8') !== before) {
+      console.log('screensaver: restaged "' + mode + '" from a newer asset');
+    }
+  } catch (e) {
+    console.error('screensaver: could not restage ' + mode + ': ' + e.message);
+  }
+}
+
 function restartScreensaverApp(cb) {
   luna('com.webos.service.tvpower/power/getPowerState', {}, function (pw) {
     if (!isScreenSaver(mapPowerState(pw && pw.state))) {
@@ -5027,6 +5055,8 @@ function heartbeat() {
 
 heartbeat();
 setInterval(heartbeat, 20000);
+
+restageScreensaver();
 
 detectDeviceInfo(function() {
   setupHomeAssistant();

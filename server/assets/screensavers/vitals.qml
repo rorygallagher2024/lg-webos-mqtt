@@ -105,7 +105,8 @@ WebOSWindow {
 
     function refreshClock() {
         var now = new Date();
-        clockLine.text = win.two(now.getHours()) + ":" + win.two(now.getMinutes());
+        clockHours.text = win.two(now.getHours());
+        clockMinutes.text = win.two(now.getMinutes());
     }
 
     Item {
@@ -121,13 +122,49 @@ WebOSWindow {
             id: column
             spacing: Math.round(12 * win.unit)
 
-            Text {
-                id: clockLine
-                font.family: lightFace.name
-                font.pixelSize: Math.round(34 * win.unit)
-                font.letterSpacing: Math.round(3 * win.unit)
-                color: win.inkDim
-                text: "00:00"
+            // Hours and minutes with the separator drawn, matching the clock
+            // screen saver: the same two dots rather than a ":" glyph.
+            Row {
+                spacing: 0
+
+                Text {
+                    id: clockHours
+                    font.family: lightFace.name
+                    font.pixelSize: Math.round(34 * win.unit)
+                    font.letterSpacing: Math.round(3 * win.unit)
+                    color: win.inkDim
+                    text: "00"
+                }
+                Item {
+                    id: clockSep
+                    width: Math.round(14 * win.unit)
+                    height: clockHours.height
+
+                    Rectangle {
+                        width: Math.round(4 * win.unit)
+                        height: width
+                        radius: width / 2
+                        color: win.inkDim
+                        x: (clockSep.width - width) / 2
+                        y: Math.round(clockSep.height * 0.38)
+                    }
+                    Rectangle {
+                        width: Math.round(4 * win.unit)
+                        height: width
+                        radius: width / 2
+                        color: win.inkDim
+                        x: (clockSep.width - width) / 2
+                        y: Math.round(clockSep.height * 0.62)
+                    }
+                }
+                Text {
+                    id: clockMinutes
+                    font.family: lightFace.name
+                    font.pixelSize: Math.round(34 * win.unit)
+                    font.letterSpacing: Math.round(3 * win.unit)
+                    color: win.inkDim
+                    text: "00"
+                }
             }
 
             Item { width: 1; height: Math.round(16 * win.unit) }
