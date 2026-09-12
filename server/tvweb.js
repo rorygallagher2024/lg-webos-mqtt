@@ -2703,6 +2703,27 @@ function detectLogoLight(cb) {
     });
 }
 
+/*
+ * Remote navigation. Sent through the network input service rather than written
+ * to /dev/input: it is a service call, and the TV accepts it whatever is in the
+ * foreground.
+ *
+ * Arrows and enter are the standard evdev codes. Back is LG's own - 412, the
+ * IR_KEY_BACK in /usr/share/X11/xkb/keycodes/lg less the 8 that xkb adds - and
+ * measured on a C2 it is the one that acts; evdev's 158 is taken as a dismissal
+ * rather than a step back. The service refuses anything above about 512, which
+ * rules out the rest of LG's table, and no code was found for Home at all, so
+ * that launches the home app instead.
+ */
+var RCU_KEYS = {
+  up: 103,
+  down: 108,
+  left: 105,
+  right: 106,
+  ok: 28,
+  back: 412
+};
+
 var SLEEP_TIMER_VALUES = ['off', '10', '30', '60', '90', '120'];
 
 // What the settings service accepts for logoLuminanceAdjust, per
@@ -2937,6 +2958,21 @@ function doControl(action, value, cb) {
       var lightPayload = { category: 'option', settings: {} };
       lightPayload.settings[lightKey] = lightOn ? 'on' : 'off';
       return luna('com.webos.service.settings/setSystemSettings', lightPayload,
+                  function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
+
+    case 'rcu':
+      var rcuName = String(value || '').trim().toLowerCase();
+      if (rcuName === 'home') {
+        // No keycode reaches the home screen - the service rejects LG's own -
+        // so ask the application manager for it directly.
+        return luna('com.webos.applicationManager/launch', { id: 'com.webos.app.home' },
+                    function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
+      }
+      if (!RCU_KEYS.hasOwnProperty(rcuName)) {
+        return cb({ ok: false, error: 'unknown key: ' + rcuName });
+      }
+      return luna('com.webos.service.networkinput/test/sendKeyCode',
+                  { keyCode: RCU_KEYS[rcuName] },
                   function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
 
     case 'screensaverMode':
