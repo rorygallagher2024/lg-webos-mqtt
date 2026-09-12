@@ -55,12 +55,41 @@ WebOSWindow {
                 id: timeRow
                 spacing: 0
 
+                /*
+                 * One Text per digit, each boxed to the width of a "0".
+                 *
+                 * Measured on a B8: this face lays "12" out at 489px against a
+                 * 232px size, where a single "1" takes 113px - the pair layout
+                 * is wrong, and a two-digit Text draws a gap wide enough for
+                 * two more digits. A digit on its own is laid out correctly.
+                 * Fixed boxes also stop the clock shifting as the time changes,
+                 * since the figures are proportional.
+                 */
                 Text {
-                    id: hours
+                    id: gauge
+                    visible: false
+                    font.family: thinFace.name
+                    font.pixelSize: Math.round(232 * win.unit)
+                    text: "0"
+                }
+
+                Text {
+                    id: hourTens
+                    width: gauge.width
+                    horizontalAlignment: Text.AlignHCenter
                     font.family: thinFace.name
                     font.pixelSize: Math.round(232 * win.unit)
                     color: win.inkBright
-                    text: "00"
+                    text: "0"
+                }
+                Text {
+                    id: hourUnits
+                    width: gauge.width
+                    horizontalAlignment: Text.AlignHCenter
+                    font.family: thinFace.name
+                    font.pixelSize: Math.round(232 * win.unit)
+                    color: win.inkBright
+                    text: "0"
                 }
                 /*
                  * Two dots rather than a ":" glyph. The thin face leaves a wide
@@ -70,7 +99,7 @@ WebOSWindow {
                 Item {
                     id: colon
                     width: Math.round(74 * win.unit)
-                    height: hours.height
+                    height: gauge.height
 
                     // A second of fade each way, so it reads as a pulse rather
                     // than a flash.
@@ -99,11 +128,22 @@ WebOSWindow {
                     }
                 }
                 Text {
-                    id: minutes
+                    id: minTens
+                    width: gauge.width
+                    horizontalAlignment: Text.AlignHCenter
                     font.family: thinFace.name
                     font.pixelSize: Math.round(232 * win.unit)
                     color: win.inkBright
-                    text: "00"
+                    text: "0"
+                }
+                Text {
+                    id: minUnits
+                    width: gauge.width
+                    horizontalAlignment: Text.AlignHCenter
+                    font.family: thinFace.name
+                    font.pixelSize: Math.round(232 * win.unit)
+                    color: win.inkBright
+                    text: "0"
                 }
             }
 
@@ -124,8 +164,12 @@ WebOSWindow {
 
     function refresh() {
         var now = new Date();
-        hours.text = win.two(now.getHours());
-        minutes.text = win.two(now.getMinutes());
+        var h = win.two(now.getHours());
+        var m = win.two(now.getMinutes());
+        hourTens.text = h.charAt(0);
+        hourUnits.text = h.charAt(1);
+        minTens.text = m.charAt(0);
+        minUnits.text = m.charAt(1);
         dateLine.text = Qt.formatDate(now, "dddd d MMMM").toUpperCase();
     }
 

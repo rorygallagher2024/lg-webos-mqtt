@@ -105,8 +105,12 @@ WebOSWindow {
 
     function refreshClock() {
         var now = new Date();
-        clockHours.text = win.two(now.getHours());
-        clockMinutes.text = win.two(now.getMinutes());
+        var h = win.two(now.getHours());
+        var m = win.two(now.getMinutes());
+        clockH1.text = h.charAt(0);
+        clockH2.text = h.charAt(1);
+        clockM1.text = m.charAt(0);
+        clockM2.text = m.charAt(1);
     }
 
     Item {
@@ -127,18 +131,37 @@ WebOSWindow {
             Row {
                 spacing: 0
 
+                // Per digit, boxed to a "0" - see the clock screen saver: a
+                // two-digit Text lays out wrong in this face.
                 Text {
-                    id: clockHours
+                    id: clockGauge
+                    visible: false
                     font.family: lightFace.name
                     font.pixelSize: Math.round(34 * win.unit)
-                    font.letterSpacing: Math.round(3 * win.unit)
+                    text: "0"
+                }
+                Text {
+                    id: clockH1
+                    width: clockGauge.width
+                    horizontalAlignment: Text.AlignHCenter
+                    font.family: lightFace.name
+                    font.pixelSize: Math.round(34 * win.unit)
                     color: win.inkDim
-                    text: "00"
+                    text: "0"
+                }
+                Text {
+                    id: clockH2
+                    width: clockGauge.width
+                    horizontalAlignment: Text.AlignHCenter
+                    font.family: lightFace.name
+                    font.pixelSize: Math.round(34 * win.unit)
+                    color: win.inkDim
+                    text: "0"
                 }
                 Item {
                     id: clockSep
                     width: Math.round(14 * win.unit)
-                    height: clockHours.height
+                    height: clockGauge.height
 
                     Rectangle {
                         width: Math.round(4 * win.unit)
@@ -158,12 +181,22 @@ WebOSWindow {
                     }
                 }
                 Text {
-                    id: clockMinutes
+                    id: clockM1
+                    width: clockGauge.width
+                    horizontalAlignment: Text.AlignHCenter
                     font.family: lightFace.name
                     font.pixelSize: Math.round(34 * win.unit)
-                    font.letterSpacing: Math.round(3 * win.unit)
                     color: win.inkDim
-                    text: "00"
+                    text: "0"
+                }
+                Text {
+                    id: clockM2
+                    width: clockGauge.width
+                    horizontalAlignment: Text.AlignHCenter
+                    font.family: lightFace.name
+                    font.pixelSize: Math.round(34 * win.unit)
+                    color: win.inkDim
+                    text: "0"
                 }
             }
 
