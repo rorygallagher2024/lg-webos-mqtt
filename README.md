@@ -128,8 +128,10 @@ and firmware updates use.
   load, GPU clock, memory and swap, Wi-Fi RSSI, network throughput, eMMC
   flash wear with JEDEC health translation, and free space on the app partition.
 * **Advanced panels.** HDMI link state per port straight off the receiver
-  (resolution, refresh rate, colour depth, pixel clock) and a read-only list of
-  what is resident in memory. Both load on demand.
+  (resolution, refresh rate, colour depth, pixel clock), what is resident in
+  memory, and which processes are using the processor right now - measured over
+  a short window rather than read from the lifetime average `ps` reports. All
+  load on demand.
 * **Bi-directional control.** A D-pad - arrows, OK, Back and Home - to drive the TV's own interface from a browser, volume, mute, input select, media playback (play/pause/stop/skip via native remote key injection), app launching, picture presets, sound outputs, screen blanking, sleep timer, standby LED, on-screen notifications, power and restart (from the dashboard or Home Assistant). The picture presets on offer are the ones the TV will accept for whatever is playing &mdash; a Dolby Vision source has its own set.
 * **Ad & telemetry blocker.** Blackholes LG's tracking, ad and ACR
   endpoints on the set itself by bind-mounting a hosts table over `/etc/hosts`.

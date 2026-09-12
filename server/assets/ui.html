@@ -704,8 +704,14 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     </details>
 
       <details class="disc" id="disc-proc">
-      <summary>Processes <span class="cur" id="proc-cur"></span></summary>
+      <summary>Process memory <span class="cur" id="proc-cur"></span></summary>
       <div id="proc-list"></div>
+    </details>
+
+      <details class="disc" id="disc-cpu">
+      <summary>Detailed CPU usage <span class="cur" id="cpu-cur"></span></summary>
+      <div id="cpu-list"></div>
+      <div class="sub" id="cpu-note" style="margin-top:12px"></div>
     </details>
     </div>
   </div>
@@ -2038,6 +2044,34 @@ async function loadProcesses() {
       `<div class="sub">Could not read the process list — ${e.message}</div>`;
   }
 }
+
+async function loadCpu() {
+  q('cpu-list').innerHTML = '<div class="sub">Measuring\u2026</div>';
+  try {
+    const r = await fetch(api('/api/cpu'), { cache: 'no-store' });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'failed');
+    q('cpu-cur').textContent = `${d.busy.toFixed(1)}% busy · ${d.active} active`;
+    q('cpu-list').innerHTML = d.top.length
+      ? d.top.map(p =>
+          `<div class="proc"><div class="p-name">${p.name}</div>` +
+          `<div class="p-mb">${p.pct.toFixed(1)}%</div></div>`).join('')
+      : '<div class="sub">Nothing used any CPU over the sample.</div>';
+    q('cpu-note').textContent =
+      `Share of the whole processor over ${(d.windowMs / 1000).toFixed(1)}s, ` +
+      `so these add up to the CPU figure on Metrics rather than to 100% per core.`;
+  } catch (e) {
+    q('cpu-list').innerHTML =
+      `<div class="sub">Could not measure CPU usage — ${e.message}</div>`;
+    q('cpu-note').textContent = '';
+  }
+}
+
+(function wireCpuPanel() {
+  const el = document.getElementById('disc-cpu');
+  // On open only: it holds the request open for the length of the sample.
+  if (el) el.addEventListener('toggle', function () { if (el.open) loadCpu(); });
+})();
 
 // Only poll while the panel is open; it costs a ps on the TV each time.
 function onProcToggle(el) {
