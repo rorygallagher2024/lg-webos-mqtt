@@ -646,7 +646,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     </div>
 
     <div class="grp-sec" id="hdmiblock" data-col="2">
-      <div class="grp">HDMI <span class="cur" id="hdmi-cur"></span></div>
+      <div class="grp">HDMI<span class="cur" id="hdmi-cur"></span></div>
       <div class="ports" id="hdmi-grid"></div>
       <div class="sub" id="hdmi-diag-row" hidden style="margin-top:12px;line-height:1.5"></div>
     </div>
@@ -863,13 +863,13 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     <div class="oled-controls">
       <div class="grp">Protections</div>
       <div id="oled-rows"></div>
-    </div>
-  </div>
 
-  <div class="oled-warn" id="oled-warn" hidden>
-    Note: the last two are normally reachable only from the TV's service menu.
-    They exist to protect the panel from burn-in, and switching them off makes
-    permanent image retention more likely. Doing so may affect your warranty.
+      <div class="oled-warn" id="oled-warn" hidden>
+        Note: the last two are normally reachable only from the TV's service menu.
+        They exist to protect the panel from burn-in, and switching them off makes
+        permanent image retention more likely. Doing so may affect your warranty.
+      </div>
+    </div>
   </div>
 </section>
 
@@ -1891,7 +1891,7 @@ async function loadHdmi() {
     const r = await fetch(api('/api/hdmi'), { cache: 'no-store' });
     const d = await r.json();
     const act = d.inputs.find(i => i.active);
-    q('hdmi-cur').textContent = act ? act.label : 'no active input';
+    q('hdmi-cur').textContent = act ? ': ' + act.label : ': no active input';
     q('hdmi-grid').innerHTML = d.inputs.map(i => {
       const s = i.signal;
       /* The resolution is the headline; the link figures sit under it. Both
