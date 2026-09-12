@@ -24,9 +24,8 @@ WebOSWindow {
     color: "black"
 
     // Loaded by path rather than family name, which differs between the two
-    // firmwares. Both carry these two faces.
+    // firmwares.
     FontLoader { id: thinFace;  source: "file:///usr/share/fonts/MuseoSans-Thin.ttf" }
-    FontLoader { id: lightFace; source: "file:///usr/share/fonts/MuseoSans-Light.ttf" }
 
     // Candidates for the digits, best first. Miso and LG Display Regular are on
     // both firmwares; LG Display Light is on webOS 4 only.
@@ -69,125 +68,98 @@ WebOSWindow {
     Item {
         id: block
 
-        width: column.width
-        height: column.height
+        width: timeRow.width
+        height: timeRow.height
 
         // The move itself is slow and eased, so a glance at the screen never
         // catches it jumping.
         Behavior on x { NumberAnimation { duration: 2600; easing.type: Easing.InOutQuad } }
         Behavior on y { NumberAnimation { duration: 2600; easing.type: Easing.InOutQuad } }
 
-        Column {
-            id: column
-            spacing: Math.round(28 * win.unit)
+        Row {
+            id: timeRow
+            spacing: 0
 
-            Row {
-                id: timeRow
-                spacing: 0
-
-                /*
-                 * One Text per digit, each boxed to the width of a "0".
-                 *
-                 * Measured on a B8: this face lays "12" out at 489px against a
-                 * 232px size, where a single "1" takes 113px - the pair layout
-                 * is wrong, and a two-digit Text draws a gap wide enough for
-                 * two more digits. A digit on its own is laid out correctly.
-                 * Fixed boxes also stop the clock shifting as the time changes,
-                 * since the figures are proportional.
-                 */
-                Text {
-                    id: gauge
-                    visible: false
-                    font.family: win.digitFamily
-                    font.pixelSize: Math.round(232 * win.unit)
-                    text: "0"
-                }
-
-                Text {
-                    id: hourTens
-                    width: gauge.width
-                    horizontalAlignment: Text.AlignHCenter
-                    font.family: win.digitFamily
-                    font.pixelSize: Math.round(232 * win.unit)
-                    color: win.inkBright
-                    text: "0"
-                }
-                Text {
-                    id: hourUnits
-                    width: gauge.width
-                    horizontalAlignment: Text.AlignHCenter
-                    font.family: win.digitFamily
-                    font.pixelSize: Math.round(232 * win.unit)
-                    color: win.inkBright
-                    text: "0"
-                }
-                /*
-                 * Two dots rather than a ":" glyph. The thin face leaves a wide
-                 * gap where the colon should be, and drawing it puts the
-                 * spacing and the pulse under our control either way.
-                 */
-                Item {
-                    id: colon
-                    width: Math.round(74 * win.unit)
-                    height: gauge.height
-
-                    // A second of fade each way, so it reads as a pulse rather
-                    // than a flash.
-                    SequentialAnimation on opacity {
-                        loops: Animation.Infinite
-                        running: true
-                        NumberAnimation { from: 1.0; to: 0.25; duration: 1000; easing.type: Easing.InOutSine }
-                        NumberAnimation { from: 0.25; to: 1.0; duration: 1000; easing.type: Easing.InOutSine }
-                    }
-
-                    Rectangle {
-                        width: Math.round(19 * win.unit)
-                        height: width
-                        radius: width / 2
-                        color: win.inkBright
-                        x: (colon.width - width) / 2
-                        y: Math.round(colon.height * 0.36)
-                    }
-                    Rectangle {
-                        width: Math.round(19 * win.unit)
-                        height: width
-                        radius: width / 2
-                        color: win.inkBright
-                        x: (colon.width - width) / 2
-                        y: Math.round(colon.height * 0.63)
-                    }
-                }
-                Text {
-                    id: minTens
-                    width: gauge.width
-                    horizontalAlignment: Text.AlignHCenter
-                    font.family: win.digitFamily
-                    font.pixelSize: Math.round(232 * win.unit)
-                    color: win.inkBright
-                    text: "0"
-                }
-                Text {
-                    id: minUnits
-                    width: gauge.width
-                    horizontalAlignment: Text.AlignHCenter
-                    font.family: win.digitFamily
-                    font.pixelSize: Math.round(232 * win.unit)
-                    color: win.inkBright
-                    text: "0"
-                }
+            // One Text per digit, each boxed to the width of a "0", so the
+            // clock does not shift as the time changes - these figures are
+            // proportional, and a "1" is half the width of a "0".
+            
+            Text {
+                id: gauge
+                visible: false
+                font.family: win.digitFamily
+                font.pixelSize: Math.round(232 * win.unit)
+                text: "0"
             }
 
             Text {
-                id: dateLine
-                // A Column ignores horizontal anchors on its children, so the
-                // centring is done by matching the row's width.
-                width: timeRow.width
+                id: hourTens
+                width: gauge.width
                 horizontalAlignment: Text.AlignHCenter
-                font.family: lightFace.name
-                font.pixelSize: Math.round(38 * win.unit)
-                font.letterSpacing: Math.round(7 * win.unit)
-                color: win.inkDim
-                text: ""
+                font.family: win.digitFamily
+                font.pixelSize: Math.round(232 * win.unit)
+                color: win.inkBright
+                text: "0"
+            }
+            Text {
+                id: hourUnits
+                width: gauge.width
+                horizontalAlignment: Text.AlignHCenter
+                font.family: win.digitFamily
+                font.pixelSize: Math.round(232 * win.unit)
+                color: win.inkBright
+                text: "0"
+            }
+            // Drawn rather than set as a ":" so the gap either side and the
+            // pulse are ours to set, whichever face the measuring picks.
+            Item {
+                id: colon
+                width: Math.round(74 * win.unit)
+                height: gauge.height
+
+                // A second of fade each way, so it reads as a pulse rather
+                // than a flash.
+                SequentialAnimation on opacity {
+                    loops: Animation.Infinite
+                    running: true
+                    NumberAnimation { from: 1.0; to: 0.25; duration: 1000; easing.type: Easing.InOutSine }
+                    NumberAnimation { from: 0.25; to: 1.0; duration: 1000; easing.type: Easing.InOutSine }
+                }
+
+                Rectangle {
+                    width: Math.round(19 * win.unit)
+                    height: width
+                    radius: width / 2
+                    color: win.inkBright
+                    x: (colon.width - width) / 2
+                    y: Math.round(colon.height * 0.36)
+                }
+                Rectangle {
+                    width: Math.round(19 * win.unit)
+                    height: width
+                    radius: width / 2
+                    color: win.inkBright
+                    x: (colon.width - width) / 2
+                    y: Math.round(colon.height * 0.63)
+                }
+            }
+            Text {
+                id: minTens
+                width: gauge.width
+                horizontalAlignment: Text.AlignHCenter
+                font.family: win.digitFamily
+                font.pixelSize: Math.round(232 * win.unit)
+                color: win.inkBright
+                text: "0"
+            }
+            Text {
+                id: minUnits
+                width: gauge.width
+                horizontalAlignment: Text.AlignHCenter
+                font.family: win.digitFamily
+                font.pixelSize: Math.round(232 * win.unit)
+                color: win.inkBright
+                text: "0"
             }
         }
     }
@@ -200,7 +172,6 @@ WebOSWindow {
         hourUnits.text = h.charAt(1);
         minTens.text = m.charAt(0);
         minUnits.text = m.charAt(1);
-        dateLine.text = Qt.formatDate(now, "dddd d MMMM").toUpperCase();
     }
 
     /*

@@ -36,6 +36,18 @@ def check(path):
     lines = src.splitlines()
     bad = []
 
+    # Braces, ignoring those inside strings and comments. An unbalanced file
+    # fails to load with no message at all, the same as any other QML mistake.
+    # Strings first: a path like "file:///usr/share/fonts/x.ttf" contains //,
+    # and stripping comments before strings would eat the rest of that line.
+    stripped = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', src)
+    stripped = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", stripped)
+    stripped = re.sub(r'/\*.*?\*/', '', stripped, flags=re.S)
+    stripped = re.sub(r'//[^\n]*', '', stripped)
+    opens, closes = stripped.count('{'), stripped.count('}')
+    if opens != closes:
+        bad.append((0, 'unbalanced braces: %d open, %d close' % (opens, closes)))
+
     m = re.search(r'^\s*import\s+QtQuick\s+(\d+)\.(\d+)\s*$', src, re.M)
     if not m:
         bad.append((0, 'no plain "import QtQuick x.y" line found'))
