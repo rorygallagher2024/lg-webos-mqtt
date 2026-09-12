@@ -2600,19 +2600,32 @@ function setScreensaver(mode, cb) {
 
 /*
  * The QML is read once at launch, so a screen saver already running is still
- * the old one. Closing it costs nothing when none is running.
+ * the old one and has to go before the swap means anything.
+ *
+ * One that is on screen is dismissed with a key rather than closed outright.
+ * tvpower hands a screen saver request to a client and waits to be answered,
+ * and killing the client mid-handshake leaves the service waiting on a process
+ * that no longer exists: every later request is then refused as busy until the
+ * set is power cycled. A key press lets it finish and exit on its own terms.
  */
 function restartScreensaverApp(cb) {
-  var wasOn = false;
   luna('com.webos.service.tvpower/power/getPowerState', {}, function (pw) {
-    wasOn = isScreenSaver(mapPowerState(pw && pw.state));
-    luna('com.webos.applicationManager/closeByAppId', { id: 'com.webos.app.screensaver' }, function () {
-      if (!wasOn) return cb();
-      // It was on screen when the swap happened, so put the new one up in its
-      // place rather than leaving the set on whatever was behind it.
+    if (!isScreenSaver(mapPowerState(pw && pw.state))) {
+      // Nothing drawing, so nothing is mid-handshake and the app - idle or
+      // absent - can be closed so the next launch reads the new QML.
+      return luna('com.webos.applicationManager/closeByAppId',
+                  { id: 'com.webos.app.screensaver' }, function () { cb(); });
+    }
+    injectKey(KEY_BACK, function () {
       setTimeout(function () {
-        luna('com.webos.service.tvpower/power/turnOnScreenSaver', {}, function () { cb(); });
-      }, 1200);
+        luna('com.webos.applicationManager/closeByAppId', { id: 'com.webos.app.screensaver' }, function () {
+          // It was on screen when the swap happened, so put the new one up in
+          // its place rather than leaving the set on whatever was behind it.
+          setTimeout(function () {
+            luna('com.webos.service.tvpower/power/turnOnScreenSaver', {}, function () { cb(); });
+          }, 1500);
+        });
+      }, 1500);
     });
   });
 }
