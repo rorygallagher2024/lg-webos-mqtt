@@ -51,11 +51,10 @@ System monitoring
 The Screensaver tab, or `/?tab=screensaver`. Four in place of LG's: a clock, a
 starfield, fireworks, and one showing the set's own panel hours and refresher
 countdown. Each draws dim or bright, and all of them move so nothing marks the
-panel. The fireworks are written from scratch on QtQuick.Particles, not taken
-from the ones LG shipped on older sets.
+panel. A firmware update restores LG's own.
 
 <p align="center">
-  <a href="docs/screenshots/screensaver.png"><img src="docs/screenshots/screensaver.png" alt="Screensaver tab: LG default, Clock, Starfield and Panel vitals, with a dim and bright toggle" width="700"></a>
+  <a href="docs/screenshots/screensaver.png"><img src="docs/screenshots/screensaver.png" alt="Screensaver tab: LG default, Clock, Starfield, Fireworks and Panel vitals, with a dim and bright toggle" width="700"></a>
 </p>
 
 ---
