@@ -618,39 +618,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
         <div id="lux-cell" hidden><div class="lbl">Room light</div><div class="v num" id="lux">&mdash;</div><div class="sub">Ambient sensor</div></div>
       </div>
 
-      <details class="disc" id="panel-protection-block" hidden style="margin-top:24px">
-        <summary>Burn-in &amp; dimmer protections <span class="cur" id="prot-cur"></span></summary>
-        <div class="prot-table">
-          <div class="prot-row" id="asbl-row" hidden>
-            <div class="prot-main">
-              <div class="prot-title">ASBL <span class="prot-sub">&middot; Auto Static Brightness Limiter (TPC)</span></div>
-              <div class="prot-desc">Gradually dims sustained static scenes and paused media to prevent OLED pixel burn-in</div>
-            </div>
-            <div class="prot-status"><span class="pill" id="asbl-pill">&mdash;</span></div>
-          </div>
-          <div class="prot-row" id="gsr-row" hidden>
-            <div class="prot-main">
-              <div class="prot-title">GSR <span class="prot-sub">&middot; Global Sticky Reduction</span></div>
-              <div class="prot-desc">Dims entire screen brightness globally when persistent stationary elements (HUDs/banners) are detected</div>
-            </div>
-            <div class="prot-status"><span class="pill" id="gsr-pill">&mdash;</span></div>
-          </div>
-          <div class="prot-row" id="shift-row" hidden>
-            <div class="prot-main">
-              <div class="prot-title">Screen Shift <span class="prot-sub">&middot; Pixel Orbiting</span></div>
-              <div class="prot-desc">Subtly shifts the entire picture by micro-increments over time to disperse static edge wear</div>
-            </div>
-            <div class="prot-status"><button class="pill" id="shift-pill" onclick="toggleScreenShift()" title="Switch pixel orbiting on or off">&mdash;</button></div>
-          </div>
-          <div class="prot-row" id="logo-row" hidden>
-            <div class="prot-main">
-              <div class="prot-title">Adjust Logo Brightness <span class="prot-sub">&middot; Local Logo Dimming</span></div>
-              <div class="prot-desc">Selectively dims only static logo/HUD pixels locally while preserving full brightness for the rest of the picture</div>
-            </div>
-            <div class="prot-status"><button class="pill" id="logo-pill" onclick="cycleLogoDimming()" title="Cycle Off, Light, High">&mdash;</button></div>
-          </div>
-        </div>
-      </details>
     </div>
 
     <div class="grp-sec" data-col="1">
@@ -1488,64 +1455,6 @@ async function tick() {
       }
     }
 
-    // Burn-in & Dimmer Protections
-    let hasProt = false;
-    if (o.asbl_protection) {
-      q('asbl-row').hidden = false;
-      const pill = q('asbl-pill');
-      const active = /active|on|enabled/i.test(o.asbl_protection);
-      pill.textContent = o.asbl_protection;
-      pill.className = 'pill ' + (active ? 'good' : 'idle');
-      hasProt = true;
-    } else {
-      q('asbl-row').hidden = true;
-    }
-
-    if (o.gsr_protection) {
-      q('gsr-row').hidden = false;
-      const pill = q('gsr-pill');
-      const active = /active|on|enabled/i.test(o.gsr_protection);
-      pill.textContent = o.gsr_protection;
-      pill.className = 'pill ' + (active ? 'good' : 'idle');
-      hasProt = true;
-    } else {
-      q('gsr-row').hidden = true;
-    }
-
-    if (o.screen_shift) {
-      q('shift-row').hidden = false;
-      const pill = q('shift-pill');
-      const on = /on/i.test(o.screen_shift);
-      shiftNow = on ? 'on' : 'off';
-      pill.textContent = on ? 'On' : 'Off';
-      pill.className = 'pill ' + (on ? 'good' : 'idle');
-      hasProt = true;
-    } else {
-      q('shift-row').hidden = true;
-    }
-
-    if (o.logo_dimming) {
-      q('logo-row').hidden = false;
-      const pill = q('logo-pill');
-      const val = String(o.logo_dimming).toLowerCase();
-      logoNow = val;
-      let label = val.charAt(0).toUpperCase() + val.slice(1);
-      if (val === 'strong') label = 'High';
-      pill.textContent = label;
-      pill.className = 'pill ' + (/off/i.test(val) ? 'idle' : 'good');
-      hasProt = true;
-    } else {
-      q('logo-row').hidden = true;
-    }
-    q('panel-protection-block').hidden = !hasProt;
-    if (q('prot-cur')) {
-      let protOn = 0, protOf = 0;
-      if (o.asbl_protection) { protOf++; if (/active|on|enabled/i.test(o.asbl_protection)) protOn++; }
-      if (o.gsr_protection) { protOf++; if (/active|on|enabled/i.test(o.gsr_protection)) protOn++; }
-      if (o.screen_shift) { protOf++; if (/on/i.test(o.screen_shift)) protOn++; }
-      if (o.logo_dimming) { protOf++; if (!/off/i.test(o.logo_dimming)) protOn++; }
-      q('prot-cur').textContent = protOf ? protOn + ' of ' + protOf + ' active' : '';
-    }
     const dim = d.dimming;
     if (dim && q('dimming')) q('dimming').textContent = dim.charAt(0).toUpperCase() + dim.slice(1);
     const st_ = d.appStorage;
@@ -1703,19 +1612,6 @@ async function c(action, value) {
     setTimeout(tick, 320);
     return j;
   } catch (e) { showErr(e.message); }
-}
-/*
- * The two settable panel protections. Both read back from the next poll, so
- * neither writes its own label - the state stays the TV's to report.
- */
-let shiftNow = null, logoNow = null;
-function toggleScreenShift() {
-  c('screenShift', shiftNow === 'on' ? 'off' : 'on');
-}
-function cycleLogoDimming() {
-  const order = ['off', 'light', 'strong'];
-  const next = order[(order.indexOf(logoNow) + 1) % order.length];
-  c('logoDimming', next);
 }
 function toggleLight(which) {
   const el = q(which === 'standbyLight' ? 'lt_standby' : 'lt_logo');
