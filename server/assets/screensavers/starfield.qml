@@ -35,10 +35,17 @@ WebOSWindow {
 
     // Dim or bright, written in when the screen saver is staged.
     property int level: __TVWEB_LEVEL__
-    property real grow: level > 0 ? 1.20 : 1.0
-    property real maxAlpha: level > 0 ? 1.00 : 0.85
-    property real midAlpha: level > 0 ? 0.85 : 0.65
-    property real minAlpha: level > 0 ? 0.65 : 0.40
+    property real grow: level > 0 ? 1.50 : 1.0
+    property real maxAlpha: level > 0 ? 1.00 : 0.65
+    property real midAlpha: level > 0 ? 0.85 : 0.45
+    property real minAlpha: level > 0 ? 0.60 : 0.25
+
+    // Dim mode reduces actual RGB luminance rather than relying solely on alpha,
+    // ensuring a pronounced, comfortable difference between dark-room and bright-room viewing.
+    property color microColor:  level > 0 ? "#d4e6ff" : "#6882a0"
+    property color midColor:    level > 0 ? "#ffffff" : "#8090a2"
+    property color gemColor:    level > 0 ? "#fff9f0" : "#a8a298"
+    property color meteorColor: level > 0 ? "#f0f6ff" : "#9ab0cc"
 
     ParticleSystem {
         id: sys
@@ -50,7 +57,7 @@ WebOSWindow {
         system: sys
         groups: ["micro"]
         source: "star.png"
-        color: "#d4e6ff"
+        color: win.microColor
         colorVariation: 0.15
         alpha: win.minAlpha
         alphaVariation: 0.25
@@ -84,7 +91,7 @@ WebOSWindow {
         system: sys
         groups: ["midfield"]
         source: "star.png"
-        color: "#ffffff"
+        color: win.midColor
         colorVariation: 0.20
         alpha: win.midAlpha
         alphaVariation: 0.20
@@ -118,7 +125,7 @@ WebOSWindow {
         system: sys
         groups: ["gems"]
         source: "star.png"
-        color: "#fff9f0"
+        color: win.gemColor
         colorVariation: 0.25
         alpha: win.maxAlpha
         alphaVariation: 0.15
@@ -152,7 +159,7 @@ WebOSWindow {
         system: sys
         groups: ["meteorHead", "meteorTail"]
         source: "star.png"
-        color: "#f0f6ff"
+        color: win.meteorColor
         alpha: win.maxAlpha
     }
 
