@@ -27,7 +27,7 @@ var zlib = require('zlib');
  * a link to /releases/tag/v<version>, so a value with no tag behind it gives a
  * 404 rather than a wrong page.
  */
-var TVWEB_VERSION = '0.31.0';
+var TVWEB_VERSION = '0.32.0';
 
 // ---------------------------------------------------------------- config
 var CONFIG = {
