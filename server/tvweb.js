@@ -3687,8 +3687,16 @@ var server = http.createServer(function (req, res) {
           gsrStressCount: live ? live.gsrStressCount : null,
           screenShift: oled.screen_shift || null,
           logoDimming: oled.logo_dimming || null,
+          // The panel's own wear figures, which belong beside the switches
+          // that decide how hard it is worked.
           panelHours: (oled.panel_hours === undefined) ? null : oled.panel_hours,
-          hoursUntilRefresher: (oled.hours_until_refresher === undefined) ? null : oled.hours_until_refresher
+          hoursUntilComp: (oled.hours_until_comp === undefined) ? null : oled.hours_until_comp,
+          hoursUntilRefresher: (oled.hours_until_refresher === undefined) ? null : oled.hours_until_refresher,
+          compStatus: oled.comp_status || null,
+          refresherStatus: oled.refresher_status || null,
+          compCycles: (oled.comp_cycles === undefined) ? null : oled.comp_cycles,
+          refresherCycles: (oled.refresher_cycles === undefined) ? null : oled.refresher_cycles,
+          failureAlerts: (oled.failure_alerts === undefined) ? null : oled.failure_alerts
         }));
       });
     });

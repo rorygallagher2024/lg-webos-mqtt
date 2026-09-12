@@ -335,6 +335,14 @@ button.btn-off:hover{color:var(--w60);border-color:var(--w12);background:transpa
 .oled-row.guarded .oled-name{color:var(--cand)}
 .oled-warn{margin-top:24px;border-left:2px solid var(--cand);padding:12px 0 12px 14px;
            font-size:13px;color:var(--w60);max-width:64ch;line-height:1.55}
+/* The wear figures and the switches that decide how hard the panel is worked,
+   side by side - they are two halves of the same question. */
+.oled-split{display:grid;grid-template-columns:1fr;gap:38px}
+@media(min-width:1020px){.oled-split{grid-template-columns:minmax(280px,0.8fr) 1.6fr;gap:52px}}
+.oled-split .grp{margin-bottom:18px}
+.oled-split .oled-row:first-child{padding-top:0}
+.oc-cycles{margin-top:26px;font-size:13px;color:var(--w50);line-height:1.8}
+.oc-cycles span{color:var(--w80)}
 .oled-none{font-size:12px;letter-spacing:.06em;color:var(--w35);white-space:nowrap}
 /* A protection this set will not talk about is still worth describing, but it
    should not compete with the ones that answer. */
@@ -574,7 +582,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 
 <nav class="tabs" id="tabs" role="tablist">
   <button type="button" role="tab" data-tab="control">Control</button>
-  <button type="button" role="tab" data-tab="metrics">Metrics</button>
+  <button type="button" role="tab" data-tab="system">System</button>
   <button type="button" role="tab" data-tab="privacy">Privacy</button>
   <button type="button" role="tab" data-tab="oledcare" id="tab-btn-oledcare" hidden>OLED Care</button>
   <button type="button" role="tab" data-tab="servicemenu" id="tab-btn-servicemenu" hidden>Service menu</button>
@@ -585,7 +593,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 <main id="panels">
 <section class="panel" id="tab-metrics" role="tabpanel" hidden>
   <div class="col-telemetry">
-    <div class="col-sec">Metrics</div>
+    <div class="col-sec">System</div>
 
     <div class="grp-sec first" data-col="0">
       <div class="grp">Temperature</div>
@@ -609,16 +617,11 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <section class="readouts" id="readouts"></section>
     </div>
 
-    <div class="grp-sec" id="panelblock" data-col="2" hidden>
-      <div class="grp">Display panel</div>
-      <div class="lbl">Total power on hours</div>
-      <div class="n num" style="margin-top:10px"><span id="ph">&mdash;</span><em>hours</em></div>
-      <div class="cols">
-        <div><div class="lbl" id="comp-lbl">Panel maintenance in</div><div class="v num" id="comp">&mdash;</div><div class="sub" id="comp-sub">&mdash;</div></div>
-        <div><div class="lbl" id="refr-lbl">Pixel refresher in</div><div class="v num" id="refr">&mdash;</div><div class="sub" id="refr-sub">&mdash;</div></div>
-        <div id="lux-cell" hidden><div class="lbl">Room light</div><div class="v num" id="lux">&mdash;</div><div class="sub">Ambient sensor</div></div>
-      </div>
-
+    <div class="grp-sec" id="luxblock" data-col="2" hidden>
+      <div class="grp">Ambient</div>
+      <div class="lbl">Room light</div>
+      <div class="v num" id="lux">&mdash;</div>
+      <div class="sub">Ambient sensor</div>
     </div>
 
     <div class="grp-sec" data-col="1">
@@ -640,6 +643,12 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="n num" style="margin-top:10px"><span id="remote-pct">&mdash;</span><em>%</em></div>
       <div class="track" style="margin-top:16px;max-width:220px"><b id="remote-gauge-fill" style="width:0%"></b></div>
       <div class="sub" id="remote-model-sub"></div>
+    </div>
+
+    <div class="grp-sec" id="hdmiblock" data-col="2">
+      <div class="grp">HDMI <span class="cur" id="hdmi-cur"></span></div>
+      <div class="ports" id="hdmi-grid"></div>
+      <div class="sub" id="hdmi-diag-row" hidden style="margin-top:12px;line-height:1.5"></div>
     </div>
 
     <div class="grp-sec" id="advblock" data-col="1">
@@ -685,11 +694,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       </div>
     </details>
 
-      <details class="disc" id="disc-hdmi">
-      <summary>HDMI <span class="cur" id="hdmi-cur"></span></summary>
-      <div class="ports" id="hdmi-grid"></div>
-      <div class="sub" id="hdmi-diag-row" hidden style="margin-top:12px;line-height:1.5"></div>
-    </details>
 
       <details class="disc" id="disc-proc">
       <summary>Process memory <span class="cur" id="proc-cur"></span></summary>
@@ -844,7 +848,23 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 </section>
 
 <section class="priv panel" id="oledpane" role="tabpanel" hidden>
-  <div id="oled-rows"></div>
+  <div class="oled-split">
+    <div class="oled-wear">
+      <div class="grp">Panel life</div>
+      <div class="lbl">Total power on hours</div>
+      <div class="n num" style="margin-top:10px"><span id="oc-hours">&mdash;</span><em>hours</em></div>
+      <div class="cols" style="margin-top:22px">
+        <div><div class="lbl">Panel maintenance in</div><div class="v num" id="oc-comp">&mdash;</div><div class="sub" id="oc-comp-sub">&mdash;</div></div>
+        <div><div class="lbl">Pixel refresher in</div><div class="v num" id="oc-refr">&mdash;</div><div class="sub" id="oc-refr-sub">&mdash;</div></div>
+      </div>
+      <div class="oc-cycles" id="oc-cycles"></div>
+    </div>
+
+    <div class="oled-controls">
+      <div class="grp">Protections</div>
+      <div id="oled-rows"></div>
+    </div>
+  </div>
 
   <div class="oled-warn" id="oled-warn" hidden>
     Note: the last two are normally reachable only from the TV's service menu.
@@ -1409,66 +1429,18 @@ async function tick() {
     // The remote has its own section now, so System info stands on its own.
     if (q('disc-hwinfo')) q('disc-hwinfo').hidden = !hasHw;
 
-    /* Capability-driven: an LCD/QNED set has no panel-hours counter, no
-       compensation cycle and no Pixel Refresher, so hide the block entirely
-       rather than showing zeros that look like measurements. */
-    const hasOled = !!(d.oled && d.oled.panel_hours !== undefined) &&
-                    !(d.capabilities && d.capabilities.oled === false);
-    q('panelblock').hidden = !hasOled;
-    q('ph').textContent = (o.panel_hours || 0).toLocaleString();
-    if (isComp) {
-      if (q('comp-lbl')) q('comp-lbl').textContent = 'Panel maintenance';
-      q('comp').textContent = 'In progress';
-      q('comp').style.color = 'var(--cand)';
-      if (q('comp-sub')) q('comp-sub').textContent = 'Completing Panel Maintenance (Short Cycle)';
-    } else {
-      if (q('comp-lbl')) q('comp-lbl').textContent = 'Panel maintenance in';
-      q('comp').textContent = hrs(o.hours_until_comp) + ' h';
-      q('comp').style.color = '';
-      if (q('comp-sub')) {
-        q('comp-sub').textContent = (o.comp_cycles !== undefined && o.comp_cycles !== null) ?
-          o.comp_cycles + ' cycles completed (Off-RS)' : '4-hour short cycle';
-      }
-    }
-    if (o.refresher_status === 'Running') {
-      if (q('refr-lbl')) q('refr-lbl').textContent = 'Pixel refresher';
-      q('refr').textContent = 'In progress';
-      q('refr').style.color = 'var(--cand)';
-      if (q('refr-sub')) q('refr-sub').textContent = 'Running 1-hour calibration';
-    } else if (o.refresher_status === 'Scheduled') {
-      if (q('refr-lbl')) q('refr-lbl').textContent = 'Pixel refresher';
-      q('refr').textContent = 'Scheduled';
-      q('refr').style.color = 'var(--cand)';
-      if (q('refr-sub')) q('refr-sub').textContent = 'Runs on next shutdown';
-    } else {
-      if (q('refr-lbl')) q('refr-lbl').textContent = 'Pixel refresher in';
-      q('refr').textContent = hrs(o.hours_until_refresher) + ' h';
-      q('refr').style.color = '';
-      if (q('refr-sub')) {
-        if (o.failure_alerts !== undefined && o.failure_alerts !== null && o.failure_alerts > 0) {
-          q('refr-sub').innerHTML = '<span style="color:var(--cand)">' + o.failure_alerts + ' failures recorded</span>';
-        } else if (o.refresher_cycles !== undefined && o.refresher_cycles !== null) {
-          q('refr-sub').textContent = o.refresher_cycles + ' deep cycles completed (JB)';
-        } else {
-          q('refr-sub').textContent = '2,000-hour calibration';
-        }
-      }
-    }
+    /* The ambient sensor is a reading rather than panel wear, so it stays on
+       the System tab while the panel figures live with the protections. */
+    const lux = d.lightSensor;
+    if (q('luxblock')) q('luxblock').hidden = !lux;
+    if (lux && q('lux')) q('lux').textContent = Math.round(lux.lux);
 
-    const dim = d.dimming;
-    if (dim && q('dimming')) q('dimming').textContent = dim.charAt(0).toUpperCase() + dim.slice(1);
     const st_ = d.appStorage;
     q('appstore-cell').hidden = !st_;
     if (st_) {
       q('appstore').textContent = (st_.freeMb / 1024).toFixed(1);
       q('appstore-sub').textContent = `${st_.pct}% of ${(st_.totalMb/1024).toFixed(1)} GB used`;
     }
-    // Sets without an ambient sensor still answer, reporting 65535; the server
-    // turns that into null, so this row simply does not appear.
-    const ls_ = d.lightSensor;
-    q('lux-cell').hidden = !ls_;
-    if (ls_) q('lux').textContent = ls_.lux;
-
     /* Flash wear is independent of panel type, but the counters do not exist
        on webOS 3.x - drop the cells rather than print "unknown" twice. */
     const wear_ = !(d.capabilities && d.capabilities.emmcWear === false);
@@ -1955,17 +1927,13 @@ async function loadHdmi() {
   }
 }
 
-function onHdmiToggle(el) {
-  /* Loaded on open, not polled. Each read is a luna-send fork on the TV, and
-     link state does not change while someone stares at the panel; reopening
-     it refreshes. */
-  if (el.open) loadHdmi();
+// Always on screen now, so it loads when the tab it sits on does.
+let hdmiLoaded = false;
+function loadHdmiOnce() {
+  if (hdmiLoaded) return;
+  hdmiLoaded = true;
+  loadHdmi();
 }
-
-(function wireHdmiPanel() {
-  const el = document.getElementById('disc-hdmi');
-  if (el) el.addEventListener('toggle', function () { onHdmiToggle(el); });
-})();
 
 async function loadProcesses() {
   try {
@@ -2059,7 +2027,7 @@ function onProcToggle(el) {
  */
 const TABS = {
   control:     'tab-control',
-  metrics:     'tab-metrics',
+  system:      'tab-metrics',
   oledcare:    'oledpane',
   servicemenu: 'svcpane',
   screensaver: 'sspane',
@@ -2071,6 +2039,8 @@ let activeTab = null;
 let isOledSet = null;
 
 function showTab(name) {
+  // The tab was called Metrics until it grew past its numbers.
+  if (name === 'metrics') name = 'system';
   if (!TABS[name]) name = 'control';
   /*
    * The panel is about the OLED panel, so an LCD set has no tab for it - but a
@@ -2092,6 +2062,7 @@ function showTab(name) {
   try { localStorage.setItem('tab', name); } catch (e) { /* private window */ }
   relayout(false);   // the panel just became measurable
   cfgPollStatus(name === 'mqtt');
+  if (name === 'system') loadHdmiOnce();
   if (name === 'oledcare') loadOledCare();
   if (name === 'servicemenu') loadServiceMenu();
   if (name === 'screensaver') loadScreensavers();
@@ -2229,6 +2200,19 @@ async function loadOledCare() {
   }).join('');
 
   q('oled-rows').innerHTML = html;
+
+  const hrs = v => v === null || v === undefined ? null :
+    (v >= 100 ? Math.round(v).toLocaleString() : (Math.round(v * 10) / 10).toString());
+  q('oc-hours').textContent = d.panelHours === null ? '—' : Number(d.panelHours).toLocaleString();
+  q('oc-comp').textContent = hrs(d.hoursUntilComp) === null ? '—' : hrs(d.hoursUntilComp) + ' h';
+  q('oc-refr').textContent = hrs(d.hoursUntilRefresher) === null ? '—' : hrs(d.hoursUntilRefresher) + ' h';
+  q('oc-comp-sub').textContent = d.compStatus ? d.compStatus : '4-hour short cycle';
+  q('oc-refr-sub').textContent = d.refresherStatus ? d.refresherStatus : '2,000-hour calibration';
+  const cyc = [];
+  if (d.compCycles !== null && d.compCycles !== undefined) cyc.push(`Short cycles completed <span>${d.compCycles.toLocaleString()}</span>`);
+  if (d.refresherCycles !== null && d.refresherCycles !== undefined) cyc.push(`Pixel refresher cycles <span>${d.refresherCycles.toLocaleString()}</span>`);
+  if (d.failureAlerts !== null && d.failureAlerts !== undefined) cyc.push(`Failure alerts <span>${d.failureAlerts.toLocaleString()}</span>`);
+  q('oc-cycles').innerHTML = cyc.map(x => `<div>${x}</div>`).join('');
   q('oled-warn').hidden = !d.serviceControls;
   q('oled-rows').querySelectorAll('button.pill').forEach(b => { b.disabled = !d.writable; });
 }
@@ -2574,7 +2558,7 @@ async function waitForServer() {
 
 const openSection = new URLSearchParams(location.search).get('open');
 if (openSection === 'system' && q('disc-hwinfo')) q('disc-hwinfo').open = true;
-if (openSection === 'hdmi' && q('disc-hdmi')) q('disc-hdmi').open = true;
+
 if (openSection === 'processes' && q('disc-proc')) q('disc-proc').open = true;
 
 /*

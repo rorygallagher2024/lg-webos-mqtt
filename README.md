@@ -53,7 +53,7 @@ There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the T
 
 ### Web Dashboard & Controls
 
-Control, Metrics, Screensaver, Privacy, MQTT and Service menu, plus OLED Care on an OLED set.
+Control, System, Screensaver, Privacy, MQTT and Service menu, plus OLED Care on an OLED set.
 
 <p align="center">
   <a href="docs/screenshots/dashboard.png"><img src="docs/screenshots/dashboard.png" alt="Metrics tab: SoC temperature, system readouts, storage and display panel counters, dark theme (OLED65B8SLC)" width="440"></a>
@@ -73,10 +73,10 @@ A custom Home Assistant dashboard for an LG TV:
   <a href="https://github.com/user-attachments/assets/737b3106-e8a4-4c6b-ba96-b0bad130b600"><img width="800" alt="Custom dashboard leveraging MQTT data" src="https://github.com/user-attachments/assets/737b3106-e8a4-4c6b-ba96-b0bad130b600" /></a>
 </p>
 
-### Metrics
+### System
 Surfaces data that you won't find in your TV settings, including:
 
-OLED Panel health and maintenance overview
+OLED panel health and maintenance, which lives on the OLED Care tab
 
 <img width="429" height="304" alt="Screenshot 2026-09-11 at 20 43 39" src="https://github.com/user-attachments/assets/825ef48d-9560-474c-9d3e-7feb045724b5" />
 
@@ -101,8 +101,9 @@ default.
 
 ### OLED care
 
-The OLED Care tab, or `/?tab=oledcare`, on OLED sets. What each burn-in
-protection does and a switch for it: screen shift and logo dimming on any OLED,
+The OLED Care tab, or `/?tab=oledcare`, on OLED sets. The panel's own wear
+figures - power-on hours, panel maintenance and Pixel Refresher countdowns -
+beside what each burn-in protection does and a switch for it: screen shift and logo dimming on any OLED,
 and ASBL and Global Stress Reduction &mdash; the two normally
 reachable only from the TV's service menu, with a service remote and a PIN.
 
@@ -153,8 +154,8 @@ and firmware updates use.
 ## Core features
 
 * **OLED panel health.** Panel hours, compensation and Pixel Refresher countdowns
-  with scheduling, completed cycle counters and failure alerts. Hidden on
-  LCD/QNED sets.
+  with scheduling, completed cycle counters and failure alerts, on the OLED Care
+  tab beside the protections. Hidden on LCD/QNED sets.
 * **Service menu.** Opens LG's engineering menu on the TV without a service
   remote, and unlocks the full version on firmware that ships it cut down. The
   unlock needs a power cycle; sets that do not lock it say so.
