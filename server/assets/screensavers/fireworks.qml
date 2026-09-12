@@ -6,11 +6,14 @@
  * copying" - so none of it is here. It is built on QtQuick.Particles, which is
  * part of Qt and present on both firmwares, and so is this.
  *
- * ImageParticle with no source draws Qt's own glowdot, so there is no image to
- * ship either.
+ * The particles are drawn with ItemParticle rather than ImageParticle, which
+ * needs an image: this Qt build has no built-in particle resource, so an
+ * ImageParticle with no source of its own paints nothing at all. Measured on a
+ * B8 by capturing the compositor - a control rectangle drew, the particles did
+ * not. Drawing Items instead means there is no image to ship.
  *
- * A burst lives about three seconds and leaves nothing behind, which is as
- * kind to the panel as the starfield: no pixel is asked to hold anything.
+ * A burst lives about three seconds and leaves nothing behind, which is as kind
+ * to the panel as the starfield: no pixel is asked to hold anything.
  */
 import QtQuick 2.4
 import QtQuick.Particles 2.0
@@ -36,54 +39,69 @@ WebOSWindow {
     property real ink: level > 0 ? 1.0 : 0.62
     property real grow: level > 0 ? 1.2 : 1.0
 
+    property var emitters: []
+
+    // Sized to the screen: the particles live in this item's coordinate space,
+    // and a system with no size paints nothing however well the emitters fire.
     ParticleSystem { id: sys; anchors.fill: parent }
 
     /*
-     * One group per colour rather than one emitter recoloured between bursts:
+     * The painters draw inside their own item, so that item has to have the
+     * size of the screen. A Repeater delegate is whatever it declares itself to
+     * be, and a bare Item is 0x0 - which draws nothing while the emitters still
+     * report themselves as built.
+     *
+     * One group per colour rather than one painter recoloured between bursts:
      * ImageParticle paints every particle in its group, so changing the colour
      * would repaint the burst still falling from last time.
      */
-    Repeater {
-        model: [ "#ff4d3d", "#ffd23d", "#4dc3ff", "#b46dff", "#5dff9b" ]
+    Item {
+        anchors.fill: parent
 
-        Item {
-            ImageParticle {
-                system: sys
-                groups: [ "g" + index ]
-                color: modelData
-                colorVariation: 0.25
-                alpha: 0
-                opacity: win.ink
-                entryEffect: ImageParticle.Fade
-            }
+        Repeater {
+            model: [ "#ff4d3d", "#ffd23d", "#4dc3ff", "#b46dff", "#5dff9b" ]
 
-            Emitter {
-                id: shell
-                system: sys
-                group: "g" + index
-                enabled: false
-                emitRate: 0
-                lifeSpan: 2600
-                lifeSpanVariation: 800
-                size: Math.round(13 * win.unit * win.grow)
-                sizeVariation: Math.round(6 * win.unit)
-                endSize: 0
-                velocity: AngleDirection {
-                    angle: 0
-                    angleVariation: 360
-                    magnitude: Math.round(300 * win.unit)
-                    magnitudeVariation: Math.round(140 * win.unit)
+            Item {
+                anchors.fill: parent
+
+                ItemParticle {
+                    system: sys
+                    groups: [ "g" + index ]
+                    // Fades each item in and out over its life, so a burst
+                    // arrives and leaves rather than blinking.
+                    fade: true
+                    delegate: Rectangle {
+                        width: Math.round(13 * win.unit * win.grow)
+                        height: width
+                        radius: width / 2
+                        color: modelData
+                        opacity: win.ink
+                    }
                 }
-                // Falls away rather than hanging, which is what makes it read
-                // as a firework instead of a starburst.
-                acceleration: PointDirection { y: Math.round(110 * win.unit) }
-            }
 
-            Component.onCompleted: win.emitters.push(shell)
+                Emitter {
+                    id: shell
+                    system: sys
+                    group: "g" + index
+                    enabled: false
+                    emitRate: 0
+                    lifeSpan: 2600
+                    lifeSpanVariation: 800
+                    velocity: AngleDirection {
+                        angle: 0
+                        angleVariation: 360
+                        magnitude: Math.round(300 * win.unit)
+                        magnitudeVariation: Math.round(140 * win.unit)
+                    }
+                    // Falls away rather than hanging, which is what makes it
+                    // read as a firework instead of a starburst.
+                    acceleration: PointDirection { y: Math.round(110 * win.unit) }
+                }
+
+                Component.onCompleted: win.emitters.push(shell)
+            }
         }
     }
-
-    property var emitters: []
 
     /*
      * Somewhere new each time, and never against an edge: a burst throws
