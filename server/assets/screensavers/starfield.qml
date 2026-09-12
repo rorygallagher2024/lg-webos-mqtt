@@ -27,6 +27,16 @@ WebOSWindow {
     property real unit: win.height / 1080
     property int starCount: 150
 
+    /*
+     * Dim or bright, written in when the screen saver is staged. Bright lifts
+     * the floor as well as the ceiling, so the far stars read as stars rather
+     * than as dust, and adds a little size with it.
+     */
+    property int level: __TVWEB_LEVEL__
+    property real dimmest:  level > 0 ? 0.30 : 0.13
+    property real brightest: level > 0 ? 1.00 : 0.63
+    property real sizeScale: level > 0 ? 1.25 : 1.0
+
     Item {
         anchors.fill: parent
 
@@ -42,7 +52,7 @@ WebOSWindow {
                  * follows from it.
                  */
                 property real depth: Math.random()
-                property real size: Math.max(1, Math.round((1.0 + depth * 2.6) * win.unit))
+                property real size: Math.max(1, Math.round((1.0 + depth * 2.6) * win.unit * win.sizeScale))
                 property int travel: Math.round(26000 - depth * 17000)
 
                 /*
@@ -57,7 +67,7 @@ WebOSWindow {
                 height: size
                 radius: size / 2
                 color: "#ffffff"
-                opacity: 0.13 + depth * 0.5
+                opacity: win.dimmest + depth * (win.brightest - win.dimmest)
 
                 SequentialAnimation {
                     running: true

@@ -338,6 +338,11 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
 .ss-desc{font-size:13px;color:var(--w50);margin-top:7px;max-width:46ch}
 .ss-card.on .ss-name{color:var(--green)}
 .ss-tag{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--green)}
+.ss-level-row{margin-top:22px;max-width:760px}
+.ss-level-lbl{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--w60);
+              margin-bottom:8px}
+.ss-level-row .btns{display:flex;gap:10px;max-width:340px}
+.ss-level-row .btns button{flex:1}
 /*
  * The lists run in two columns. A row is a sentence and a pill: given the full
  * width the pill ends up 400px from the text it belongs to, and capping the
@@ -808,6 +813,10 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   </div>
 
   <div id="ss-list" class="ss-list"></div>
+  <div class="ss-level-row" id="ss-level-row" hidden>
+    <div class="ss-level-lbl">Brightness</div>
+    <div class="btns" id="ss-level"></div>
+  </div>
   <div class="pv-note" id="ss-note"></div>
 </section>
 
@@ -2022,6 +2031,8 @@ function showTab(name) {
 document.querySelectorAll('#tabs button').forEach(b =>
   b.addEventListener('click', () => showTab(b.dataset.tab)));
 
+let ssCurrent = 'stock';
+
 async function loadScreensavers() {
   const box = q('ss-list');
   if (!box) return;
@@ -2030,6 +2041,7 @@ async function loadScreensavers() {
     d = await (await fetch(api('/api/screensaver'))).json();
   } catch (e) { showErr(e.message); return; }
   if (!d || !d.ok) { showErr((d && d.error) || 'Could not read the screen savers'); return; }
+  ssCurrent = d.current;
 
   box.innerHTML = d.modes.map(m => `
     <button class="ss-card${m.active ? ' on' : ''}" data-ss="${esc(m.id)}"
@@ -2038,18 +2050,41 @@ async function loadScreensavers() {
       <div class="ss-desc">${esc(m.description)}</div>
     </button>`).join('');
 
+  /* LG's own screen saver is not ours to draw, so brightness is offered only
+     for the ones that are. */
+  const ours = d.current !== 'stock';
+  q('ss-level-row').hidden = !ours;
+  if (ours) {
+    q('ss-level').innerHTML = [['dim', 'Dim'], ['bright', 'Bright']].map(([id, label]) =>
+      `<button class="ss-lvl${d.level === id ? ' on' : ''}" data-level="${id}"
+               ${d.writable ? '' : 'disabled'}>${label}</button>`).join('');
+  }
+
   q('ss-note').textContent = d.writable
     ? 'Press the Screensaver button on the Control tab to see the change straight away.'
     : 'Controls are disabled in config.json, so the screen saver cannot be changed from here.';
 }
 
 document.addEventListener('click', async ev => {
-  const card = ev.target.closest ? ev.target.closest('.ss-card[data-ss]') : null;
-  if (!card || card.disabled || card.classList.contains('on')) return;
-  card.disabled = true;
-  const r = await c('screensaverMode', card.dataset.ss);
-  if (!r || !r.ok) card.disabled = false;
-  loadScreensavers();
+  if (!ev.target.closest) return;
+
+  const card = ev.target.closest('.ss-card[data-ss]');
+  if (card && !card.disabled && !card.classList.contains('on')) {
+    card.disabled = true;
+    const r = await c('screensaverMode', { mode: card.dataset.ss });
+    if (!r || !r.ok) card.disabled = false;
+    loadScreensavers();
+    return;
+  }
+
+  const lvl = ev.target.closest('button.ss-lvl[data-level]');
+  if (lvl && !lvl.disabled && !lvl.classList.contains('on')) {
+    lvl.disabled = true;
+    // The mode goes with it: both are staged into the same file.
+    const r = await c('screensaverMode', { mode: ssCurrent, level: lvl.dataset.level });
+    if (!r || !r.ok) lvl.disabled = false;
+    loadScreensavers();
+  }
 });
 
 // Kept so the old control still works from anywhere that calls it.

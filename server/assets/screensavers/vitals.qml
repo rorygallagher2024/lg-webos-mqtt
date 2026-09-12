@@ -59,8 +59,11 @@ WebOSWindow {
     }
 
     property real unit: win.height / 1080
-    property color inkBright: "#d8dade"
-    property color inkDim:    "#6d7076"
+
+    // Dim or bright, written in when the screen saver is staged.
+    property int level: __TVWEB_LEVEL__
+    property color inkBright: level > 0 ? "#ffffff" : "#d8dade"
+    property color inkDim:    level > 0 ? "#9aa0a8" : "#6d7076"
 
     property string heroValue: "—"
     property string heroUnit: ""

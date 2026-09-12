@@ -1504,6 +1504,7 @@ function collectStats(cb) {
     out.powerState = mapPowerState(pw && pw.state);
     out.screenSaver = isScreenSaver(out.powerState);
     out.screensaverMode = screensaverMode();
+    out.screensaverLevel = screensaverLevel();
   lunaCached('com.webos.service.settings/getSystemSettings',
        { category: 'time', keys: ['sleepTimer'] }, 30000, function (tm) {
     out.sleepTimer = (tm && tm.settings && tm.settings.sleepTimer) || 'off';
@@ -2497,6 +2498,17 @@ var hasMediaState = false;
 var SCREENSAVER_APP_DIR = '/usr/palm/applications/com.webos.app.screensaver';
 var SCREENSAVER_DIR = '/var/lib/tvweb/screensaver';
 var SCREENSAVER_MARKER = '.tvweb-screensaver';
+var SCREENSAVER_LEVEL_MARKER = '.tvweb-brightness';
+
+// Read from the mount rather than from a stored preference, for the same
+// reason the mode is: the file that is actually staged is the answer.
+function screensaverLevel() {
+  try {
+    var v = fs.readFileSync(path.join(SCREENSAVER_APP_DIR, SCREENSAVER_LEVEL_MARKER), 'utf8').trim();
+    if (v === 'bright') return 'bright';
+  } catch (e) {}
+  return 'dim';
+}
 
 var SCREENSAVERS = {
   stock: {
@@ -2540,7 +2552,8 @@ function screensaverList() {
       available: k === 'stock' || !!assetPath(SCREENSAVERS[k].qml)
     });
   }
-  return { ok: true, current: cur, modes: out, writable: CONFIG.allowControl };
+  return { ok: true, current: cur, level: screensaverLevel(),
+           modes: out, writable: CONFIG.allowControl };
 }
 
 function mkdirp(dir) {
@@ -2554,14 +2567,15 @@ function mkdirp(dir) {
  * app directory, and while a replacement is mounted that is exactly what is
  * hidden.
  */
-function setScreensaver(mode, cb) {
+function setScreensaver(mode, level, cb) {
   if (!SCREENSAVERS[mode]) return cb({ ok: false, error: 'unknown screen saver: ' + mode });
+  level = (level === 'bright') ? 'bright' : 'dim';
 
   execFile('/bin/umount', [SCREENSAVER_APP_DIR], { timeout: 4000 }, function () {
     if (mode === 'stock') {
       lastStats = null;
       return restartScreensaverApp(function () {
-        cb({ ok: screensaverMode() === 'stock', current: screensaverMode() });
+        cb({ ok: screensaverMode() === 'stock', current: screensaverMode(), level: screensaverLevel() });
       });
     }
 
@@ -2572,7 +2586,7 @@ function setScreensaver(mode, cb) {
       mkdirp(path.join(SCREENSAVER_DIR, 'qml'));
       fs.writeFileSync(path.join(SCREENSAVER_DIR, 'appinfo.json'),
                        fs.readFileSync(path.join(SCREENSAVER_APP_DIR, 'appinfo.json')));
-      writeScreensaverQml(src);
+      writeScreensaverQml(src, level);
       fs.writeFileSync(path.join(SCREENSAVER_DIR, SCREENSAVER_MARKER), mode);
     } catch (e) {
       return cb({ ok: false, error: 'could not stage the screen saver: ' + e.message });
@@ -2582,7 +2596,7 @@ function setScreensaver(mode, cb) {
       lastStats = null;
       restartScreensaverApp(function () {
         var now = screensaverMode();
-        cb({ ok: !err && now === mode, current: now,
+        cb({ ok: !err && now === mode, current: now, level: screensaverLevel(),
              error: (!err && now === mode) ? undefined : 'the mount did not take' });
       });
     });
@@ -2605,11 +2619,16 @@ function setScreensaver(mode, cb) {
  * token is set, so the address is written in here rather than guessed by the
  * QML.
  */
-function writeScreensaverQml(src) {
-  var qml = fs.readFileSync(src, 'utf8').replace(/__TVWEB_URL__/g,
-    'http://127.0.0.1:' + (CONFIG.port || 8080) + '/api/stats' +
-    (CONFIG.token ? '?k=' + encodeURIComponent(CONFIG.token) : ''));
+function writeScreensaverQml(src, level) {
+  var qml = fs.readFileSync(src, 'utf8')
+    .replace(/__TVWEB_URL__/g,
+      'http://127.0.0.1:' + (CONFIG.port || 8080) + '/api/stats' +
+      (CONFIG.token ? '?k=' + encodeURIComponent(CONFIG.token) : ''))
+    // How bright to draw. The screen saver decides what that means for its own
+    // palette; this only says which of the two was asked for.
+    .replace(/__TVWEB_LEVEL__/g, level === 'bright' ? '1' : '0');
   fs.writeFileSync(path.join(SCREENSAVER_DIR, 'qml', 'main.qml'), qml);
+  fs.writeFileSync(path.join(SCREENSAVER_DIR, SCREENSAVER_LEVEL_MARKER), level === 'bright' ? 'bright' : 'dim');
 }
 
 /*
@@ -2627,7 +2646,7 @@ function restageScreensaver() {
   try {
     var staged = path.join(SCREENSAVER_DIR, 'qml', 'main.qml');
     var before = fs.existsSync(staged) ? fs.readFileSync(staged, 'utf8') : '';
-    writeScreensaverQml(src);
+    writeScreensaverQml(src, screensaverLevel());
     if (fs.readFileSync(staged, 'utf8') !== before) {
       console.log('screensaver: restaged "' + mode + '" from a newer asset');
     }
@@ -2916,7 +2935,17 @@ function doControl(action, value, cb) {
                   function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
 
     case 'screensaverMode':
-      return setScreensaver(String(value || '').trim(), function (r) {
+      /*
+       * The mode and how brightly to draw it are staged together: both are
+       * written into the same file, so setting one without the other would
+       * quietly reset it.
+       */
+      var ssMode = value, ssLevel = screensaverLevel();
+      if (value && typeof value === 'object') {
+        ssMode = value.mode;
+        if (value.level) ssLevel = value.level;
+      }
+      return setScreensaver(String(ssMode || '').trim(), ssLevel, function (r) {
         lastStats = null;
         cb(r);
       });

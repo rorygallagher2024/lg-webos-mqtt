@@ -58,10 +58,17 @@ WebOSWindow {
     }
 
     property real unit: win.height / 1080
-    // Never full white. A screen saver is shown for hours at a time, and the
-    // point of it is to spare the panel.
-    property color inkBright: "#d8dade"
-    property color inkDim:    "#6d7076"
+
+    /*
+     * Dim or bright, written in when the screen saver is staged.
+     *
+     * Dim is deliberately short of white: a screen saver is shown for hours at
+     * a time and the point of it is to spare the panel. Bright is for a set in
+     * a bright room, and is the reason the position still changes every minute.
+     */
+    property int level: __TVWEB_LEVEL__
+    property color inkBright: level > 0 ? "#ffffff" : "#d8dade"
+    property color inkDim:    level > 0 ? "#9aa0a8" : "#6d7076"
 
     function two(n) { return n < 10 ? "0" + n : "" + n }
 
