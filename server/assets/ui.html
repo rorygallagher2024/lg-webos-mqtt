@@ -704,8 +704,13 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     </details>
 
       <details class="disc" id="disc-proc">
-      <summary>Processes <span class="cur" id="proc-cur"></span></summary>
+      <summary>Process memory <span class="cur" id="proc-cur"></span></summary>
       <div id="proc-list"></div>
+    </details>
+
+      <details class="disc" id="disc-cpu">
+      <summary>Detailed CPU usage <span class="cur" id="cpu-cur"></span></summary>
+      <div id="cpu-list"></div>
     </details>
     </div>
   </div>
@@ -2039,6 +2044,64 @@ async function loadProcesses() {
   }
 }
 
+let cpuTimer = null;
+let cpuInFlight = false;
+
+async function loadCpu() {
+  // Each read holds the request open for the length of the sample, so a slow
+  // one must not have a second stacked behind it.
+  if (cpuInFlight) return;
+  cpuInFlight = true;
+  if (!q('cpu-list').firstChild) q('cpu-list').innerHTML = '<div class="sub">Measuring\u2026</div>';
+  try {
+    const r = await fetch(api('/api/cpu'), { cache: 'no-store' });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'failed');
+    q('cpu-cur').textContent = `${d.busy.toFixed(1)}% busy · ${d.active} active`;
+    q('cpu-list').innerHTML = d.top.length
+      ? d.top.map(p =>
+          `<div class="proc"><div class="p-name">${p.name}</div>` +
+          `<div class="p-mb">${p.pct.toFixed(1)}%</div></div>`).join('')
+      : '<div class="sub">Nothing used any CPU over the sample.</div>';
+  } catch (e) {
+    q('cpu-list').innerHTML =
+      `<div class="sub">Could not measure CPU usage — ${e.message}</div>`;
+  } finally {
+    cpuInFlight = false;
+  }
+}
+
+/*
+ * Measured while the panel is open and not otherwise: every read costs the TV
+ * two passes over /proc and holds a request open for the sample itself, which
+ * is not worth spending on a panel nobody is looking at.
+ */
+function startCpuPolling() {
+  if (cpuTimer) return;
+  loadCpu();
+  cpuTimer = setInterval(loadCpu, 3000);
+}
+
+function stopCpuPolling() {
+  if (!cpuTimer) return;
+  clearInterval(cpuTimer);
+  cpuTimer = null;
+}
+
+function cpuPanelOpen() {
+  const el = document.getElementById('disc-cpu');
+  return !!(el && el.open);
+}
+
+(function wireCpuPanel() {
+  const el = document.getElementById('disc-cpu');
+  if (!el) return;
+  el.addEventListener('toggle', function () {
+    if (el.open) startCpuPolling(); else stopCpuPolling();
+  });
+  if (el.open) startCpuPolling();
+})();
+
 // Only poll while the panel is open; it costs a ps on the TV each time.
 function onProcToggle(el) {
   /* Same as the HDMI panel: on open only. This one forks `ps`. */
@@ -2517,9 +2580,11 @@ function stopPolling() {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     stopPolling();
+    stopCpuPolling();
   } else {
     tick();
     startPolling();
+    if (cpuPanelOpen()) startCpuPolling();
   }
 });
 

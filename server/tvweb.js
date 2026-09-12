@@ -1698,6 +1698,110 @@ function procName(comm, args) {
   return (comm && comm.length < 15) ? comm : (bin || comm);
 }
 
+/*
+ * CPU per process, over a short window.
+ *
+ * `ps -o pcpu` on this busybox reports the average since the process started,
+ * so anything that worked hard at boot reads high forever - systemd sits at
+ * 2.4% on an idle set. The only way to say what is busy now is to read the
+ * counters twice and take the difference.
+ *
+ * Percentages are of the whole machine rather than of one core, so they can be
+ * compared with the CPU figure on the Metrics tab and add up to roughly it. A
+ * process pegging one core of three reads 33%, not 100%.
+ */
+var CPU_WINDOW_MS = 700;
+
+function sampleCpuTicks() {
+  var out = { total: 0, procs: {} };
+  try {
+    var cpu = fs.readFileSync('/proc/stat', 'utf8').split('\n')[0].split(/\s+/);
+    for (var i = 1; i < cpu.length; i++) out.total += parseInt(cpu[i], 10) || 0;
+  } catch (e) {
+    return null;
+  }
+  var names;
+  try { names = fs.readdirSync('/proc'); } catch (e2) { return null; }
+  for (var n = 0; n < names.length; n++) {
+    if (!/^\d+$/.test(names[n])) continue;
+    try {
+      var raw = fs.readFileSync('/proc/' + names[n] + '/stat', 'utf8');
+      /*
+       * The command sits in brackets and may itself contain a bracket or a
+       * space, so the fields are counted from the last one rather than by
+       * splitting the line. After it the first field is the state, which is
+       * the third overall - utime and stime are the fourteenth and fifteenth.
+       */
+      var close = raw.lastIndexOf(')');
+      if (close < 0) continue;
+      var f = raw.slice(close + 2).split(' ');
+      out.procs[names[n]] = {
+        ticks: (parseInt(f[11], 10) || 0) + (parseInt(f[12], 10) || 0),
+        comm: raw.slice(raw.indexOf('(') + 1, close)
+      };
+    } catch (e3) {}
+  }
+  return out;
+}
+
+/*
+ * The whole command line, the way `ps -o args` gives it - procName needs more
+ * than argv[0], since a web app is named by the application path further along
+ * it. Kernel threads have none, and return empty.
+ */
+function procCmdline(pid) {
+  try {
+    return fs.readFileSync('/proc/' + pid + '/cmdline', 'utf8')
+             .replace(/\0+$/, '').replace(/\0/g, ' ');
+  } catch (e) {
+    return '';
+  }
+}
+
+function collectCpuProcesses(cb, retried) {
+  var first = sampleCpuTicks();
+  if (!first) return cb({ ok: false, error: 'could not read /proc' });
+
+  setTimeout(function () {
+    var second = sampleCpuTicks();
+    if (!second) return cb({ ok: false, error: 'could not read /proc' });
+
+    var elapsed = second.total - first.total;
+    /*
+     * Seen once, immediately after a restart, and not reproduced since: the
+     * counters read the same twice, which leaves nothing to divide by. Take
+     * one more window rather than handing back an error for something that
+     * clears itself.
+     */
+    if (elapsed <= 0) {
+      if (retried) return cb({ ok: false, error: 'the CPU counters did not move' });
+      return collectCpuProcesses(cb, true);
+    }
+
+    var rows = [], busy = 0;
+    for (var pid in second.procs) {
+      if (!second.procs.hasOwnProperty(pid)) continue;
+      var was = first.procs[pid];
+      // A process that started inside the window has nothing to compare
+      // against, so its whole total would read as if spent in it.
+      if (!was) continue;
+      var delta = second.procs[pid].ticks - was.ticks;
+      if (delta <= 0) continue;
+      var pct = delta / elapsed * 100;
+      busy += pct;
+      rows.push({ name: procName(second.procs[pid].comm, procCmdline(pid)), pct: Math.round(pct * 10) / 10 });
+    }
+    rows.sort(function (a, b) { return b.pct - a.pct; });
+    cb({
+      ok: true,
+      windowMs: CPU_WINDOW_MS,
+      busy: Math.round(busy * 10) / 10,
+      active: rows.length,
+      top: rows.slice(0, 10)
+    });
+  }, CPU_WINDOW_MS);
+}
+
 function collectProcesses(cb) {
   execFile('/bin/ps', ['-eo', 'rss,comm,args'], { timeout: 4000, maxBuffer: 1024 * 1024 }, function (err, stdout) {
     if (err) return cb({ ok: false, error: 'could not read process list' });
@@ -3396,6 +3500,10 @@ var server = http.createServer(function (req, res) {
 
   if (pathname === '/api/hdmi') {
     return hdmiInputs(function (r) { send(res, 200, JSON.stringify(r)); });
+  }
+
+  if (pathname === '/api/cpu') {
+    return collectCpuProcesses(function (r) { send(res, 200, JSON.stringify(r)); });
   }
 
   if (pathname === '/api/processes') {
