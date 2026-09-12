@@ -2898,6 +2898,23 @@ function writeScreensaverQml(src, level) {
     // palette; this only says which of the two was asked for.
     .replace(/__TVWEB_LEVEL__/g, level === 'bright' ? '1' : '0');
   fs.writeFileSync(path.join(SCREENSAVER_DIR, 'qml', 'main.qml'), qml);
+
+  /*
+   * Anything else in the screen saver folder goes with it. The starfield draws
+   * its points from an image, and the mount replaces the whole app directory,
+   * so a file left behind in assets is a file the QML cannot open.
+   */
+  try {
+    var from = path.dirname(src);
+    var files = fs.readdirSync(from);
+    for (var i = 0; i < files.length; i++) {
+      if (/\.qml$/i.test(files[i])) continue;
+      fs.writeFileSync(path.join(SCREENSAVER_DIR, 'qml', files[i]),
+                       fs.readFileSync(path.join(from, files[i])));
+    }
+  } catch (e) {
+    console.error('screensaver: could not stage its files: ' + e.message);
+  }
   fs.writeFileSync(path.join(SCREENSAVER_DIR, SCREENSAVER_LEVEL_MARKER), level === 'bright' ? 'bright' : 'dim');
 }
 

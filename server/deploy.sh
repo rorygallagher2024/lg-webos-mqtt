@@ -51,12 +51,14 @@ start_http() {
 stop_http() { kill "$(cat /tmp/.tvweb_httpd 2>/dev/null)" 2>/dev/null || true; rm -f /tmp/.tvweb_httpd; }
 
 FILES="tvweb.js tvwebctl assets/ui.html assets/fonts/Outfit.ttf assets/fonts/Manrope.ttf \
-assets/fonts/OFL-Outfit.txt assets/fonts/OFL-Manrope.txt"
+assets/fonts/OFL-Outfit.txt assets/fonts/OFL-Manrope.txt \
+assets/screensavers/clock.qml assets/screensavers/fireworks.qml \
+assets/screensavers/starfield.qml assets/screensavers/vitals.qml assets/screensavers/star.png"
 
 # ---------------------------------------------------------------- ssh path
 deploy_ssh() {
   echo "deploying to $TV over ssh ..."
-  ssh "${SSH_OPTS[@]}" "root@$TV" 'mkdir -p /var/lib/tvweb/assets/fonts'
+  ssh "${SSH_OPTS[@]}" "root@$TV" 'mkdir -p /var/lib/tvweb/assets/fonts /var/lib/tvweb/assets/screensavers'
   for f in $FILES; do
     scp "${SSH_OPTS[@]}" -q "$DIR/$f" "root@$TV:/var/lib/tvweb/$f"
   done
@@ -140,7 +142,7 @@ deploy_telnet() {
   # NOTE: this heredoc is unquoted so $MYIP/$PORT expand HERE. Anything that
   # must run on the TV has to be escaped (\$f, \$(...)).
   W=16 tvsh <<TVCMDS
-mkdir -p /var/lib/tvweb/assets/fonts
+mkdir -p /var/lib/tvweb/assets/fonts /var/lib/tvweb/assets/screensavers
 wget -q -O /var/lib/tvweb/tvweb.js http://$MYIP:$PORT/tvweb.js && echo "tvweb.js \$(wc -c < /var/lib/tvweb/tvweb.js) bytes"
 wget -q -O /var/lib/tvweb/assets/ui.html http://$MYIP:$PORT/assets/ui.html && echo "ui.html \$(wc -c < /var/lib/tvweb/assets/ui.html) bytes"
 wget -q -O /var/lib/tvweb/tvwebctl http://$MYIP:$PORT/tvwebctl
@@ -148,6 +150,10 @@ for f in Outfit.ttf Manrope.ttf OFL-Outfit.txt OFL-Manrope.txt; do
   wget -q -O /var/lib/tvweb/assets/fonts/\$f http://$MYIP:$PORT/assets/fonts/\$f
 done
 echo "fonts: \$(ls /var/lib/tvweb/assets/fonts | wc -l) files"
+for f in clock.qml fireworks.qml starfield.qml vitals.qml star.png; do
+  wget -q -O /var/lib/tvweb/assets/screensavers/\$f http://$MYIP:$PORT/assets/screensavers/\$f
+done
+echo "screensavers: \$(ls /var/lib/tvweb/assets/screensavers | wc -l) files"
 $([ -n "$CONFIG_NAME" ] && echo "[ -f /var/lib/tvweb/config.json ] || (wget -q -O /var/lib/tvweb/config.json http://$MYIP:$PORT/$CONFIG_NAME && echo 'config initialized from $CONFIG_NAME')")
 chmod 600 /var/lib/tvweb/config.json 2>/dev/null
 $([ -n "$PERSIST" ] && echo "mkdir -p /var/lib/webosbrew/init.d && wget -q -O /var/lib/webosbrew/init.d/50-tvweb http://$MYIP:$PORT/50-tvweb.sh && chmod +x /var/lib/webosbrew/init.d/50-tvweb && echo 'boot hook installed'")
