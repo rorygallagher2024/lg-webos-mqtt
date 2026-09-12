@@ -308,6 +308,18 @@ button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
    what someone hovering it wants. */
 button.btn-off{opacity:.28;cursor:not-allowed}
 button.btn-off:hover{color:var(--w60);border-color:var(--w12);background:transparent}
+.dpad{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,auto);
+      gap:8px;max-width:260px;margin:0 auto 14px}
+/* The arrows are glyphs, not words: the button voice everywhere else is
+   uppercase and letter-spaced, which pushes a single glyph off centre. */
+.dpad .dp{min-height:0;height:62px;padding:0;font-size:15px;letter-spacing:0;
+          text-transform:none;display:flex;align-items:center;justify-content:center}
+.dpad .dp-ok{font-size:12px;letter-spacing:.1em}
+.dp-up{grid-column:2;grid-row:1}
+.dp-left{grid-column:1;grid-row:2}
+.dp-ok{grid-column:2;grid-row:2}
+.dp-right{grid-column:3;grid-row:2}
+.dp-down{grid-column:2;grid-row:3}
 
 
 /* ---- privacy pane ---- */
@@ -735,6 +747,26 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
         <button onclick="c('media','fastForward')">Fast Fwd</button>
       </div>
     </div>
+
+    <!-- Pinned to the first column: it is the one control here that people
+         reach for repeatedly, so it should not move about as the others grow. -->
+    <details class="disc" id="disc-dpad" data-col="0">
+      <summary>D-pad <span class="cur">Navigate the TV</span></summary>
+
+      <div class="set">
+        <div class="dpad">
+          <button class="dp dp-up"    onclick="c('rcu','up')"    title="Up">&#9650;</button>
+          <button class="dp dp-left"  onclick="c('rcu','left')"  title="Left">&#9664;</button>
+          <button class="dp dp-ok"    onclick="c('rcu','ok')"    title="Select">OK</button>
+          <button class="dp dp-right" onclick="c('rcu','right')" title="Right">&#9654;</button>
+          <button class="dp dp-down"  onclick="c('rcu','down')"  title="Down">&#9660;</button>
+        </div>
+        <div class="btns">
+          <button onclick="c('rcu','back')">Back</button>
+          <button onclick="c('rcu','home')">Home</button>
+        </div>
+      </div>
+    </details>
 
     <details class="disc" id="disc-timers">
       <summary>Sleep timer <span class="cur" id="tl-cur"></span></summary>

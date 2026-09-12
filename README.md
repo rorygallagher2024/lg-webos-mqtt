@@ -86,7 +86,7 @@ and firmware updates use.
 
 ## What it's for
 
-1. **Controlling the TV without the cloud.** Volume, mute, media playback keys (play, pause, stop, skip), app launcher, picture presets, sound output routing, power and reboot.
+1. **Controlling the TV without the cloud.** A D-pad to navigate the TV itself, volume, mute, media playback keys (play, pause, stop, skip), app launcher, picture presets, sound output routing, power and reboot.
 
 2. **Seeing what the TV collects, and switching it off.** Whether LG's
    content-recognition engine is running and sampling your screen, your
@@ -130,7 +130,7 @@ and firmware updates use.
 * **Advanced panels.** HDMI link state per port straight off the receiver
   (resolution, refresh rate, colour depth, pixel clock) and a read-only list of
   what is resident in memory. Both load on demand.
-* **Bi-directional control.** Volume, mute, input select, media playback (play/pause/stop/skip via native remote key injection), app launching, picture presets, sound outputs, screen blanking, sleep timer, standby LED, on-screen notifications, power and restart (from the dashboard or Home Assistant). The picture presets on offer are the ones the TV will accept for whatever is playing &mdash; a Dolby Vision source has its own set.
+* **Bi-directional control.** A D-pad - arrows, OK, Back and Home - to drive the TV's own interface from a browser, volume, mute, input select, media playback (play/pause/stop/skip via native remote key injection), app launching, picture presets, sound outputs, screen blanking, sleep timer, standby LED, on-screen notifications, power and restart (from the dashboard or Home Assistant). The picture presets on offer are the ones the TV will accept for whatever is playing &mdash; a Dolby Vision source has its own set.
 * **Ad & telemetry blocker.** Blackholes LG's tracking, ad and ACR
   endpoints on the set itself by bind-mounting a hosts table over `/etc/hosts`.
   Automatically restored on boot. Two tiers: *ads & telemetry* blocks the nine
