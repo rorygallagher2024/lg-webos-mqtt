@@ -40,9 +40,9 @@ There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the T
    and failure alerts.
 
 7. **Controlling the OLED burn-in protections.** What each one does and a switch
-   for it: screen shift and logo dimming on any OLED, and on sets that carry
-   LG's panel service, ASBL and Global Stress Reduction &mdash; the two normally
-   reachable only from the TV's service menu, with a service remote and a PIN.
+   for it: screen shift and logo dimming on any OLED, and on sets that expose
+   them, ASBL and Global Stress Reduction &mdash; the two normally reachable only
+   from the TV's service menu, with a service remote and a PIN.
 
 8. **Opening the service menu, and unlocking it where it is locked.** LG's own
    engineering menu, put on the TV screen from a browser &mdash; no service
@@ -103,9 +103,8 @@ default.
 
 The OLED Care tab, or `/?tab=oledcare`, on OLED sets. What each burn-in
 protection does and a switch for it: screen shift and logo dimming on any OLED,
-and on sets carrying LG's panel service, ASBL and Global Stress Reduction &mdash;
-the two normally reachable only from the TV's service menu, with a service
-remote and a PIN.
+and ASBL and Global Stress Reduction &mdash; the two normally
+reachable only from the TV's service menu, with a service remote and a PIN.
 
 <p align="center">
   <a href="docs/screenshots/oledcare.png"><img src="docs/screenshots/oledcare.png" alt="OLED Care tab: screen shift, logo dimming, temporal peak control and global stress reduction, each described, with switches and a warranty warning" width="700"></a>
@@ -160,9 +159,9 @@ and firmware updates use.
   remote, and unlocks the full version on firmware that ships it cut down. The
   unlock needs a power cycle; sets that do not lock it say so.
 * **OLED Care tab.** What each burn-in protection does, and a switch for it.
-  Screen shift and logo dimming on any OLED; on sets that carry LG's panel
-  service, temporal peak control and global stress reduction too - the two
-  normally reachable only from the service menu, with a warning to match.
+  Screen shift and logo dimming on any OLED; temporal peak control and global
+  stress reduction too, on webOS 4 and webOS 9 alike - the two normally
+  reachable only from the service menu, with a warning to match.
 * **HDMI 2.1 diagnostics.** Link rate, chroma format, HDCP version, cable error
   counter, ALLM, VRR, QMS, and colorimetry. Requires `/proc/lg/hdmi20`.
 * **Magic Remote & hardware info.** Battery, model, firmware; SoC architecture,
