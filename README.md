@@ -2,7 +2,7 @@
 
 A server that runs **on** a rooted LG webOS TV. It serves a live dashboard to
 any browser on the network, and will optionally bridge the TV into Home
-Assistant over MQTT as a single auto-discovered device with up to 68 entities.
+Assistant over MQTT as a single auto-discovered device with up to 69 entities.
 
 The dashboard needs nothing but the TV. 
 
@@ -14,7 +14,7 @@ There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the T
 
 ### Web Dashboard & Controls
 
-Four tabs: Control, Metrics, Privacy and MQTT.
+Five tabs: Control, Metrics, Screensaver, Privacy and MQTT.
 
 <p align="center">
   <a href="docs/screenshots/dashboard.png"><img src="docs/screenshots/dashboard.png" alt="Metrics tab: SoC temperature, system readouts, storage and display panel counters, dark theme (OLED65B8SLC)" width="440"></a>
@@ -24,7 +24,7 @@ Four tabs: Control, Metrics, Privacy and MQTT.
 
 ### Home Assistant (Auto-Discovered Device via MQTT)
 
-Up to 68 native entities arrive over MQTT Discovery as a single unified device
+Up to 69 native entities arrive over MQTT Discovery as a single unified device
 <p align="center">
   <a href="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235"><img width="800" alt="Home Assistant MQTT entities" src="https://github.com/user-attachments/assets/1d76b1a2-68d9-42a4-a497-b107d706b235" /></a>
 </p>
@@ -45,6 +45,20 @@ OLED Panel health and maintenance overview
 System monitoring
 
 <img width="432" height="396" alt="Screenshot 2026-09-11 at 20 45 02" src="https://github.com/user-attachments/assets/2e6cfe5a-c905-426e-8b4d-8f52d4f31c11" />
+
+### Screen savers
+
+The Screensaver tab, or `/?tab=screensaver`. Four in place of LG's: a clock, a
+starfield, fireworks, and one showing the set's own panel hours and refresher
+countdown. Each draws dim or bright, and all of them move so nothing marks the
+panel. If a firmware update is applied, the screen saver is restored to the LG
+default.
+
+<p align="center">
+  <a href="docs/screenshots/screensaver.png"><img src="docs/screenshots/screensaver.png" alt="Screensaver tab: LG default, Clock, Starfield, Fireworks and Panel vitals, with a dim and bright toggle" width="700"></a>
+</p>
+
+---
 
 ### Privacy & telemetry
 
@@ -81,16 +95,19 @@ and firmware updates use.
    dashboard. Includes an on-TV blocker for LG's ad and telemetry
    endpoints, and a switch for the two diagnostics services that upload to LG.
    
-3. **Integrating the TV into Home Assistant.** Optional, over MQTT: up to 68
+3. **Replacing the screen saver.** A clock, a starfield, fireworks, or the
+   TV's own readings, each dim or bright, in place of LG's.
+
+4. **Integrating the TV into Home Assistant.** Optional, over MQTT: up to 69
    entities arrive as a single auto-discovered device &mdash; no YAML, no LG
    account &mdash; so the TV can be automated and its telemetry recorded
    alongside everything else in the house.
    [Step 3](#3-home-assistant--mqtt-optional) explains what MQTT is.
 
-4. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
+5. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
    load, memory, swap, current draw, Wi-Fi signal and throughput.
 
-5. **Observing OLED panel wear.** Cumulative panel hours, compensation cycle
+6. **Observing OLED panel wear.** Cumulative panel hours, compensation cycle
    progress, Pixel Refresher countdown with scheduling, completed cycle counters,
    failure alerts, and ASBL / GSR protection status.
 
@@ -132,6 +149,10 @@ and firmware updates use.
   change survives a reboot; acceptance of the terms themselves is left to the
   TV's own menus. Includes buttons to reset the advertising ID, clear ad
   cookies, and toggle the on-TV ad blocker. Deep link: `/?tab=privacy`.
+* **Custom screen savers.** Four in place of LG's: a clock, a starfield,
+  fireworks, and one showing the set's own panel hours and refresher countdown.
+  Each can be drawn dim or bright, and all of them move so nothing marks the
+  panel. Deep link: `/?tab=screensaver`.
 * **Self-contained dashboard.** Fonts and assets are served by the TV, so the
   page works with no internet access.
 * **Dark and light themes.** High-contrast light mode with dark text alongside
@@ -374,7 +395,7 @@ Full detail, including the MQTT ACL guidance and optional TLS, is in
 ## Documentation
 
 * [docs/SECURITY.md](docs/SECURITY.md) &mdash; threat model, SSH migration, MQTT hardening
-* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; up to 68 entities, universal media player, example automations
+* [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md) &mdash; up to 69 entities, universal media player, example automations
 * [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) &mdash; architecture, `/proc/lg` reference, platform quirks
 
 ---

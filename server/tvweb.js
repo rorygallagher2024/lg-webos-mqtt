@@ -1503,6 +1503,8 @@ function collectStats(cb) {
   luna('com.webos.service.tvpower/power/getPowerState', {}, function (pw) {
     out.powerState = mapPowerState(pw && pw.state);
     out.screenSaver = isScreenSaver(out.powerState);
+    out.screensaverMode = screensaverMode();
+    out.screensaverLevel = screensaverLevel();
   lunaCached('com.webos.service.settings/getSystemSettings',
        { category: 'time', keys: ['sleepTimer'] }, 30000, function (tm) {
     out.sleepTimer = (tm && tm.settings && tm.settings.sleepTimer) || 'off';
@@ -2478,6 +2480,208 @@ var hdmiSeen = {};
  */
 var hasMediaState = false;
 
+
+/*
+ * Screen savers.
+ *
+ * The platform's screen saver is a plain QML app on both firmwares, sitting on
+ * a read-only overlay, so a replacement is bind-mounted over it the same way
+ * the ad blocker stacks a hosts file. LG's own appinfo.json is copied across
+ * rather than written from scratch: it carries the window type and per-model
+ * flags, and only `main` needs to resolve to our QML, which it does once the
+ * directory underneath it is ours.
+ *
+ * The marker file inside the mount is what "which screen saver is running" is
+ * read from - the live mount answers that, a stored preference only says what
+ * was asked for.
+ */
+var SCREENSAVER_APP_DIR = '/usr/palm/applications/com.webos.app.screensaver';
+var SCREENSAVER_DIR = '/var/lib/tvweb/screensaver';
+var SCREENSAVER_MARKER = '.tvweb-screensaver';
+var SCREENSAVER_LEVEL_MARKER = '.tvweb-brightness';
+
+// Read from the mount rather than from a stored preference, for the same
+// reason the mode is: the file that is actually staged is the answer.
+function screensaverLevel() {
+  try {
+    var v = fs.readFileSync(path.join(SCREENSAVER_APP_DIR, SCREENSAVER_LEVEL_MARKER), 'utf8').trim();
+    if (v === 'bright') return 'bright';
+  } catch (e) {}
+  return 'dim';
+}
+
+var SCREENSAVERS = {
+  stock: {
+    label: 'LG default',
+    description: 'The screen saver the TV shipped with.'
+  },
+  clock: {
+    label: 'Clock',
+    description: 'A digital clock on black, moving to a new position every minute.',
+    qml: 'screensavers/clock.qml'
+  },
+  starfield: {
+    label: 'Starfield',
+    description: 'Flying through a starfield. Nothing on screen stays still, so nothing can mark the panel.',
+    qml: 'screensavers/starfield.qml'
+  },
+  fireworks: {
+    label: 'Fireworks',
+    description: 'Bursts of colour on black, a few seconds apart.',
+    qml: 'screensavers/fireworks.qml'
+  },
+  vitals: {
+    label: 'Panel vitals',
+    description: "The set's own readings - panel hours, pixel refresher countdown, temperature.",
+    qml: 'screensavers/vitals.qml'
+  }
+};
+
+function screensaverMode() {
+  try {
+    var m = fs.readFileSync(path.join(SCREENSAVER_APP_DIR, SCREENSAVER_MARKER), 'utf8').trim();
+    if (SCREENSAVERS[m] && m !== 'stock') return m;
+  } catch (e) {}
+  return 'stock';
+}
+
+function screensaverList() {
+  var cur = screensaverMode();
+  var out = [];
+  for (var k in SCREENSAVERS) {
+    out.push({
+      id: k,
+      label: SCREENSAVERS[k].label,
+      description: SCREENSAVERS[k].description,
+      active: k === cur,
+      available: k === 'stock' || !!assetPath(SCREENSAVERS[k].qml)
+    });
+  }
+  return { ok: true, current: cur, level: screensaverLevel(),
+           modes: out, writable: CONFIG.allowControl };
+}
+
+function mkdirp(dir) {
+  if (fs.existsSync(dir)) return;
+  mkdirp(path.dirname(dir));
+  fs.mkdirSync(dir);
+}
+
+/*
+ * Unmount first, always. The stock appinfo.json has to be read from the real
+ * app directory, and while a replacement is mounted that is exactly what is
+ * hidden.
+ */
+function setScreensaver(mode, level, cb) {
+  if (!SCREENSAVERS[mode]) return cb({ ok: false, error: 'unknown screen saver: ' + mode });
+  level = (level === 'bright') ? 'bright' : 'dim';
+
+  execFile('/bin/umount', [SCREENSAVER_APP_DIR], { timeout: 4000 }, function () {
+    if (mode === 'stock') {
+      lastStats = null;
+      return restartScreensaverApp(function () {
+        cb({ ok: screensaverMode() === 'stock', current: screensaverMode(), level: screensaverLevel() });
+      });
+    }
+
+    var src = assetPath(SCREENSAVERS[mode].qml);
+    if (!src) return cb({ ok: false, error: 'screen saver asset missing: ' + SCREENSAVERS[mode].qml });
+
+    try {
+      mkdirp(path.join(SCREENSAVER_DIR, 'qml'));
+      fs.writeFileSync(path.join(SCREENSAVER_DIR, 'appinfo.json'),
+                       fs.readFileSync(path.join(SCREENSAVER_APP_DIR, 'appinfo.json')));
+      writeScreensaverQml(src, level);
+      fs.writeFileSync(path.join(SCREENSAVER_DIR, SCREENSAVER_MARKER), mode);
+    } catch (e) {
+      return cb({ ok: false, error: 'could not stage the screen saver: ' + e.message });
+    }
+
+    execFile('/bin/mount', ['--bind', SCREENSAVER_DIR, SCREENSAVER_APP_DIR], { timeout: 4000 }, function (err) {
+      lastStats = null;
+      restartScreensaverApp(function () {
+        var now = screensaverMode();
+        cb({ ok: !err && now === mode, current: now, level: screensaverLevel(),
+             error: (!err && now === mode) ? undefined : 'the mount did not take' });
+      });
+    });
+  });
+}
+
+/*
+ * The QML is read once at launch, so a screen saver already running is still
+ * the old one and has to go before the swap means anything.
+ *
+ * One that is on screen is dismissed with a key rather than closed outright.
+ * tvpower hands a screen saver request to a client and waits to be answered,
+ * and killing the client mid-handshake leaves the service waiting on a process
+ * that no longer exists: every later request is then refused as busy until the
+ * set is power cycled. A key press lets it finish and exit on its own terms.
+ */
+/*
+ * The vitals screen saver reads /api/stats from the server on this TV. The
+ * port is configurable and the API refuses an unauthenticated read when a
+ * token is set, so the address is written in here rather than guessed by the
+ * QML.
+ */
+function writeScreensaverQml(src, level) {
+  var qml = fs.readFileSync(src, 'utf8')
+    .replace(/__TVWEB_URL__/g,
+      'http://127.0.0.1:' + (CONFIG.port || 8080) + '/api/stats' +
+      (CONFIG.token ? '?k=' + encodeURIComponent(CONFIG.token) : ''))
+    // How bright to draw. The screen saver decides what that means for its own
+    // palette; this only says which of the two was asked for.
+    .replace(/__TVWEB_LEVEL__/g, level === 'bright' ? '1' : '0');
+  fs.writeFileSync(path.join(SCREENSAVER_DIR, 'qml', 'main.qml'), qml);
+  fs.writeFileSync(path.join(SCREENSAVER_DIR, SCREENSAVER_LEVEL_MARKER), level === 'bright' ? 'bright' : 'dim');
+}
+
+/*
+ * The mount points at a directory, and what was staged into it stays there
+ * across reboots - so an upgrade that ships a corrected screen saver would
+ * otherwise never reach the TV until someone picked the mode again. Rewriting
+ * the file in place needs no unmount and no restart: the next screen saver to
+ * launch reads it.
+ */
+function restageScreensaver() {
+  var mode = screensaverMode();
+  if (mode === 'stock') return;
+  var src = assetPath(SCREENSAVERS[mode].qml);
+  if (!src) return;
+  try {
+    var staged = path.join(SCREENSAVER_DIR, 'qml', 'main.qml');
+    var before = fs.existsSync(staged) ? fs.readFileSync(staged, 'utf8') : '';
+    writeScreensaverQml(src, screensaverLevel());
+    if (fs.readFileSync(staged, 'utf8') !== before) {
+      console.log('screensaver: restaged "' + mode + '" from a newer asset');
+    }
+  } catch (e) {
+    console.error('screensaver: could not restage ' + mode + ': ' + e.message);
+  }
+}
+
+function restartScreensaverApp(cb) {
+  luna('com.webos.service.tvpower/power/getPowerState', {}, function (pw) {
+    if (!isScreenSaver(mapPowerState(pw && pw.state))) {
+      // Nothing drawing, so nothing is mid-handshake and the app - idle or
+      // absent - can be closed so the next launch reads the new QML.
+      return luna('com.webos.applicationManager/closeByAppId',
+                  { id: 'com.webos.app.screensaver' }, function () { cb(); });
+    }
+    injectKey(KEY_BACK, function () {
+      setTimeout(function () {
+        luna('com.webos.applicationManager/closeByAppId', { id: 'com.webos.app.screensaver' }, function () {
+          // It was on screen when the swap happened, so put the new one up in
+          // its place rather than leaving the set on whatever was behind it.
+          setTimeout(function () {
+            luna('com.webos.service.tvpower/power/turnOnScreenSaver', {}, function () { cb(); });
+          }, 1500);
+        });
+      }, 1500);
+    });
+  });
+}
+
 /*
  * Front-panel lights. The "option" settings category carries standByLight,
  * logoLight and powerOnLight on every set, whether or not the hardware is
@@ -2735,6 +2939,22 @@ function doControl(action, value, cb) {
       return luna('com.webos.service.settings/setSystemSettings', lightPayload,
                   function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
 
+    case 'screensaverMode':
+      /*
+       * The mode and how brightly to draw it are staged together: both are
+       * written into the same file, so setting one without the other would
+       * quietly reset it.
+       */
+      var ssMode = value, ssLevel = screensaverLevel();
+      if (value && typeof value === 'object') {
+        ssMode = value.mode;
+        if (value.level) ssLevel = value.level;
+      }
+      return setScreensaver(String(ssMode || '').trim(), ssLevel, function (r) {
+        lastStats = null;
+        cb(r);
+      });
+
     case 'screensaver':
       /*
        * One control for both directions. Nothing turns a screen saver off -
@@ -2762,8 +2982,19 @@ function doControl(action, value, cb) {
           if (/^hdmi[1-4]$/.test(fgId) || fgId === 'livetv') {
             return cb({ ok: false, error: 'the screen saver is only available from an app, not from ' + fgId });
           }
-          luna('com.webos.service.tvpower/power/turnOnScreenSaver', {},
-               function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
+          luna('com.webos.service.tvpower/power/turnOnScreenSaver', {}, function (r) {
+            lastStats = null;
+            if (r && r.returnValue) return cb({ ok: true });
+            /*
+             * tvpower refuses in more places than the two guarded above - a
+             * webOS 9 set turns it down on its own home screen with "Invalid
+             * State change Request". Which contexts allow it is the TV's to
+             * decide, so pass its answer along rather than guessing at a list.
+             */
+            cb({ ok: false, error: (r && r.errorText)
+              ? 'the TV would not start a screen saver here: ' + r.errorText
+              : 'the TV would not start a screen saver from ' + (fgId || 'this source') });
+          });
         });
       });
 
@@ -3121,6 +3352,10 @@ var server = http.createServer(function (req, res) {
     return send(res, 200, JSON.stringify({
       ok: true, allowControl: CONFIG.allowControl, allowPower: CONFIG.allowPower
     }));
+  }
+
+  if (pathname === '/api/screensaver') {
+    return send(res, 200, JSON.stringify(screensaverList()));
   }
 
   if (pathname === '/api/hdmi') {
@@ -4330,6 +4565,18 @@ function setupHomeAssistant() {
         }
       },
       {
+        type: 'select', id: 'screensaver_mode',
+        payload: {
+          name: 'Screen Saver',
+          command_topic: pfx + '/command/screensaverMode',
+          state_topic: telemetryTopic,
+          options: ['LG default', 'Clock', 'Starfield', 'Fireworks', 'Panel vitals'],
+          command_template: '{{ {"LG default":"stock","Clock":"clock","Starfield":"starfield","Fireworks":"fireworks","Panel vitals":"vitals"}[value] }}',
+          value_template: '{{ {"stock":"LG default","clock":"Clock","starfield":"Starfield","fireworks":"Fireworks","vitals":"Panel vitals"}.get(value_json.screensaverMode, "LG default") }}',
+          icon: 'mdi:television-shimmer'
+        }
+      },
+      {
         type: 'switch', id: 'ad_blocker',
         payload: {
           name: 'Ad & Telemetry Blocker',
@@ -4842,6 +5089,8 @@ function heartbeat() {
 
 heartbeat();
 setInterval(heartbeat, 20000);
+
+restageScreensaver();
 
 detectDeviceInfo(function() {
   setupHomeAssistant();
