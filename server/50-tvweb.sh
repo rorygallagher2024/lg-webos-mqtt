@@ -22,6 +22,13 @@ if [ -f /var/lib/tvweb/adblock_enabled ] && [ -f /var/lib/tvweb/adblock_hosts ];
   mount --bind /var/lib/tvweb/adblock_hosts /etc/hosts 2>/dev/null || true
 fi
 
+# Restore the chosen screen saver. The app directory is on the read-only
+# overlay, so the replacement is a bind mount and does not survive a reboot.
+if [ -f /var/lib/tvweb/screensaver/.tvweb-screensaver ]; then
+  mount --bind /var/lib/tvweb/screensaver \
+        /usr/palm/applications/com.webos.app.screensaver 2>/dev/null || true
+fi
+
 # Detach fully so upstart/webosbrew startup is never held up by this.
 # Prefer tvwebctl: it starts the watchdog alongside the server. The direct
 # line stays as a fallback for installs that predate that script.

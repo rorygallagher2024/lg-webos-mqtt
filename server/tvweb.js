@@ -1503,6 +1503,7 @@ function collectStats(cb) {
   luna('com.webos.service.tvpower/power/getPowerState', {}, function (pw) {
     out.powerState = mapPowerState(pw && pw.state);
     out.screenSaver = isScreenSaver(out.powerState);
+    out.screensaverMode = screensaverMode();
   lunaCached('com.webos.service.settings/getSystemSettings',
        { category: 'time', keys: ['sleepTimer'] }, 30000, function (tm) {
     out.sleepTimer = (tm && tm.settings && tm.settings.sleepTimer) || 'off';
@@ -2478,6 +2479,125 @@ var hdmiSeen = {};
  */
 var hasMediaState = false;
 
+
+/*
+ * Screen savers.
+ *
+ * The platform's screen saver is a plain QML app on both firmwares, sitting on
+ * a read-only overlay, so a replacement is bind-mounted over it the same way
+ * the ad blocker stacks a hosts file. LG's own appinfo.json is copied across
+ * rather than written from scratch: it carries the window type and per-model
+ * flags, and only `main` needs to resolve to our QML, which it does once the
+ * directory underneath it is ours.
+ *
+ * The marker file inside the mount is what "which screen saver is running" is
+ * read from - the live mount answers that, a stored preference only says what
+ * was asked for.
+ */
+var SCREENSAVER_APP_DIR = '/usr/palm/applications/com.webos.app.screensaver';
+var SCREENSAVER_DIR = '/var/lib/tvweb/screensaver';
+var SCREENSAVER_MARKER = '.tvweb-screensaver';
+
+var SCREENSAVERS = {
+  stock: {
+    label: 'LG default',
+    description: 'The screen saver the TV shipped with.'
+  },
+  clock: {
+    label: 'Clock',
+    description: 'A digital clock on black, moving to a new position every minute.',
+    qml: 'screensavers/clock.qml'
+  }
+};
+
+function screensaverMode() {
+  try {
+    var m = fs.readFileSync(path.join(SCREENSAVER_APP_DIR, SCREENSAVER_MARKER), 'utf8').trim();
+    if (SCREENSAVERS[m] && m !== 'stock') return m;
+  } catch (e) {}
+  return 'stock';
+}
+
+function screensaverList() {
+  var cur = screensaverMode();
+  var out = [];
+  for (var k in SCREENSAVERS) {
+    out.push({
+      id: k,
+      label: SCREENSAVERS[k].label,
+      description: SCREENSAVERS[k].description,
+      active: k === cur,
+      available: k === 'stock' || !!assetPath(SCREENSAVERS[k].qml)
+    });
+  }
+  return { ok: true, current: cur, modes: out, writable: CONFIG.allowControl };
+}
+
+function mkdirp(dir) {
+  if (fs.existsSync(dir)) return;
+  mkdirp(path.dirname(dir));
+  fs.mkdirSync(dir);
+}
+
+/*
+ * Unmount first, always. The stock appinfo.json has to be read from the real
+ * app directory, and while a replacement is mounted that is exactly what is
+ * hidden.
+ */
+function setScreensaver(mode, cb) {
+  if (!SCREENSAVERS[mode]) return cb({ ok: false, error: 'unknown screen saver: ' + mode });
+
+  execFile('/bin/umount', [SCREENSAVER_APP_DIR], { timeout: 4000 }, function () {
+    if (mode === 'stock') {
+      lastStats = null;
+      return restartScreensaverApp(function () {
+        cb({ ok: screensaverMode() === 'stock', current: screensaverMode() });
+      });
+    }
+
+    var src = assetPath(SCREENSAVERS[mode].qml);
+    if (!src) return cb({ ok: false, error: 'screen saver asset missing: ' + SCREENSAVERS[mode].qml });
+
+    try {
+      mkdirp(path.join(SCREENSAVER_DIR, 'qml'));
+      fs.writeFileSync(path.join(SCREENSAVER_DIR, 'appinfo.json'),
+                       fs.readFileSync(path.join(SCREENSAVER_APP_DIR, 'appinfo.json')));
+      fs.writeFileSync(path.join(SCREENSAVER_DIR, 'qml', 'main.qml'), fs.readFileSync(src));
+      fs.writeFileSync(path.join(SCREENSAVER_DIR, SCREENSAVER_MARKER), mode);
+    } catch (e) {
+      return cb({ ok: false, error: 'could not stage the screen saver: ' + e.message });
+    }
+
+    execFile('/bin/mount', ['--bind', SCREENSAVER_DIR, SCREENSAVER_APP_DIR], { timeout: 4000 }, function (err) {
+      lastStats = null;
+      restartScreensaverApp(function () {
+        var now = screensaverMode();
+        cb({ ok: !err && now === mode, current: now,
+             error: (!err && now === mode) ? undefined : 'the mount did not take' });
+      });
+    });
+  });
+}
+
+/*
+ * The QML is read once at launch, so a screen saver already running is still
+ * the old one. Closing it costs nothing when none is running.
+ */
+function restartScreensaverApp(cb) {
+  var wasOn = false;
+  luna('com.webos.service.tvpower/power/getPowerState', {}, function (pw) {
+    wasOn = isScreenSaver(mapPowerState(pw && pw.state));
+    luna('com.webos.applicationManager/closeByAppId', { id: 'com.webos.app.screensaver' }, function () {
+      if (!wasOn) return cb();
+      // It was on screen when the swap happened, so put the new one up in its
+      // place rather than leaving the set on whatever was behind it.
+      setTimeout(function () {
+        luna('com.webos.service.tvpower/power/turnOnScreenSaver', {}, function () { cb(); });
+      }, 1200);
+    });
+  });
+}
+
 /*
  * Front-panel lights. The "option" settings category carries standByLight,
  * logoLight and powerOnLight on every set, whether or not the hardware is
@@ -2734,6 +2854,12 @@ function doControl(action, value, cb) {
       lightPayload.settings[lightKey] = lightOn ? 'on' : 'off';
       return luna('com.webos.service.settings/setSystemSettings', lightPayload,
                   function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
+
+    case 'screensaverMode':
+      return setScreensaver(String(value || '').trim(), function (r) {
+        lastStats = null;
+        cb(r);
+      });
 
     case 'screensaver':
       /*
@@ -3121,6 +3247,10 @@ var server = http.createServer(function (req, res) {
     return send(res, 200, JSON.stringify({
       ok: true, allowControl: CONFIG.allowControl, allowPower: CONFIG.allowPower
     }));
+  }
+
+  if (pathname === '/api/screensaver') {
+    return send(res, 200, JSON.stringify(screensaverList()));
   }
 
   if (pathname === '/api/hdmi') {
@@ -4326,6 +4456,18 @@ function setupHomeAssistant() {
           name: 'Screen Saver',
           state_topic: telemetryTopic,
           value_template: '{{ "ON" if value_json.screenSaver else "OFF" }}',
+          icon: 'mdi:television-shimmer'
+        }
+      },
+      {
+        type: 'select', id: 'screensaver_mode',
+        payload: {
+          name: 'Screen Saver',
+          command_topic: pfx + '/command/screensaverMode',
+          state_topic: telemetryTopic,
+          options: ['LG default', 'Clock'],
+          command_template: '{{ {"LG default":"stock","Clock":"clock"}[value] }}',
+          value_template: '{{ {"stock":"LG default","clock":"Clock"}.get(value_json.screensaverMode, "LG default") }}',
           icon: 'mdi:television-shimmer'
         }
       },
