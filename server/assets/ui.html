@@ -806,7 +806,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <div class="pv-top">
     <div>
       <div class="pv-h">Screen saver</div>
-      <div class="pv-sub">A firmware update restores LG's own.</div>
     </div>
   </div>
 
@@ -815,7 +814,15 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
     <div class="ss-level-lbl">Brightness</div>
     <div class="btns" id="ss-level"></div>
   </div>
-  <div class="pv-note" id="ss-note"></div>
+
+  <div class="ss-level-row">
+    <div class="ss-level-lbl">Show it now</div>
+    <div class="btns">
+      <button id="ss-toggle" onclick="c('screensaver')">Start screen saver</button>
+    </div>
+  </div>
+
+  <div class="pv-note" id="ss-note">Note: if a firmware update is applied, the screen saver will be restored to the LG default.</div>
 </section>
 
 <section class="priv panel" id="privpane" role="tabpanel" hidden>
@@ -1530,10 +1537,19 @@ async function tick() {
     /* The screen saver is drawn by whatever app registered for it, and an
        input registers nothing - so it cannot run over HDMI or Live TV. Show
        that rather than leaving a button that does nothing when pressed. */
+    const ssOnInput = /^hdmi[1-4]$/.test(d.app || '') || d.app === 'livetv';
     if (q('btn_ss')) {
-      const onInput = /^hdmi[1-4]$/.test(d.app || '') || d.app === 'livetv';
-      q('btn_ss').disabled = onInput;
-      q('btn_ss').title = onInput ? 'Available from an app, not from ' + d.app : '';
+      q('btn_ss').disabled = ssOnInput;
+      q('btn_ss').title = ssOnInput ? 'Available from an app, not from ' + d.app : '';
+    }
+    /* Same control on the Screensaver tab, where it says which way it will go:
+       there is one command and the TV decides, so the label follows the TV. */
+    if (q('ss-toggle')) {
+      const ssOn = !!d.screenSaver;
+      q('ss-toggle').textContent = ssOn ? 'Dismiss screen saver' : 'Start screen saver';
+      q('ss-toggle').classList.toggle('on', ssOn);
+      q('ss-toggle').disabled = ssOnInput && !ssOn;
+      q('ss-toggle').title = (ssOnInput && !ssOn) ? 'Available from an app, not from ' + d.app : '';
     }
 
     if (d.picture) {
@@ -2059,8 +2075,9 @@ async function loadScreensavers() {
   }
 
   q('ss-note').textContent = d.writable
-    ? 'Press the Screensaver button on the Control tab to see the change straight away.'
+    ? 'Note: if a firmware update is applied, the screen saver will be restored to the LG default.'
     : 'Controls are disabled in config.json, so the screen saver cannot be changed from here.';
+  q('ss-toggle').disabled = !d.writable;
 }
 
 document.addEventListener('click', async ev => {
