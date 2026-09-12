@@ -2507,6 +2507,16 @@ var SCREENSAVERS = {
     label: 'Clock',
     description: 'A digital clock on black, moving to a new position every minute.',
     qml: 'screensavers/clock.qml'
+  },
+  starfield: {
+    label: 'Starfield',
+    description: 'Drifting stars on black. Nothing on screen stays still, so nothing can mark the panel.',
+    qml: 'screensavers/starfield.qml'
+  },
+  vitals: {
+    label: 'Panel vitals',
+    description: "The set's own readings - panel hours, pixel refresher countdown, temperature.",
+    qml: 'screensavers/vitals.qml'
   }
 };
 
@@ -2562,7 +2572,16 @@ function setScreensaver(mode, cb) {
       mkdirp(path.join(SCREENSAVER_DIR, 'qml'));
       fs.writeFileSync(path.join(SCREENSAVER_DIR, 'appinfo.json'),
                        fs.readFileSync(path.join(SCREENSAVER_APP_DIR, 'appinfo.json')));
-      fs.writeFileSync(path.join(SCREENSAVER_DIR, 'qml', 'main.qml'), fs.readFileSync(src));
+      /*
+       * The vitals screen saver reads /api/stats from the server on this TV.
+       * The port is configurable and the API refuses an unauthenticated read
+       * when a token is set, so the address is written in at staging time
+       * rather than guessed by the QML.
+       */
+      var qml = fs.readFileSync(src, 'utf8').replace(/__TVWEB_URL__/g,
+        'http://127.0.0.1:' + (CONFIG.port || 8080) + '/api/stats' +
+        (CONFIG.token ? '?k=' + encodeURIComponent(CONFIG.token) : ''));
+      fs.writeFileSync(path.join(SCREENSAVER_DIR, 'qml', 'main.qml'), qml);
       fs.writeFileSync(path.join(SCREENSAVER_DIR, SCREENSAVER_MARKER), mode);
     } catch (e) {
       return cb({ ok: false, error: 'could not stage the screen saver: ' + e.message });
@@ -2888,8 +2907,19 @@ function doControl(action, value, cb) {
           if (/^hdmi[1-4]$/.test(fgId) || fgId === 'livetv') {
             return cb({ ok: false, error: 'the screen saver is only available from an app, not from ' + fgId });
           }
-          luna('com.webos.service.tvpower/power/turnOnScreenSaver', {},
-               function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
+          luna('com.webos.service.tvpower/power/turnOnScreenSaver', {}, function (r) {
+            lastStats = null;
+            if (r && r.returnValue) return cb({ ok: true });
+            /*
+             * tvpower refuses in more places than the two guarded above - a
+             * webOS 9 set turns it down on its own home screen with "Invalid
+             * State change Request". Which contexts allow it is the TV's to
+             * decide, so pass its answer along rather than guessing at a list.
+             */
+            cb({ ok: false, error: (r && r.errorText)
+              ? 'the TV would not start a screen saver here: ' + r.errorText
+              : 'the TV would not start a screen saver from ' + (fgId || 'this source') });
+          });
         });
       });
 
@@ -4465,9 +4495,9 @@ function setupHomeAssistant() {
           name: 'Screen Saver',
           command_topic: pfx + '/command/screensaverMode',
           state_topic: telemetryTopic,
-          options: ['LG default', 'Clock'],
-          command_template: '{{ {"LG default":"stock","Clock":"clock"}[value] }}',
-          value_template: '{{ {"stock":"LG default","clock":"Clock"}.get(value_json.screensaverMode, "LG default") }}',
+          options: ['LG default', 'Clock', 'Starfield', 'Panel vitals'],
+          command_template: '{{ {"LG default":"stock","Clock":"clock","Starfield":"starfield","Panel vitals":"vitals"}[value] }}',
+          value_template: '{{ {"stock":"LG default","clock":"Clock","starfield":"Starfield","vitals":"Panel vitals"}.get(value_json.screensaverMode, "LG default") }}',
           icon: 'mdi:television-shimmer'
         }
       },
