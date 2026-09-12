@@ -77,7 +77,7 @@ WebOSWindow {
                     // arrives and leaves rather than blinking.
                     fade: true
                     delegate: Rectangle {
-                        width: Math.round(13 * win.unit * win.grow)
+                        width: Math.max(2, Math.round(4 * win.unit * win.grow))
                         height: width
                         radius: width / 2
                         color: win.level > 0 ? modelData : Qt.darker(modelData, win.dimming)

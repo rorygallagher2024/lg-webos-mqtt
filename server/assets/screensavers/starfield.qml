@@ -6,7 +6,7 @@
  *      sky providing celestial depth of field.
  *   2. Mid-field stars: crisp celestial bodies with parallax drift and spectral
  *      variation (diamond, ice blue, and warm golden tones).
- *   3. Bright stellar gems: luminous glowing stars with soft halo aura.
+ *   3. Bright stellar gems: fine luminous stars with soft halo aura.
  *   4. Shooting stars (meteors): realistic meteors entering from off-screen,
  *      streaking smoothly across the sky, and flying completely off-screen
  *      with a continuous luminous ion trail.
@@ -35,7 +35,7 @@ WebOSWindow {
 
     // Dim or bright, written in when the screen saver is staged.
     property int level: __TVWEB_LEVEL__
-    property real grow: level > 0 ? 1.25 : 1.0
+    property real grow: level > 0 ? 1.20 : 1.0
     property real maxAlpha: level > 0 ? 1.00 : 0.85
     property real midAlpha: level > 0 ? 0.85 : 0.65
     property real minAlpha: level > 0 ? 0.65 : 0.40
@@ -66,16 +66,16 @@ WebOSWindow {
         width: win.width
         height: win.height
         shape: RectangleShape { fill: true }
-        emitRate: 45
+        emitRate: 60
         lifeSpan: 16000
         lifeSpanVariation: 4000
-        size: Math.round(3.5 * win.unit * win.grow)
-        sizeVariation: Math.round(1.5 * win.unit)
-        endSize: Math.round(3.5 * win.unit * win.grow)
+        size: Math.round(2.0 * win.unit * win.grow)
+        sizeVariation: Math.round(0.8 * win.unit)
+        endSize: Math.round(2.0 * win.unit * win.grow)
         velocity: AngleDirection {
             angle: 210
             angleVariation: 10
-            magnitude: Math.round(1.8 * win.unit)
+            magnitude: Math.round(1.5 * win.unit)
         }
     }
 
@@ -100,16 +100,16 @@ WebOSWindow {
         width: win.width
         height: win.height
         shape: RectangleShape { fill: true }
-        emitRate: 18
+        emitRate: 20
         lifeSpan: 14000
         lifeSpanVariation: 3000
-        size: Math.round(7 * win.unit * win.grow)
-        sizeVariation: Math.round(2.5 * win.unit)
-        endSize: Math.round(7 * win.unit * win.grow)
+        size: Math.round(4.0 * win.unit * win.grow)
+        sizeVariation: Math.round(1.2 * win.unit)
+        endSize: Math.round(4.0 * win.unit * win.grow)
         velocity: AngleDirection {
             angle: 210
             angleVariation: 8
-            magnitude: Math.round(3.8 * win.unit)
+            magnitude: Math.round(3.0 * win.unit)
         }
     }
 
@@ -137,13 +137,13 @@ WebOSWindow {
         emitRate: 4
         lifeSpan: 12000
         lifeSpanVariation: 3000
-        size: Math.round(13 * win.unit * win.grow)
-        sizeVariation: Math.round(3.5 * win.unit)
-        endSize: Math.round(13 * win.unit * win.grow)
+        size: Math.round(7.5 * win.unit * win.grow)
+        sizeVariation: Math.round(2.0 * win.unit)
+        endSize: Math.round(7.5 * win.unit * win.grow)
         velocity: AngleDirection {
             angle: 210
             angleVariation: 6
-            magnitude: Math.round(6.5 * win.unit)
+            magnitude: Math.round(5.5 * win.unit)
         }
     }
 
@@ -168,8 +168,8 @@ WebOSWindow {
         width: 1
         height: 1
         lifeSpan: 1600
-        size: Math.round(18 * win.unit * win.grow)
-        endSize: Math.round(12 * win.unit * win.grow)
+        size: Math.round(10 * win.unit * win.grow)
+        endSize: Math.round(7 * win.unit * win.grow)
         velocity: AngleDirection {
             angle: 38
             angleVariation: 6
@@ -181,9 +181,9 @@ WebOSWindow {
         system: sys
         group: "meteorTail"
         follow: "meteorHead"
-        emitRatePerParticle: 550
+        emitRatePerParticle: 650
         lifeSpan: 380
-        size: Math.round(13 * win.unit * win.grow)
+        size: Math.round(7 * win.unit * win.grow)
         endSize: Math.round(1 * win.unit)
         velocity: AngleDirection {
             angle: 218
