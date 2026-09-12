@@ -1548,7 +1548,10 @@ async function tick() {
        there is one command and the TV decides, so the label follows the TV. */
     if (q('ss-toggle')) {
       const ssOn = !!d.screenSaver;
-      q('ss-toggle').textContent = ssOn ? 'Dismiss screen saver' : 'Start screen saver';
+      // Rewriting the label replaces the text node under the pointer, which
+      // costs the tooltip the same way rewriting the title does.
+      setIfChanged(q('ss-toggle'), 'textContent',
+                   ssOn ? 'Dismiss screen saver' : 'Start screen saver');
       q('ss-toggle').classList.toggle('on', ssOn);
       // Dismissing works from anywhere; only starting one needs an app.
       refuseScreensaver(q('ss-toggle'),
@@ -2062,10 +2065,24 @@ const SS_ONLY_IN_APPS =
  */
 function refuseScreensaver(el, why) {
   if (!el) return;
-  el.classList.toggle('btn-off', !!why);
-  el.title = why || '';
-  if (why) el.setAttribute('aria-disabled', 'true');
-  else el.removeAttribute('aria-disabled');
+  const blocked = !!why;
+  el.classList.toggle('btn-off', blocked);
+  /*
+   * Only write when it changes. The page polls every two seconds, and a browser
+   * cancels the tooltip it was about to show whenever the title is written -
+   * even with the same text - so rewriting it on every tick means the tooltip
+   * never survives long enough to appear.
+   */
+  setIfChanged(el, 'title', why || '');
+  if (blocked) {
+    if (el.getAttribute('aria-disabled') !== 'true') el.setAttribute('aria-disabled', 'true');
+  } else if (el.hasAttribute('aria-disabled')) {
+    el.removeAttribute('aria-disabled');
+  }
+}
+
+function setIfChanged(el, prop, value) {
+  if (el[prop] !== value) el[prop] = value;
 }
 
 function pressScreensaver(id) {
