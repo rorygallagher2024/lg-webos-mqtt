@@ -31,6 +31,33 @@ WebOSWindow {
     FontLoader { id: thinFace;  source: "file:///usr/share/fonts/MuseoSans-Thin.ttf" }
     FontLoader { id: lightFace; source: "file:///usr/share/fonts/MuseoSans-Light.ttf" }
 
+    // Candidates for the figures, best first - see chooseDigitFamily.
+    FontLoader { id: misoFace;  source: "file:///usr/share/fonts/Miso-Light.ttf" }
+    FontLoader { id: lgLight;   source: "file:///usr/share/fonts/LG_Display-Light.ttf" }
+    FontLoader { id: lgRegular; source: "file:///usr/share/fonts/LG_Display-Regular.ttf" }
+
+    Text { id: metric; visible: false; text: "0" }
+
+    property string digitFamily: ""
+    property string smallDigitFamily: ""
+
+    /*
+     * Pick a face by measuring it at the size it will be drawn. Museo Sans lays
+     * a digit out at 1.6em at 232px on a B8 and at a correct 0.6em at 38px, so
+     * the face that suits the labels is useless for the figures. Ask each one
+     * how wide a "0" comes out and take the first plausible answer.
+     */
+    function chooseDigitFamily(px) {
+        var cands = [misoFace, lgLight, lgRegular, thinFace];
+        metric.font.pixelSize = px;
+        for (var i = 0; i < cands.length; i++) {
+            if (cands[i].status !== FontLoader.Ready) continue;
+            metric.font.family = cands[i].name;
+            if (metric.width > 0 && metric.width / px < 0.9) return cands[i].name;
+        }
+        return "";
+    }
+
     property real unit: win.height / 1080
     property color inkBright: "#d8dade"
     property color inkDim:    "#6d7076"
@@ -136,7 +163,7 @@ WebOSWindow {
                 Text {
                     id: clockGauge
                     visible: false
-                    font.family: lightFace.name
+                    font.family: win.smallDigitFamily
                     font.pixelSize: Math.round(34 * win.unit)
                     text: "0"
                 }
@@ -144,7 +171,7 @@ WebOSWindow {
                     id: clockH1
                     width: clockGauge.width
                     horizontalAlignment: Text.AlignHCenter
-                    font.family: lightFace.name
+                    font.family: win.smallDigitFamily
                     font.pixelSize: Math.round(34 * win.unit)
                     color: win.inkDim
                     text: "0"
@@ -153,7 +180,7 @@ WebOSWindow {
                     id: clockH2
                     width: clockGauge.width
                     horizontalAlignment: Text.AlignHCenter
-                    font.family: lightFace.name
+                    font.family: win.smallDigitFamily
                     font.pixelSize: Math.round(34 * win.unit)
                     color: win.inkDim
                     text: "0"
@@ -184,7 +211,7 @@ WebOSWindow {
                     id: clockM1
                     width: clockGauge.width
                     horizontalAlignment: Text.AlignHCenter
-                    font.family: lightFace.name
+                    font.family: win.smallDigitFamily
                     font.pixelSize: Math.round(34 * win.unit)
                     color: win.inkDim
                     text: "0"
@@ -193,7 +220,7 @@ WebOSWindow {
                     id: clockM2
                     width: clockGauge.width
                     horizontalAlignment: Text.AlignHCenter
-                    font.family: lightFace.name
+                    font.family: win.smallDigitFamily
                     font.pixelSize: Math.round(34 * win.unit)
                     color: win.inkDim
                     text: "0"
@@ -211,7 +238,7 @@ WebOSWindow {
             }
 
             Text {
-                font.family: thinFace.name
+                font.family: win.digitFamily
                 font.pixelSize: Math.round(150 * win.unit)
                 color: win.inkBright
                 text: win.heroValue
@@ -271,6 +298,8 @@ WebOSWindow {
     Timer { interval: 120000; running: true; repeat: true; onTriggered: win.poll() }
 
     Component.onCompleted: {
+        digitFamily = chooseDigitFamily(Math.round(150 * win.unit));
+        smallDigitFamily = chooseDigitFamily(Math.round(34 * win.unit));
         refreshClock();
         move();
         poll();
