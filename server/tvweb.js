@@ -1611,7 +1611,18 @@ function collectStats(cb) {
       return (t !== null && t > 0) ? t : null;
     })(),
     temps: null,   // filled in below from the ring buffer
-    load: num(rd('/proc/lg/pm/current_load'), null),
+    /*
+     * Across the whole processor, not the busiest core.
+     * /proc/lg/pm/current_load is the peak: measured on a B8 it matched
+     * max(cores) on every sample, so a single busy core reported the set as
+     * pegged while three others idled. It is still reported, as loadPeak.
+     */
+    load: coreLoads.length
+      ? Math.round(coreLoads.reduce(function (a, b) { return a + b; }, 0) / coreLoads.length)
+      : num(rd('/proc/lg/pm/current_load'), null),
+    loadPeak: coreLoads.length
+      ? Math.max.apply(null, coreLoads)
+      : num(rd('/proc/lg/pm/current_load'), null),
     mhz: socMhz(),
     cores: coreLoads,
     // Total slots, so the dashboard can say how many are parked rather than

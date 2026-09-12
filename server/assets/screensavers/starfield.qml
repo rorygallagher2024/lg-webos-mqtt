@@ -34,7 +34,7 @@ WebOSWindow {
     color: "black"
 
     property real unit: win.height / 1080
-    property int starCount: 170
+    property int starCount: 90
 
     // Dim or bright, written in when the screen saver is staged.
     property int level: __TVWEB_LEVEL__
@@ -56,43 +56,76 @@ WebOSWindow {
             Rectangle {
                 id: star
 
-                property real bearing: Math.random() * 2 * Math.PI
-                // 0 at the centre, 1 off the edge. Linear in time.
-                property real progress: 0
+                /*
+                 * Where this run ends, worked out once when it starts. Nothing
+                 * here is a binding on a moving value: x and y are animated
+                 * directly, so no JavaScript runs per frame.
+                 *
+                 * Measured on a B8 before that change: a binding holding
+                 * Math.cos cannot be optimised, and 170 stars evaluating two of
+                 * them every frame held a core at 100% - a quarter of the whole
+                 * processor, against 2% for the clock.
+                 */
+                property real endX: 0
+                property real endY: 0
+                property int dur: 6000
                 // Spread over the run, so the field is already full when the
                 // screen saver appears rather than erupting from the middle.
                 property real startAt: Math.random()
-                property int runTime: 6000 + Math.random() * 5000
 
-                property real dist: progress * progress * win.reach
-
-                width: Math.max(1, Math.round(win.maxSize * (0.3 + progress * 0.7)))
+                width: Math.max(1, Math.round(win.maxSize * 0.3))
                 height: width
                 radius: width / 2
                 color: "#ffffff"
-                opacity: win.minAlpha + (win.maxAlpha - win.minAlpha) * progress
+                opacity: win.minAlpha
 
-                x: win.cx + Math.cos(bearing) * dist - width / 2
-                y: win.cy + Math.sin(bearing) * dist - height / 2
+                function reseed() {
+                    // A new bearing each run, so the field never wears spokes
+                    // into the panel.
+                    var a = Math.random() * 2 * Math.PI;
+                    var cos = Math.cos(a), sin = Math.sin(a);
+                    var from = star.startAt;
+                    star.startAt = 0;
+
+                    // Distance goes as the square of the run, which is what
+                    // puts most of the field near the middle at any moment.
+                    var d0 = from * from * win.reach;
+                    // Halfway along its run, so a star reads as its average
+                    // rather than its faintest.
+                    var at = Math.min(1, from + 0.35);
+                    var w0 = Math.max(1, Math.round(win.maxSize * (0.35 + at * 0.65)));
+                    star.width = w0;
+                    star.opacity = win.minAlpha + (win.maxAlpha - win.minAlpha) * at;
+                    star.x = win.cx + cos * d0 - w0 / 2;
+                    star.y = win.cy + sin * d0 - w0 / 2;
+
+                    var w1 = Math.max(1, Math.round(win.maxSize));
+                    star.endX = win.cx + cos * win.reach - w1 / 2;
+                    star.endY = win.cy + sin * win.reach - w1 / 2;
+                    star.dur = Math.max(400, Math.round((6000 + Math.random() * 5000) * (1 - from)));
+                }
 
                 SequentialAnimation {
                     running: true
                     loops: Animation.Infinite
 
-                    ScriptAction {
-                        script: {
-                            // A new bearing each run, so the field never wears
-                            // spokes into the panel.
-                            star.bearing = Math.random() * 2 * Math.PI;
-                            star.progress = star.startAt;
-                            star.startAt = 0;
-                        }
-                    }
-                    NumberAnimation {
-                        target: star
-                        property: "progress"
-                        to: 1.0
-                        duration: star.runTime * (1 - star.progress)
+                    ScriptAction { script: star.reseed() }
+
+                    /*
+                     * Two animations a star, not four. Every running animation
+                     * costs a property write a frame, and measured on a B8 the
+                     * width and opacity pair cost as much as the movement:
+                     * 150 stars with four each held a core down. Size and
+                     * brightness are set once per run instead, from where the
+                     * star starts, so a near one is still bigger and brighter -
+                     * it just does not grow while it crosses.
+                     */
+                    ParallelAnimation {
+                        // Accelerating outward is the whole of the perspective.
+                        NumberAnimation { target: star; property: "x"; to: star.endX
+                                          duration: star.dur; easing.type: Easing.InQuad }
+                        NumberAnimation { target: star; property: "y"; to: star.endY
+                                          duration: star.dur; easing.type: Easing.InQuad }
                     }
                 }
             }
