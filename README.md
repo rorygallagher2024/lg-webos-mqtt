@@ -14,7 +14,7 @@ There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the T
 
 ### Web Dashboard & Controls
 
-Four tabs: Control, Metrics, Privacy and MQTT.
+Five tabs: Control, Metrics, Screensaver, Privacy and MQTT.
 
 <p align="center">
   <a href="docs/screenshots/dashboard.png"><img src="docs/screenshots/dashboard.png" alt="Metrics tab: SoC temperature, system readouts, storage and display panel counters, dark theme (OLED65B8SLC)" width="440"></a>
@@ -45,6 +45,18 @@ OLED Panel health and maintenance overview
 System monitoring
 
 <img width="432" height="396" alt="Screenshot 2026-09-11 at 20 45 02" src="https://github.com/user-attachments/assets/2e6cfe5a-c905-426e-8b4d-8f52d4f31c11" />
+
+### Screen savers
+
+The Screensaver tab, or `/?tab=screensaver`. Three in place of LG's: a clock, a
+starfield, and one showing the set's own panel hours and refresher countdown.
+Each draws dim or bright, and all of them move so nothing marks the panel.
+
+<p align="center">
+  <a href="docs/screenshots/screensaver.png"><img src="docs/screenshots/screensaver.png" alt="Screensaver tab: LG default, Clock, Starfield and Panel vitals, with a dim and bright toggle" width="700"></a>
+</p>
+
+---
 
 ### Privacy & telemetry
 
@@ -81,16 +93,19 @@ and firmware updates use.
    dashboard. Includes an on-TV blocker for LG's ad and telemetry
    endpoints, and a switch for the two diagnostics services that upload to LG.
    
-3. **Integrating the TV into Home Assistant.** Optional, over MQTT: up to 68
+3. **Replacing the screen saver.** A clock, a starfield, or the TV's own
+   readings, each dim or bright, in place of LG's.
+
+4. **Integrating the TV into Home Assistant.** Optional, over MQTT: up to 69
    entities arrive as a single auto-discovered device &mdash; no YAML, no LG
    account &mdash; so the TV can be automated and its telemetry recorded
    alongside everything else in the house.
    [Step 3](#3-home-assistant--mqtt-optional) explains what MQTT is.
 
-4. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
+5. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
    load, memory, swap, current draw, Wi-Fi signal and throughput.
 
-5. **Observing OLED panel wear.** Cumulative panel hours, compensation cycle
+6. **Observing OLED panel wear.** Cumulative panel hours, compensation cycle
    progress, Pixel Refresher countdown with scheduling, completed cycle counters,
    failure alerts, and ASBL / GSR protection status.
 
@@ -132,6 +147,10 @@ and firmware updates use.
   change survives a reboot; acceptance of the terms themselves is left to the
   TV's own menus. Includes buttons to reset the advertising ID, clear ad
   cookies, and toggle the on-TV ad blocker. Deep link: `/?tab=privacy`.
+* **Custom screen savers.** Three in place of LG's: a clock, a starfield, and
+  one showing the set's own panel hours and refresher countdown. Each can be
+  drawn dim or bright, and all of them move so nothing marks the panel. Deep
+  link: `/?tab=screensaver`.
 * **Self-contained dashboard.** Fonts and assets are served by the TV, so the
   page works with no internet access.
 * **Dark and light themes.** High-contrast light mode with dark text alongside
