@@ -29,7 +29,7 @@ Once connected to your MQTT broker, Home Assistant automatically discovers **up 
 | `button` | `button.lg_tv_stop` | Stop | Stop media playback |
 | `switch` | `switch.lg_tv_oled_screen_shift` | OLED Screen Shift | Pixel orbiting, on OLED sets |
 | `select` | `select.lg_tv_oled_logo_dimming` | OLED Logo Dimming | Local logo dimming: Off, Light, High |
-| `button` | `button.lg_tv_screensaver` | Start Screensaver | Immediately trigger webOS screensaver |
+| `button` | `button.lg_tv_screensaver` | Start Screensaver | Starts the webOS screensaver, or dismisses one that is showing |
 | `text` | `text.lg_tv_screen_notification` | Screen Notification | Send custom toast messages to TV screen |
 | `button` | `button.lg_tv_restart` | Restart TV | Reboots the TV (requires `allowPower: true`) |
 | `button` | `button.lg_tv_power_off` | Power Off TV | Powers off the TV (requires `allowPower: true`) |

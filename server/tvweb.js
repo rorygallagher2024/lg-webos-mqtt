@@ -1060,6 +1060,14 @@ function sendMediaKey(cmd, cb) {
     if (cb) cb(false);
     return;
   }
+  injectKey(code, cb);
+}
+
+// KEY_BACK. Used to dismiss a screen saver, which consumes the first key it
+// gets, so nothing behind it sees this.
+var KEY_BACK = 158;
+
+function injectKey(code, cb) {
   var fd = null;
   try {
     fd = fs.openSync('/dev/input/event1', 'w');
@@ -1494,6 +1502,7 @@ function collectStats(cb) {
   // Chained Luna queries: power -> sound -> soundSettings -> foregroundApp -> picture settings -> apps
   luna('com.webos.service.tvpower/power/getPowerState', {}, function (pw) {
     out.powerState = mapPowerState(pw && pw.state);
+    out.screenSaver = isScreenSaver(out.powerState);
   lunaCached('com.webos.service.settings/getSystemSettings',
        { category: 'time', keys: ['sleepTimer'] }, 30000, function (tm) {
     out.sleepTimer = (tm && tm.settings && tm.settings.sleepTimer) || 'off';
@@ -1575,14 +1584,6 @@ function collectStats(cb) {
         lunaCached('com.webos.applicationManager/getForegroundAppInfo', {}, 4000, function (app) {
           if (app && app.appId) {
             var shortApp = String(app.appId).replace('com.webos.app.', '');
-            /*
-             * The screen saver is an app - com.webos.app.screensaver - and
-             * takes the foreground while it draws. There is no status call for
-             * it: tvpower has no getter, and the ss line in /proc/lg/sys/status
-             * that this once read is the PLL spread spectrum flag, which is on
-             * permanently and has nothing to do with the screen.
-             */
-            out.screenSaver = (shortApp === 'screensaver');
             out.app = shortApp;
             out.app_id = app.appId;
             out.app_name = inputNameMap[shortApp] || shortApp;
@@ -2270,8 +2271,23 @@ var POWER_STATES = {
   'activestandby': ['Standby', false, false],
   'suspend':       ['Standby', false, false],
   'poweroff':      ['Off', false, false],
-  'prepared':      ['Starting up', true, false]
+  'prepared':      ['Starting up', true, false],
+  // tvpower reports a running screen saver as a power state of its own.
+  'screensaver':   ['Screen Saver', true,  true]
 };
+
+/*
+ * Whether a screen saver is on screen. tvpower reports it as a power state of
+ * its own, which is the only source that tracks it: the foreground app does
+ * not change - the screen saver draws over whatever is running - and the
+ * running-apps list keeps the screen saver app long after it has gone.
+ *
+ * Measured on a B8: "Screen Saver" while one draws, "Active" once a key
+ * dismisses it.
+ */
+function isScreenSaver(ps) {
+  return !!(ps && String(ps.raw || '').toLowerCase().replace(/[\s_-]/g, '') === 'screensaver');
+}
 
 function mapPowerState(raw) {
   var key = String(raw || '').toLowerCase().replace(/[\s_-]/g, '');
@@ -2721,21 +2737,34 @@ function doControl(action, value, cb) {
 
     case 'screensaver':
       /*
-       * turnOnScreenSaver does not draw anything itself. tvpower asks whatever
-       * has registered a screen saver request to show one - see its
-       * registerScreenSaverRequest / responseScreenSaverRequest pair - and
-       * returns true whether or not anything answers. An HDMI input or Live TV
-       * registers nothing, because the screen saver exists to protect the panel
-       * from a static image, not to interrupt video. So on those sources the
-       * call reports success and nothing happens; say so instead.
+       * One control for both directions. Nothing turns a screen saver off -
+       * tvpower publishes turnOnScreenSaver and the registerScreenSaverRequest
+       * pair, and no more - so it is dismissed the way the remote does it, with
+       * a key press the screen saver consumes before anything behind it sees.
        */
-      return luna('com.webos.applicationManager/getForegroundAppInfo', {}, function (fg) {
-        var fgId = (fg && fg.appId) ? String(fg.appId).replace('com.webos.app.', '') : '';
-        if (/^hdmi[1-4]$/.test(fgId) || fgId === 'livetv') {
-          return cb({ ok: false, error: 'the screen saver is only available from an app, not from ' + fgId });
+      return luna('com.webos.service.tvpower/power/getPowerState', {}, function (pw) {
+        if (isScreenSaver(mapPowerState(pw && pw.state))) {
+          return injectKey(KEY_BACK, function (ok) {
+            lastStats = null;
+            cb(ok ? { ok: true } : { ok: false, error: 'could not reach the remote input device' });
+          });
         }
-        luna('com.webos.service.tvpower/power/turnOnScreenSaver', {},
-             function (r) { cb({ ok: !!(r && r.returnValue) }); });
+        /*
+         * turnOnScreenSaver does not draw anything itself. tvpower asks whatever
+         * has registered a screen saver request to show one, and returns true
+         * whether or not anything answers. An HDMI input or Live TV registers
+         * nothing, because the screen saver exists to protect the panel from a
+         * static image, not to interrupt video. So on those sources the call
+         * reports success and nothing happens; say so instead.
+         */
+        luna('com.webos.applicationManager/getForegroundAppInfo', {}, function (fg) {
+          var fgId = (fg && fg.appId) ? String(fg.appId).replace('com.webos.app.', '') : '';
+          if (/^hdmi[1-4]$/.test(fgId) || fgId === 'livetv') {
+            return cb({ ok: false, error: 'the screen saver is only available from an app, not from ' + fgId });
+          }
+          luna('com.webos.service.tvpower/power/turnOnScreenSaver', {},
+               function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
+        });
       });
 
     case 'toast':
