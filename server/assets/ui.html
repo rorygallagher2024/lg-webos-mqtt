@@ -1525,7 +1525,10 @@ async function tick() {
        input registers nothing - so it cannot run over HDMI or Live TV. Say why
        rather than leaving a button that does nothing when pressed. */
     // The tab is about the panel, so an LCD set has no use for it.
-    if (q('tab-btn-oledcare')) q('tab-btn-oledcare').hidden = !d.oled;
+    isOledSet = !!d.oled;
+    if (q('tab-btn-oledcare')) q('tab-btn-oledcare').hidden = !isOledSet;
+    // If it was showing when the set turned out not to be an OLED, leave it.
+    if (!isOledSet && activeTab === 'oledcare') showTab('control');
 
     const ssOnInput = /^hdmi[1-4]$/.test(d.app || '') || d.app === 'livetv';
     refuseScreensaver(q('btn_ss'), ssOnInput ? SS_ONLY_IN_APPS : '');
@@ -2062,17 +2065,21 @@ const TABS = {
   mqtt:        'mqttpane'
 };
 let activeTab = null;
+// null until the first telemetry says either way.
+let isOledSet = null;
 
 function showTab(name) {
   if (!TABS[name]) name = 'control';
   /*
    * The panel is about the OLED panel, so an LCD set has no tab for it - but a
    * deep link or a remembered choice can still ask for it.
+   *
+   * Only turned away once the set has actually said it has no panel. The tab
+   * button starts hidden and is revealed by the first telemetry, which lands
+   * after a deep link is handled, so reading the button here would bounce
+   * /?tab=oledcare off an OLED set every time.
    */
-  if (name === 'oledcare') {
-    const btn = q('tab-btn-oledcare');
-    if (btn && btn.hidden) name = 'control';
-  }
+  if (name === 'oledcare' && isOledSet === false) name = 'control';
   activeTab = name;
   for (const [key, id] of Object.entries(TABS)) {
     const el = q(id);
