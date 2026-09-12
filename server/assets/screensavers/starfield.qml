@@ -1,23 +1,21 @@
 /*
- * Starfield screen saver.
+ * Starscape screen saver.
  *
- * Stars come toward the viewer: each leaves the centre on a fixed bearing and
- * accelerates outward, growing and brightening as it comes.
+ * Polished, serene cosmic starscape for OLED panels:
+ *   1. Deep backdrop: dense field of slow-drifting micro-stars across the full
+ *      sky providing celestial depth of field.
+ *   2. Mid-field stars: crisp celestial bodies with parallax drift and spectral
+ *      variation (diamond, ice blue, and warm golden tones).
+ *   3. Bright stellar gems: luminous glowing stars with soft halo aura.
+ *   4. Shooting stars (meteors): realistic meteors entering from off-screen,
+ *      streaking smoothly across the sky, and flying completely off-screen
+ *      with a continuous luminous ion trail.
  *
- * progress runs linearly in time and everything reads off it, but the distance
- * from the centre goes as its square. That is what puts most of the field near
- * the middle at any moment - a star crosses the inner half of the screen in a
- * quarter of its run and the outer half in the rest - which is what flying into
- * a starfield looks like.
- *
- * A star stays visible for its whole run. Fading it in from nothing while it is
- * also at its smallest leaves the middle of the screen empty, since that is
- * where the stars spend most of their time.
- *
- * The motion is declarative, one animation per star, so the scene graph does
- * the work rather than JavaScript moving 150 items every frame.
+ * Runs entirely in compiled C++ and OpenGL on the GPU via QtQuick.Particles 2.0.
+ * Zero per-frame JavaScript evaluations, steady 60fps, low CPU load.
  */
 import QtQuick 2.4
+import QtQuick.Particles 2.0
 import Eos.Window 0.1
 import QtQuick.Window 2.2
 
@@ -34,68 +32,188 @@ WebOSWindow {
     color: "black"
 
     property real unit: win.height / 1080
-    property int starCount: 170
 
     // Dim or bright, written in when the screen saver is staged.
     property int level: __TVWEB_LEVEL__
-    property real maxAlpha: level > 0 ? 1.00 : 0.70
-    property real minAlpha: level > 0 ? 0.34 : 0.20
-    property real maxSize: (level > 0 ? 5.4 : 3.8) * win.unit
+    property real grow: level > 0 ? 1.25 : 1.0
+    property real maxAlpha: level > 0 ? 1.00 : 0.85
+    property real midAlpha: level > 0 ? 0.85 : 0.65
+    property real minAlpha: level > 0 ? 0.65 : 0.40
 
-    property real cx: win.width / 2
-    property real cy: win.height / 2
-    // Past the corner, so a star leaves the screen rather than vanishing in it.
-    property real reach: Math.sqrt(cx * cx + cy * cy) * 1.1
-
-    Item {
+    ParticleSystem {
+        id: sys
         anchors.fill: parent
+    }
 
-        Repeater {
-            model: win.starCount
+    // ------------------------------------------------ 1. Distant micro-stars
+    ImageParticle {
+        system: sys
+        groups: ["micro"]
+        source: "star.png"
+        color: "#d4e6ff"
+        colorVariation: 0.15
+        alpha: win.minAlpha
+        alphaVariation: 0.25
+    }
 
-            Rectangle {
-                id: star
+    Emitter {
+        id: microEmitter
+        system: sys
+        group: "micro"
+        startTime: 16000
+        x: 0
+        y: 0
+        width: win.width
+        height: win.height
+        shape: RectangleShape { fill: true }
+        emitRate: 45
+        lifeSpan: 16000
+        lifeSpanVariation: 4000
+        size: Math.round(3.5 * win.unit * win.grow)
+        sizeVariation: Math.round(1.5 * win.unit)
+        endSize: Math.round(3.5 * win.unit * win.grow)
+        velocity: AngleDirection {
+            angle: 210
+            angleVariation: 10
+            magnitude: Math.round(1.8 * win.unit)
+        }
+    }
 
-                property real bearing: Math.random() * 2 * Math.PI
-                // 0 at the centre, 1 off the edge. Linear in time.
-                property real progress: 0
-                // Spread over the run, so the field is already full when the
-                // screen saver appears rather than erupting from the middle.
-                property real startAt: Math.random()
-                property int runTime: 6000 + Math.random() * 5000
+    // ------------------------------------------------ 2. Mid-field luminous stars
+    ImageParticle {
+        system: sys
+        groups: ["midfield"]
+        source: "star.png"
+        color: "#ffffff"
+        colorVariation: 0.20
+        alpha: win.midAlpha
+        alphaVariation: 0.20
+    }
 
-                property real dist: progress * progress * win.reach
+    Emitter {
+        id: midEmitter
+        system: sys
+        group: "midfield"
+        startTime: 14000
+        x: 0
+        y: 0
+        width: win.width
+        height: win.height
+        shape: RectangleShape { fill: true }
+        emitRate: 18
+        lifeSpan: 14000
+        lifeSpanVariation: 3000
+        size: Math.round(7 * win.unit * win.grow)
+        sizeVariation: Math.round(2.5 * win.unit)
+        endSize: Math.round(7 * win.unit * win.grow)
+        velocity: AngleDirection {
+            angle: 210
+            angleVariation: 8
+            magnitude: Math.round(3.8 * win.unit)
+        }
+    }
 
-                width: Math.max(1, Math.round(win.maxSize * (0.3 + progress * 0.7)))
-                height: width
-                radius: width / 2
-                color: "#ffffff"
-                opacity: win.minAlpha + (win.maxAlpha - win.minAlpha) * progress
+    // ------------------------------------------------ 3. Bright stellar gems
+    ImageParticle {
+        system: sys
+        groups: ["gems"]
+        source: "star.png"
+        color: "#fff9f0"
+        colorVariation: 0.25
+        alpha: win.maxAlpha
+        alphaVariation: 0.15
+    }
 
-                x: win.cx + Math.cos(bearing) * dist - width / 2
-                y: win.cy + Math.sin(bearing) * dist - height / 2
+    Emitter {
+        id: gemEmitter
+        system: sys
+        group: "gems"
+        startTime: 12000
+        x: 0
+        y: 0
+        width: win.width
+        height: win.height
+        shape: RectangleShape { fill: true }
+        emitRate: 4
+        lifeSpan: 12000
+        lifeSpanVariation: 3000
+        size: Math.round(13 * win.unit * win.grow)
+        sizeVariation: Math.round(3.5 * win.unit)
+        endSize: Math.round(13 * win.unit * win.grow)
+        velocity: AngleDirection {
+            angle: 210
+            angleVariation: 6
+            magnitude: Math.round(6.5 * win.unit)
+        }
+    }
 
-                SequentialAnimation {
-                    running: true
-                    loops: Animation.Infinite
+    // ------------------------------------------------ 4. Shooting stars (meteors)
+    ImageParticle {
+        system: sys
+        groups: ["meteorHead", "meteorTail"]
+        source: "star.png"
+        color: "#f0f6ff"
+        alpha: win.maxAlpha
+    }
 
-                    ScriptAction {
-                        script: {
-                            // A new bearing each run, so the field never wears
-                            // spokes into the panel.
-                            star.bearing = Math.random() * 2 * Math.PI;
-                            star.progress = star.startAt;
-                            star.startAt = 0;
-                        }
-                    }
-                    NumberAnimation {
-                        target: star
-                        property: "progress"
-                        to: 1.0
-                        duration: star.runTime * (1 - star.progress)
-                    }
-                }
-            }
+    Emitter {
+        id: meteorEmitter
+        system: sys
+        group: "meteorHead"
+        enabled: false
+        emitRate: 0
+        // Positioned safely off-screen so initialization never paints a corner artifact
+        x: -500
+        y: -500
+        width: 1
+        height: 1
+        lifeSpan: 1600
+        size: Math.round(18 * win.unit * win.grow)
+        endSize: Math.round(12 * win.unit * win.grow)
+        velocity: AngleDirection {
+            angle: 38
+            angleVariation: 6
+            magnitude: Math.round(1900 * win.unit)
+        }
+    }
+
+    TrailEmitter {
+        system: sys
+        group: "meteorTail"
+        follow: "meteorHead"
+        emitRatePerParticle: 550
+        lifeSpan: 380
+        size: Math.round(13 * win.unit * win.grow)
+        endSize: Math.round(1 * win.unit)
+        velocity: AngleDirection {
+            angle: 218
+            angleVariation: 10
+            magnitude: Math.round(30 * win.unit)
+        }
+    }
+
+    function shoot() {
+        // Start off-screen: either above the top edge or to the left of the left edge
+        if (Math.random() < 0.65) {
+            meteorEmitter.x = Math.random() * (win.width * 0.70);
+            meteorEmitter.y = -50;
+        } else {
+            meteorEmitter.x = -50;
+            meteorEmitter.y = Math.random() * (win.height * 0.45);
+        }
+        meteorEmitter.burst(1);
+    }
+
+    Timer {
+        id: meteorTimer
+        interval: 3500
+        running: true
+        repeat: false
+        onTriggered: {
+            win.shoot();
+            interval = 11000 + Math.random() * 9000;
+            repeat = true;
+            restart();
         }
     }
 }

@@ -27,7 +27,7 @@ var zlib = require('zlib');
  * a link to /releases/tag/v<version>, so a value with no tag behind it gives a
  * 404 rather than a wrong page.
  */
-var TVWEB_VERSION = '0.33.1';
+var TVWEB_VERSION = '0.34.0';
 
 // ---------------------------------------------------------------- config
 var CONFIG = {
@@ -1611,7 +1611,18 @@ function collectStats(cb) {
       return (t !== null && t > 0) ? t : null;
     })(),
     temps: null,   // filled in below from the ring buffer
-    load: num(rd('/proc/lg/pm/current_load'), null),
+    /*
+     * Across the whole processor, not the busiest core.
+     * /proc/lg/pm/current_load is the peak: measured on a B8 it matched
+     * max(cores) on every sample, so a single busy core reported the set as
+     * pegged while three others idled. It is still reported, as loadPeak.
+     */
+    load: coreLoads.length
+      ? Math.round(coreLoads.reduce(function (a, b) { return a + b; }, 0) / coreLoads.length)
+      : num(rd('/proc/lg/pm/current_load'), null),
+    loadPeak: coreLoads.length
+      ? Math.max.apply(null, coreLoads)
+      : num(rd('/proc/lg/pm/current_load'), null),
     mhz: socMhz(),
     cores: coreLoads,
     // Total slots, so the dashboard can say how many are parked rather than
@@ -2887,6 +2898,23 @@ function writeScreensaverQml(src, level) {
     // palette; this only says which of the two was asked for.
     .replace(/__TVWEB_LEVEL__/g, level === 'bright' ? '1' : '0');
   fs.writeFileSync(path.join(SCREENSAVER_DIR, 'qml', 'main.qml'), qml);
+
+  /*
+   * Anything else in the screen saver folder goes with it. The starfield draws
+   * its points from an image, and the mount replaces the whole app directory,
+   * so a file left behind in assets is a file the QML cannot open.
+   */
+  try {
+    var from = path.dirname(src);
+    var files = fs.readdirSync(from);
+    for (var i = 0; i < files.length; i++) {
+      if (/\.qml$/i.test(files[i])) continue;
+      fs.writeFileSync(path.join(SCREENSAVER_DIR, 'qml', files[i]),
+                       fs.readFileSync(path.join(from, files[i])));
+    }
+  } catch (e) {
+    console.error('screensaver: could not stage its files: ' + e.message);
+  }
   fs.writeFileSync(path.join(SCREENSAVER_DIR, SCREENSAVER_LEVEL_MARKER), level === 'bright' ? 'bright' : 'dim');
 }
 
@@ -3687,8 +3715,16 @@ var server = http.createServer(function (req, res) {
           gsrStressCount: live ? live.gsrStressCount : null,
           screenShift: oled.screen_shift || null,
           logoDimming: oled.logo_dimming || null,
+          // The panel's own wear figures, which belong beside the switches
+          // that decide how hard it is worked.
           panelHours: (oled.panel_hours === undefined) ? null : oled.panel_hours,
-          hoursUntilRefresher: (oled.hours_until_refresher === undefined) ? null : oled.hours_until_refresher
+          hoursUntilComp: (oled.hours_until_comp === undefined) ? null : oled.hours_until_comp,
+          hoursUntilRefresher: (oled.hours_until_refresher === undefined) ? null : oled.hours_until_refresher,
+          compStatus: oled.comp_status || null,
+          refresherStatus: oled.refresher_status || null,
+          compCycles: (oled.comp_cycles === undefined) ? null : oled.comp_cycles,
+          refresherCycles: (oled.refresher_cycles === undefined) ? null : oled.refresher_cycles,
+          failureAlerts: (oled.failure_alerts === undefined) ? null : oled.failure_alerts
         }));
       });
     });
