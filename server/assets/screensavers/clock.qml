@@ -62,12 +62,16 @@ WebOSWindow {
                     color: win.inkBright
                     text: "00"
                 }
-                Text {
+                /*
+                 * Two dots rather than a ":" glyph. The thin face leaves a wide
+                 * gap where the colon should be, and drawing it puts the
+                 * spacing and the pulse under our control either way.
+                 */
+                Item {
                     id: colon
-                    font.family: thinFace.name
-                    font.pixelSize: Math.round(232 * win.unit)
-                    color: win.inkBright
-                    text: ":"
+                    width: Math.round(74 * win.unit)
+                    height: hours.height
+
                     // A second of fade each way, so it reads as a pulse rather
                     // than a flash.
                     SequentialAnimation on opacity {
@@ -75,6 +79,23 @@ WebOSWindow {
                         running: true
                         NumberAnimation { from: 1.0; to: 0.25; duration: 1000; easing.type: Easing.InOutSine }
                         NumberAnimation { from: 0.25; to: 1.0; duration: 1000; easing.type: Easing.InOutSine }
+                    }
+
+                    Rectangle {
+                        width: Math.round(19 * win.unit)
+                        height: width
+                        radius: width / 2
+                        color: win.inkBright
+                        x: (colon.width - width) / 2
+                        y: Math.round(colon.height * 0.36)
+                    }
+                    Rectangle {
+                        width: Math.round(19 * win.unit)
+                        height: width
+                        radius: width / 2
+                        color: win.inkBright
+                        x: (colon.width - width) / 2
+                        y: Math.round(colon.height * 0.63)
                     }
                 }
                 Text {
@@ -88,7 +109,10 @@ WebOSWindow {
 
             Text {
                 id: dateLine
-                anchors.horizontalCenter: timeRow.horizontalCenter
+                // A Column ignores horizontal anchors on its children, so the
+                // centring is done by matching the row's width.
+                width: timeRow.width
+                horizontalAlignment: Text.AlignHCenter
                 font.family: lightFace.name
                 font.pixelSize: Math.round(38 * win.unit)
                 font.letterSpacing: Math.round(7 * win.unit)

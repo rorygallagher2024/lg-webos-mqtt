@@ -5,9 +5,12 @@
  * this TV. The address is written in when the screen saver is staged, because
  * the port is configurable and the API needs the token when one is set.
  *
- * Rows are built from whatever the payload actually carries: an LCD set has no
- * panel hours, and a set that reports nothing at all still gets a clock rather
- * than an empty screen.
+ * Rows are built from what the payload actually carries, so an LCD set shows
+ * uptime where an OLED shows panel hours.
+ *
+ * Everything here stays inside QtQuick 2.4: a B8 runs Qt 5.6, and padding
+ * properties and anchors inside a Row or Column are either unavailable or
+ * ignored there. Spacing is done with explicit items instead.
  */
 import QtQuick 2.4
 import Eos.Window 0.1
@@ -39,13 +42,25 @@ WebOSWindow {
 
     function two(n) { return n < 10 ? "0" + n : "" + n }
 
+    // Written out rather than taken from the locale: a screen saver should not
+    // depend on which locale plugins the set happens to ship.
+    function grouped(n) {
+        var s = String(Math.round(n));
+        var out = "";
+        for (var i = 0; i < s.length; i++) {
+            if (i > 0 && (s.length - i) % 3 === 0) out += ",";
+            out += s.charAt(i);
+        }
+        return out;
+    }
+
     function hours(v) {
         if (v === null || v === undefined) return null;
         return (v >= 100 ? Math.round(v) : Math.round(v * 10) / 10) + " h";
     }
 
     function uptime(sec) {
-        if (!sec && sec !== 0) return null;
+        if (sec === null || sec === undefined) return null;
         var d = Math.floor(sec / 86400);
         var h = Math.floor((sec % 86400) / 3600);
         var m = Math.floor((sec % 3600) / 60);
@@ -59,22 +74,20 @@ WebOSWindow {
         var oled = d.oled;
 
         if (oled && oled.panel_hours !== undefined && oled.panel_hours !== null) {
-            win.heroValue = Number(oled.panel_hours).toLocaleString(Qt.locale(), "f", 0);
+            win.heroValue = grouped(oled.panel_hours);
             win.heroUnit = "hours on the panel";
-            win.heroLabel = (d.model || "OLED PANEL").toUpperCase();
+            win.heroLabel = String(d.model || "OLED PANEL").toUpperCase();
             if (hours(oled.hours_until_refresher)) list.push(["Pixel refresher in", hours(oled.hours_until_refresher)]);
             if (hours(oled.hours_until_comp)) list.push(["Panel maintenance in", hours(oled.hours_until_comp)]);
-            if (oled.refresher_status) list.push(["Refresher", String(oled.refresher_status)]);
-        } else if (d.uptime !== undefined) {
+        } else {
             // Not an OLED, or a set that keeps no counters: lead with what it
-            // does report rather than showing a panel block full of dashes.
+            // does report rather than a panel block full of dashes.
             win.heroValue = uptime(d.uptime) || "—";
             win.heroUnit = "since last boot";
-            win.heroLabel = (d.model || "THIS TV").toUpperCase();
+            win.heroLabel = String(d.model || "THIS TV").toUpperCase();
         }
 
         if (d.temp !== undefined && d.temp !== null) list.push(["SoC temperature", Math.round(d.temp) + "°"]);
-        if (d.power && d.power.current_ma) list.push(["SoC current", Math.round(d.power.current_ma) + " mA"]);
         if (oled && d.uptime !== undefined) list.push(["Uptime", uptime(d.uptime)]);
         win.rows = list;
     }
@@ -106,7 +119,7 @@ WebOSWindow {
 
         Column {
             id: column
-            spacing: Math.round(10 * win.unit)
+            spacing: Math.round(12 * win.unit)
 
             Text {
                 id: clockLine
@@ -117,57 +130,50 @@ WebOSWindow {
                 text: "00:00"
             }
 
+            Item { width: 1; height: Math.round(16 * win.unit) }
+
             Text {
                 font.family: lightFace.name
                 font.pixelSize: Math.round(26 * win.unit)
                 font.letterSpacing: Math.round(6 * win.unit)
                 color: win.inkDim
                 text: win.heroLabel
-                topPadding: Math.round(18 * win.unit)
             }
 
-            Row {
-                spacing: Math.round(16 * win.unit)
-
-                Text {
-                    font.family: thinFace.name
-                    font.pixelSize: Math.round(150 * win.unit)
-                    color: win.inkBright
-                    text: win.heroValue
-                }
-                Text {
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: Math.round(26 * win.unit)
-                    font.family: lightFace.name
-                    font.pixelSize: Math.round(30 * win.unit)
-                    color: win.inkDim
-                    text: win.heroUnit
-                }
+            Text {
+                font.family: thinFace.name
+                font.pixelSize: Math.round(150 * win.unit)
+                color: win.inkBright
+                text: win.heroValue
             }
 
-            Column {
-                spacing: Math.round(12 * win.unit)
-                topPadding: Math.round(24 * win.unit)
+            Text {
+                font.family: lightFace.name
+                font.pixelSize: Math.round(30 * win.unit)
+                color: win.inkDim
+                text: win.heroUnit
+            }
 
-                Repeater {
-                    model: win.rows
+            Item { width: 1; height: Math.round(22 * win.unit) }
 
-                    Row {
-                        spacing: Math.round(20 * win.unit)
+            Repeater {
+                model: win.rows
 
-                        Text {
-                            width: Math.round(330 * win.unit)
-                            font.family: lightFace.name
-                            font.pixelSize: Math.round(30 * win.unit)
-                            color: win.inkDim
-                            text: modelData[0]
-                        }
-                        Text {
-                            font.family: lightFace.name
-                            font.pixelSize: Math.round(30 * win.unit)
-                            color: win.inkBright
-                            text: modelData[1]
-                        }
+                Row {
+                    spacing: Math.round(20 * win.unit)
+
+                    Text {
+                        width: Math.round(340 * win.unit)
+                        font.family: lightFace.name
+                        font.pixelSize: Math.round(30 * win.unit)
+                        color: win.inkDim
+                        text: modelData[0]
+                    }
+                    Text {
+                        font.family: lightFace.name
+                        font.pixelSize: Math.round(30 * win.unit)
+                        color: win.inkBright
+                        text: modelData[1]
                     }
                 }
             }
@@ -190,8 +196,8 @@ WebOSWindow {
 
     Timer { interval: 1000;  running: true; repeat: true; onTriggered: win.refreshClock() }
     Timer { interval: 60000; running: true; repeat: true; onTriggered: win.move() }
-    // The panel counters move in hours. Asking more often than this would only
-    // wake the server for the same numbers.
+    // The panel counters move in hours. Asking more often would only wake the
+    // server for the same numbers.
     Timer { interval: 120000; running: true; repeat: true; onTriggered: win.poll() }
 
     Component.onCompleted: {
