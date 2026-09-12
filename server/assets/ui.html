@@ -303,6 +303,11 @@ button.on{color:var(--btn-on-fg);background:var(--w100);border-color:var(--w100)
 button.on:hover{color:var(--btn-on-fg);border-color:var(--w100)}
 button[disabled]{opacity:.28;cursor:not-allowed}
 button[disabled]:hover{color:var(--w60);border-color:var(--w12)}
+/* Refused rather than disabled: a disabled button takes no mouse events, so the
+   browser never shows its title, and the reason it cannot be pressed is exactly
+   what someone hovering it wants. */
+button.btn-off{opacity:.28;cursor:not-allowed}
+button.btn-off:hover{color:var(--w60);border-color:var(--w12);background:transparent}
 
 
 /* ---- privacy pane ---- */
@@ -706,7 +711,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
       <div class="btns">
         <button id="btn-screenoff" onclick="c('screenOff')">Screen off</button>
         <button id="btn-screenon" onclick="c('screenOn')">Screen on</button>
-        <button id="btn_ss" onclick="c('screensaver')">Screensaver</button>
+        <button id="btn_ss" onclick="pressScreensaver('btn_ss')">Screensaver</button>
       </div>
     </div>
 
@@ -818,7 +823,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <div class="ss-level-row">
     <div class="ss-level-lbl">Show it now</div>
     <div class="btns">
-      <button id="ss-toggle" onclick="c('screensaver')">Start screen saver</button>
+      <button id="ss-toggle" onclick="pressScreensaver('ss-toggle')">Start screen saver</button>
     </div>
   </div>
 
@@ -1535,21 +1540,23 @@ async function tick() {
     }
 
     /* The screen saver is drawn by whatever app registered for it, and an
-       input registers nothing - so it cannot run over HDMI or Live TV. Show
-       that rather than leaving a button that does nothing when pressed. */
+       input registers nothing - so it cannot run over HDMI or Live TV. Say why
+       rather than leaving a button that does nothing when pressed. */
     const ssOnInput = /^hdmi[1-4]$/.test(d.app || '') || d.app === 'livetv';
-    if (q('btn_ss')) {
-      q('btn_ss').disabled = ssOnInput;
-      q('btn_ss').title = ssOnInput ? 'Available from an app, not from ' + d.app : '';
-    }
+    refuseScreensaver(q('btn_ss'), ssOnInput ? SS_ONLY_IN_APPS : '');
     /* Same control on the Screensaver tab, where it says which way it will go:
        there is one command and the TV decides, so the label follows the TV. */
     if (q('ss-toggle')) {
       const ssOn = !!d.screenSaver;
-      q('ss-toggle').textContent = ssOn ? 'Dismiss screen saver' : 'Start screen saver';
+      // Rewriting the label replaces the text node under the pointer, which
+      // costs the tooltip the same way rewriting the title does.
+      setIfChanged(q('ss-toggle'), 'textContent',
+                   ssOn ? 'Dismiss screen saver' : 'Start screen saver');
       q('ss-toggle').classList.toggle('on', ssOn);
-      q('ss-toggle').disabled = ssOnInput && !ssOn;
-      q('ss-toggle').title = (ssOnInput && !ssOn) ? 'Available from an app, not from ' + d.app : '';
+      // Dismissing works from anywhere; only starting one needs an app.
+      refuseScreensaver(q('ss-toggle'),
+        !ssWritable ? 'Controls are disabled in config.json.'
+        : (ssOnInput && !ssOn) ? SS_ONLY_IN_APPS : '');
     }
 
     if (d.picture) {
@@ -2046,6 +2053,43 @@ document.querySelectorAll('#tabs button').forEach(b =>
   b.addEventListener('click', () => showTab(b.dataset.tab)));
 
 let ssCurrent = 'stock';
+let ssWritable = true;
+
+const SS_ONLY_IN_APPS =
+  'The screen saver can only be started while a webOS app is running, not from an HDMI input or Live TV.';
+
+/*
+ * Marks a button as refused, with the reason. Not `disabled`: a disabled button
+ * receives no mouse events, so the browser never shows its title - and the
+ * reason it cannot be pressed is the one thing someone hovering it wants.
+ */
+function refuseScreensaver(el, why) {
+  if (!el) return;
+  const blocked = !!why;
+  el.classList.toggle('btn-off', blocked);
+  /*
+   * Only write when it changes. The page polls every two seconds, and a browser
+   * cancels the tooltip it was about to show whenever the title is written -
+   * even with the same text - so rewriting it on every tick means the tooltip
+   * never survives long enough to appear.
+   */
+  setIfChanged(el, 'title', why || '');
+  if (blocked) {
+    if (el.getAttribute('aria-disabled') !== 'true') el.setAttribute('aria-disabled', 'true');
+  } else if (el.hasAttribute('aria-disabled')) {
+    el.removeAttribute('aria-disabled');
+  }
+}
+
+function setIfChanged(el, prop, value) {
+  if (el[prop] !== value) el[prop] = value;
+}
+
+function pressScreensaver(id) {
+  const el = q(id);
+  if (el && el.getAttribute('aria-disabled') === 'true') return;
+  c('screensaver');
+}
 
 async function loadScreensavers() {
   const box = q('ss-list');
@@ -2077,7 +2121,7 @@ async function loadScreensavers() {
   q('ss-note').textContent = d.writable
     ? 'Note: if a firmware update is applied, the screen saver will be restored to the LG default.'
     : 'Controls are disabled in config.json, so the screen saver cannot be changed from here.';
-  q('ss-toggle').disabled = !d.writable;
+  ssWritable = d.writable;
 }
 
 document.addEventListener('click', async ev => {
