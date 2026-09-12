@@ -2065,6 +2065,14 @@ let activeTab = null;
 
 function showTab(name) {
   if (!TABS[name]) name = 'control';
+  /*
+   * The panel is about the OLED panel, so an LCD set has no tab for it - but a
+   * deep link or a remembered choice can still ask for it.
+   */
+  if (name === 'oledcare') {
+    const btn = q('tab-btn-oledcare');
+    if (btn && btn.hidden) name = 'control';
+  }
   activeTab = name;
   for (const [key, id] of Object.entries(TABS)) {
     const el = q(id);
