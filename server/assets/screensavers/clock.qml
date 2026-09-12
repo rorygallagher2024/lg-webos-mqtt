@@ -67,8 +67,8 @@ WebOSWindow {
      * a bright room, and is the reason the position still changes every minute.
      */
     property int level: __TVWEB_LEVEL__
-    property color inkBright: level > 0 ? "#ffffff" : "#d8dade"
-    property color inkDim:    level > 0 ? "#9aa0a8" : "#6d7076"
+    property color inkBright: level > 0 ? "#ffffff" : "#a8aeb6"
+    property color inkDim:    level > 0 ? "#c2c8d0" : "#5c6066"
 
     function two(n) { return n < 10 ? "0" + n : "" + n }
 

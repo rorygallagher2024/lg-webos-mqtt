@@ -62,8 +62,8 @@ WebOSWindow {
 
     // Dim or bright, written in when the screen saver is staged.
     property int level: __TVWEB_LEVEL__
-    property color inkBright: level > 0 ? "#ffffff" : "#d8dade"
-    property color inkDim:    level > 0 ? "#9aa0a8" : "#6d7076"
+    property color inkBright: level > 0 ? "#ffffff" : "#a8aeb6"
+    property color inkDim:    level > 0 ? "#c2c8d0" : "#5c6066"
 
     property string heroValue: "—"
     property string heroUnit: ""

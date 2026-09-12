@@ -33,9 +33,9 @@ WebOSWindow {
      * than as dust, and adds a little size with it.
      */
     property int level: __TVWEB_LEVEL__
-    property real dimmest:  level > 0 ? 0.30 : 0.13
+    property real dimmest:  level > 0 ? 0.42 : 0.13
     property real brightest: level > 0 ? 1.00 : 0.63
-    property real sizeScale: level > 0 ? 1.25 : 1.0
+    property real sizeScale: level > 0 ? 1.5 : 1.0
 
     Item {
         anchors.fill: parent

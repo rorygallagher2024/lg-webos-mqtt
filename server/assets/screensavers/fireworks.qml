@@ -36,8 +36,14 @@ WebOSWindow {
 
     // Dim or bright, written in when the screen saver is staged.
     property int level: __TVWEB_LEVEL__
-    property real ink: level > 0 ? 1.0 : 0.62
-    property real grow: level > 0 ? 1.2 : 1.0
+    /*
+     * Dim is a darker colour rather than a lower opacity: ItemParticle's fade
+     * animates each item's opacity itself, so a binding on it is overwritten
+     * the moment a particle is emitted. Measured on a B8 - dim and bright came
+     * back with an identical peak pixel until this moved to the colour.
+     */
+    property real dimming: level > 0 ? 1.0 : 2.1
+    property real grow: level > 0 ? 1.25 : 1.0
 
     property var emitters: []
 
@@ -74,8 +80,7 @@ WebOSWindow {
                         width: Math.round(13 * win.unit * win.grow)
                         height: width
                         radius: width / 2
-                        color: modelData
-                        opacity: win.ink
+                        color: win.level > 0 ? modelData : Qt.darker(modelData, win.dimming)
                     }
                 }
 
