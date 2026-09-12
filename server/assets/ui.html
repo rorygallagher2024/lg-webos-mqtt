@@ -320,6 +320,25 @@ button.btn-off:hover{color:var(--w60);border-color:var(--w12);background:transpa
 .dp-ok{grid-column:2;grid-row:2}
 .dp-right{grid-column:3;grid-row:2}
 .dp-down{grid-column:2;grid-row:3}
+.oled-row{display:flex;gap:20px;justify-content:space-between;align-items:flex-start;
+          padding:18px 0;border-bottom:1px solid var(--w12)}
+.oled-row:last-child{border-bottom:0}
+.oled-main{max-width:56ch}
+.oled-name{font-size:15px}
+.oled-sub{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--w35);
+          margin-left:8px}
+.oled-desc{font-size:13px;color:var(--w50);margin-top:7px;line-height:1.5}
+.oled-ctl{flex:0 0 auto;display:flex;gap:8px;align-items:center}
+.oled-ctl .pill{min-width:96px}
+/* The service-menu ones are set apart: they are the reason the warning below
+   the list is there. */
+.oled-row.guarded .oled-name{color:var(--cand)}
+.oled-warn{margin-top:24px;border-left:2px solid var(--cand);padding:12px 0 12px 14px;
+           font-size:13px;color:var(--w60);max-width:64ch;line-height:1.55}
+.oled-none{font-size:12px;letter-spacing:.06em;color:var(--w35);white-space:nowrap}
+/* A protection this set will not talk about is still worth describing, but it
+   should not compete with the ones that answer. */
+.oled-row.silent .oled-name,.oled-row.silent .oled-desc{color:var(--w35)}
 
 
 /* ---- privacy pane ---- */
@@ -557,6 +576,8 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <button type="button" role="tab" data-tab="control">Control</button>
   <button type="button" role="tab" data-tab="metrics">Metrics</button>
   <button type="button" role="tab" data-tab="privacy">Privacy</button>
+  <button type="button" role="tab" data-tab="oledcare" id="tab-btn-oledcare" hidden>OLED Care</button>
+  <button type="button" role="tab" data-tab="servicemenu" id="tab-btn-servicemenu" hidden>Service menu</button>
   <button type="button" role="tab" data-tab="screensaver">Screensaver</button>
   <button type="button" role="tab" data-tab="mqtt">MQTT</button>
 </nav>
@@ -598,39 +619,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
         <div id="lux-cell" hidden><div class="lbl">Room light</div><div class="v num" id="lux">&mdash;</div><div class="sub">Ambient sensor</div></div>
       </div>
 
-      <details class="disc" id="panel-protection-block" hidden style="margin-top:24px">
-        <summary>Burn-in &amp; dimmer protections <span class="cur" id="prot-cur"></span></summary>
-        <div class="prot-table">
-          <div class="prot-row" id="asbl-row" hidden>
-            <div class="prot-main">
-              <div class="prot-title">ASBL <span class="prot-sub">&middot; Auto Static Brightness Limiter (TPC)</span></div>
-              <div class="prot-desc">Gradually dims sustained static scenes and paused media to prevent OLED pixel burn-in</div>
-            </div>
-            <div class="prot-status"><span class="pill" id="asbl-pill">&mdash;</span></div>
-          </div>
-          <div class="prot-row" id="gsr-row" hidden>
-            <div class="prot-main">
-              <div class="prot-title">GSR <span class="prot-sub">&middot; Global Sticky Reduction</span></div>
-              <div class="prot-desc">Dims entire screen brightness globally when persistent stationary elements (HUDs/banners) are detected</div>
-            </div>
-            <div class="prot-status"><span class="pill" id="gsr-pill">&mdash;</span></div>
-          </div>
-          <div class="prot-row" id="shift-row" hidden>
-            <div class="prot-main">
-              <div class="prot-title">Screen Shift <span class="prot-sub">&middot; Pixel Orbiting</span></div>
-              <div class="prot-desc">Subtly shifts the entire picture by micro-increments over time to disperse static edge wear</div>
-            </div>
-            <div class="prot-status"><button class="pill" id="shift-pill" onclick="toggleScreenShift()" title="Switch pixel orbiting on or off">&mdash;</button></div>
-          </div>
-          <div class="prot-row" id="logo-row" hidden>
-            <div class="prot-main">
-              <div class="prot-title">Adjust Logo Brightness <span class="prot-sub">&middot; Local Logo Dimming</span></div>
-              <div class="prot-desc">Selectively dims only static logo/HUD pixels locally while preserving full brightness for the rest of the picture</div>
-            </div>
-            <div class="prot-status"><button class="pill" id="logo-pill" onclick="cycleLogoDimming()" title="Cycle Off, Light, High">&mdash;</button></div>
-          </div>
-        </div>
-      </details>
     </div>
 
     <div class="grp-sec" data-col="1">
@@ -844,13 +832,28 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   </div>
 </section>
 
-<section class="priv panel" id="sspane" role="tabpanel" hidden>
-  <div class="pv-top">
-    <div>
-      <div class="pv-h">Screen saver</div>
-    </div>
-  </div>
+<section class="priv panel" id="svcpane" role="tabpanel" hidden>
+  <div id="svc-rows"></div>
 
+  <div class="oled-warn">
+    The service menu is LG's own engineering menu. It can change panel
+    calibration and hardware settings that the normal menus deliberately keep
+    out of reach, and some of them are not easy to put back. Opening it asks for
+    the PIN on the TV.
+  </div>
+</section>
+
+<section class="priv panel" id="oledpane" role="tabpanel" hidden>
+  <div id="oled-rows"></div>
+
+  <div class="oled-warn" id="oled-warn" hidden>
+    Note: the last two are normally reachable only from the TV's service menu.
+    They exist to protect the panel from burn-in, and switching them off makes
+    permanent image retention more likely. Doing so may affect your warranty.
+  </div>
+</section>
+
+<section class="priv panel" id="sspane" role="tabpanel" hidden>
   <div id="ss-list" class="ss-list"></div>
   <div class="ss-level-row" id="ss-level-row" hidden>
     <div class="ss-level-lbl">Brightness</div>
@@ -1452,64 +1455,6 @@ async function tick() {
       }
     }
 
-    // Burn-in & Dimmer Protections
-    let hasProt = false;
-    if (o.asbl_protection) {
-      q('asbl-row').hidden = false;
-      const pill = q('asbl-pill');
-      const active = /active|on|enabled/i.test(o.asbl_protection);
-      pill.textContent = o.asbl_protection;
-      pill.className = 'pill ' + (active ? 'good' : 'idle');
-      hasProt = true;
-    } else {
-      q('asbl-row').hidden = true;
-    }
-
-    if (o.gsr_protection) {
-      q('gsr-row').hidden = false;
-      const pill = q('gsr-pill');
-      const active = /active|on|enabled/i.test(o.gsr_protection);
-      pill.textContent = o.gsr_protection;
-      pill.className = 'pill ' + (active ? 'good' : 'idle');
-      hasProt = true;
-    } else {
-      q('gsr-row').hidden = true;
-    }
-
-    if (o.screen_shift) {
-      q('shift-row').hidden = false;
-      const pill = q('shift-pill');
-      const on = /on/i.test(o.screen_shift);
-      shiftNow = on ? 'on' : 'off';
-      pill.textContent = on ? 'On' : 'Off';
-      pill.className = 'pill ' + (on ? 'good' : 'idle');
-      hasProt = true;
-    } else {
-      q('shift-row').hidden = true;
-    }
-
-    if (o.logo_dimming) {
-      q('logo-row').hidden = false;
-      const pill = q('logo-pill');
-      const val = String(o.logo_dimming).toLowerCase();
-      logoNow = val;
-      let label = val.charAt(0).toUpperCase() + val.slice(1);
-      if (val === 'strong') label = 'High';
-      pill.textContent = label;
-      pill.className = 'pill ' + (/off/i.test(val) ? 'idle' : 'good');
-      hasProt = true;
-    } else {
-      q('logo-row').hidden = true;
-    }
-    q('panel-protection-block').hidden = !hasProt;
-    if (q('prot-cur')) {
-      let protOn = 0, protOf = 0;
-      if (o.asbl_protection) { protOf++; if (/active|on|enabled/i.test(o.asbl_protection)) protOn++; }
-      if (o.gsr_protection) { protOf++; if (/active|on|enabled/i.test(o.gsr_protection)) protOn++; }
-      if (o.screen_shift) { protOf++; if (/on/i.test(o.screen_shift)) protOn++; }
-      if (o.logo_dimming) { protOf++; if (!/off/i.test(o.logo_dimming)) protOn++; }
-      q('prot-cur').textContent = protOf ? protOn + ' of ' + protOf + ' active' : '';
-    }
     const dim = d.dimming;
     if (dim && q('dimming')) q('dimming').textContent = dim.charAt(0).toUpperCase() + dim.slice(1);
     const st_ = d.appStorage;
@@ -1579,6 +1524,13 @@ async function tick() {
     /* The screen saver is drawn by whatever app registered for it, and an
        input registers nothing - so it cannot run over HDMI or Live TV. Say why
        rather than leaving a button that does nothing when pressed. */
+    // The tab is about the panel, so an LCD set has no use for it.
+    isOledSet = !!d.oled;
+    if (q('tab-btn-servicemenu')) q('tab-btn-servicemenu').hidden = false;
+    if (q('tab-btn-oledcare')) q('tab-btn-oledcare').hidden = !isOledSet;
+    // If it was showing when the set turned out not to be an OLED, leave it.
+    if (!isOledSet && activeTab === 'oledcare') showTab('control');
+
     const ssOnInput = /^hdmi[1-4]$/.test(d.app || '') || d.app === 'livetv';
     refuseScreensaver(q('btn_ss'), ssOnInput ? SS_ONLY_IN_APPS : '');
     /* Same control on the Screensaver tab, where it says which way it will go:
@@ -1664,19 +1616,6 @@ async function c(action, value) {
     setTimeout(tick, 320);
     return j;
   } catch (e) { showErr(e.message); }
-}
-/*
- * The two settable panel protections. Both read back from the next poll, so
- * neither writes its own label - the state stays the TV's to report.
- */
-let shiftNow = null, logoNow = null;
-function toggleScreenShift() {
-  c('screenShift', shiftNow === 'on' ? 'off' : 'on');
-}
-function cycleLogoDimming() {
-  const order = ['off', 'light', 'strong'];
-  const next = order[(order.indexOf(logoNow) + 1) % order.length];
-  c('logoDimming', next);
 }
 function toggleLight(which) {
   const el = q(which === 'standbyLight' ? 'lt_standby' : 'lt_logo');
@@ -2121,14 +2060,28 @@ function onProcToggle(el) {
 const TABS = {
   control:     'tab-control',
   metrics:     'tab-metrics',
+  oledcare:    'oledpane',
+  servicemenu: 'svcpane',
   screensaver: 'sspane',
   privacy:     'privpane',
   mqtt:        'mqttpane'
 };
 let activeTab = null;
+// null until the first telemetry says either way.
+let isOledSet = null;
 
 function showTab(name) {
   if (!TABS[name]) name = 'control';
+  /*
+   * The panel is about the OLED panel, so an LCD set has no tab for it - but a
+   * deep link or a remembered choice can still ask for it.
+   *
+   * Only turned away once the set has actually said it has no panel. The tab
+   * button starts hidden and is revealed by the first telemetry, which lands
+   * after a deep link is handled, so reading the button here would bounce
+   * /?tab=oledcare off an OLED set every time.
+   */
+  if (name === 'oledcare' && isOledSet === false) name = 'control';
   activeTab = name;
   for (const [key, id] of Object.entries(TABS)) {
     const el = q(id);
@@ -2139,6 +2092,8 @@ function showTab(name) {
   try { localStorage.setItem('tab', name); } catch (e) { /* private window */ }
   relayout(false);   // the panel just became measurable
   cfgPollStatus(name === 'mqtt');
+  if (name === 'oledcare') loadOledCare();
+  if (name === 'servicemenu') loadServiceMenu();
   if (name === 'screensaver') loadScreensavers();
   if (name === 'privacy') loadPrivacy();
   if (name === 'mqtt') loadSettings();
@@ -2146,6 +2101,158 @@ function showTab(name) {
 
 document.querySelectorAll('#tabs button').forEach(b =>
   b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+async function loadServiceMenu() {
+  let d;
+  try {
+    d = await (await fetch(api('/api/servicemenu'), { cache: 'no-store' })).json();
+  } catch (e) { showErr(e.message); return; }
+  if (!d || !d.ok) { showErr((d && d.error) || 'Could not read the service menu state'); return; }
+
+  const dis = d.writable ? '' : 'disabled';
+  let lockRow;
+  if (!d.lockable) {
+    lockRow = `<div class="oled-row silent">
+        <div class="oled-main">
+          <div class="oled-name">Unlock</div>
+          <div class="oled-desc">This TV does not lock its service menu, so there is nothing to unlock. Newer firmware shows a cut-down menu until it is unlocked.</div>
+        </div>
+        <div class="oled-ctl"><span class="oled-none">Not locked on this TV</span></div>
+      </div>`;
+  } else {
+    const locked = d.locked;
+    lockRow = `<div class="oled-row guarded">
+        <div class="oled-main">
+          <div class="oled-name">Unlock<span class="oled-sub">${locked ? 'Showing the cut-down menu' : 'Showing the full menu'}</span></div>
+          <div class="oled-desc">Unlocked, the menu shows every page rather than the handful LG leaves in.
+            <strong>The TV has to be switched off and on again before this takes effect.</strong></div>
+        </div>
+        <div class="oled-ctl">
+          <button class="pill ${locked ? 'bad' : 'good'}" data-svc="lock" data-next="${locked ? '0' : '1'}" ${dis}>${locked ? 'Locked' : 'Unlocked'}</button>
+        </div>
+      </div>`;
+  }
+
+  q('svc-rows').innerHTML = lockRow + `
+    <div class="oled-row">
+      <div class="oled-main">
+        <div class="oled-name">Open<span class="oled-sub">On the TV screen</span></div>
+        <div class="oled-desc">Puts the menu on the TV, where it asks for a four-digit PIN &mdash; usually 0413, though it varies by model and region. EZ Adjust is the picture and panel menu; In Start is the wider one.</div>
+      </div>
+      <div class="oled-ctl">
+        <button class="pill" data-svc="open" data-menu="ezAdjust" ${dis}>EZ Adjust</button>
+        <button class="pill" data-svc="open" data-menu="inStart" ${dis}>In Start</button>
+      </div>
+    </div>`;
+}
+
+document.addEventListener('click', async ev => {
+  if (!ev.target.closest) return;
+  const btn = ev.target.closest('#svc-rows button.pill[data-svc]');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  if (btn.dataset.svc === 'open') {
+    await c('serviceMenuOpen', { menu: btn.dataset.menu });
+    btn.disabled = false;
+    return;
+  }
+  const wantLocked = btn.dataset.next === '1';
+  if (!wantLocked && !confirm('Unlock the full service menu?\n\nIt can change panel calibration and hardware settings, and the TV must be switched off and on again before this takes effect.')) {
+    btn.disabled = false;
+    return;
+  }
+  await c('serviceMenuLock', { locked: wantLocked });
+  loadServiceMenu();
+});
+
+let oledWritable = true;
+
+const OLED_ROWS = [
+  { key: 'screenShift', name: 'Screen Shift', sub: 'Pixel orbiting',
+    desc: 'Nudges the whole picture by a pixel at a time so a static edge never sits on the same line for long. Costs nothing visually.',
+    kind: 'shift' },
+  { key: 'logoDimming', name: 'Logo Dimming', sub: 'Local dimming',
+    desc: 'Dims only the static logos and banners a channel leaves in a corner, and leaves the rest of the picture alone.',
+    kind: 'logo' },
+  { key: 'tpc', name: 'Temporal Peak Control', sub: 'ASBL', guarded: true,
+    desc: 'Lowers overall brightness when a bright image is held, which is what makes a mostly-white screen fade after a few seconds. Switching it off keeps full brightness and puts more heat through the panel.',
+    kind: 'protection' },
+  { key: 'gsr', name: 'Global Stress Reduction', sub: 'GSR', guarded: true,
+    desc: 'Dims the whole screen when it detects a stationary element such as a HUD or news ticker. Switching it off stops the dimming and leaves that element burning in at full brightness.',
+    kind: 'protection' }
+];
+
+async function loadOledCare() {
+  let d;
+  try {
+    d = await (await fetch(api('/api/oledcare'), { cache: 'no-store' })).json();
+  } catch (e) { showErr(e.message); return; }
+  if (!d || !d.ok) { showErr((d && d.error) || 'Could not read the panel protections'); return; }
+  oledWritable = d.writable;
+
+  const state = v => v === null || v === undefined ? null : !!v;
+  const html = OLED_ROWS.map(r => {
+    // Marked apart only when they can actually be changed here - the warning
+    // that explains the colour is hidden otherwise.
+    let pill, cls = (r.guarded && d.serviceControls) ? ' guarded' : '';
+    if (r.kind === 'shift') {
+      const on = /on/i.test(d.screenShift || '');
+      pill = `<button class="pill ${on ? 'good' : 'idle'}" data-oled="screenShift" data-next="${on ? 'off' : 'on'}">${on ? 'On' : 'Off'}</button>`;
+    } else if (r.kind === 'logo') {
+      const v = String(d.logoDimming || 'off').toLowerCase();
+      const label = v === 'strong' ? 'High' : v.charAt(0).toUpperCase() + v.slice(1);
+      pill = `<button class="pill ${v === 'off' ? 'idle' : 'good'}" data-oled="logoDimming" data-next="${v === 'off' ? 'light' : (v === 'light' ? 'strong' : 'off')}">${label}</button>`;
+    } else {
+      const on = state(d[r.key]);
+      if (on === null) {
+        /*
+         * Not a pill: there is nothing to press and nothing to report, and a
+         * greyed-out control reads as a fault. The protection is almost
+         * certainly running - LG ships them on - the set just gives no way to
+         * see or change it, which is what this says.
+         */
+        cls += ' silent';
+        pill = `<span class="oled-none">Not adjustable on this TV</span>`;
+      } else if (!d.serviceControls) {
+        pill = `<span class="pill ${on ? 'good' : 'bad'} fixed">${on ? 'On' : 'Off'}</span>`;
+      } else {
+        pill = `<button class="pill ${on ? 'good' : 'bad'}" data-oled="${r.key}" data-next="${on ? '0' : '1'}">${on ? 'On' : 'Off'}</button>`;
+      }
+    }
+    return `<div class="oled-row${cls}">
+      <div class="oled-main">
+        <div class="oled-name">${r.name}<span class="oled-sub">${r.sub}</span></div>
+        <div class="oled-desc">${r.desc}</div>
+      </div>
+      <div class="oled-ctl">${pill}</div>
+    </div>`;
+  }).join('');
+
+  q('oled-rows').innerHTML = html;
+  q('oled-warn').hidden = !d.serviceControls;
+  q('oled-rows').querySelectorAll('button.pill').forEach(b => { b.disabled = !d.writable; });
+}
+
+document.addEventListener('click', async ev => {
+  if (!ev.target.closest) return;
+  const btn = ev.target.closest('#oled-rows button.pill[data-oled]');
+  if (!btn || btn.disabled) return;
+  const key = btn.dataset.oled, next = btn.dataset.next;
+  btn.disabled = true;
+  if (key === 'screenShift') {
+    await c('screenShift', next);
+  } else if (key === 'logoDimming') {
+    await c('logoDimming', next);
+  } else {
+    const on = next === '1';
+    if (!on && !confirm('Switching this off removes a protection against burn-in. Continue?')) {
+      btn.disabled = false;
+      return;
+    }
+    await c('oledProtection', { key, enabled: on });
+  }
+  loadOledCare();
+});
 
 let ssCurrent = 'stock';
 let ssWritable = true;

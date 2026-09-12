@@ -12,9 +12,48 @@ There are no dependencies. This is ES5 on the Node 0.12 runtime that is on the T
 
 ---
 
+## What it's for
+
+1. **Controlling the TV without the cloud.** A D-pad to navigate the TV itself, volume, mute, media playback keys (play, pause, stop, skip), app launcher, picture presets, sound output routing, power and reboot.
+
+2. **Seeing what the TV collects, and switching it off.** Whether LG's
+   content-recognition engine is running and sampling your screen, your
+   advertising identifier and whether ad tracking is limited, and every data
+   agreement recorded on the set with most of them switchable from the
+   dashboard. Includes an on-TV blocker for LG's ad and telemetry
+   endpoints, and a switch for the two diagnostics services that upload to LG.
+   
+3. **Replacing the screen saver.** A clock, a starfield, fireworks, or the
+   TV's own readings, each dim or bright, in place of LG's.
+
+4. **Integrating the TV into Home Assistant.** Optional, over MQTT: up to 69
+   entities arrive as a single auto-discovered device &mdash; no YAML, no LG
+   account &mdash; so the TV can be automated and its telemetry recorded
+   alongside everything else in the house.
+   [Step 3](#3-home-assistant--mqtt-optional) explains what MQTT is.
+
+5. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
+   load, memory, swap, current draw, Wi-Fi signal and throughput.
+
+6. **Observing OLED panel wear.** Cumulative panel hours, compensation cycle
+   progress, Pixel Refresher countdown with scheduling, completed cycle counters
+   and failure alerts.
+
+7. **Controlling the OLED burn-in protections.** What each one does and a switch
+   for it: screen shift and logo dimming on any OLED, and on sets that carry
+   LG's panel service, ASBL and Global Stress Reduction &mdash; the two normally
+   reachable only from the TV's service menu, with a service remote and a PIN.
+
+8. **Opening the service menu, and unlocking it where it is locked.** LG's own
+   engineering menu, put on the TV screen from a browser &mdash; no service
+   remote. Newer firmware shows a cut-down version of it until it is unlocked,
+   which the dashboard can do as well.
+
+---
+
 ### Web Dashboard & Controls
 
-Five tabs: Control, Metrics, Screensaver, Privacy and MQTT.
+Control, Metrics, Screensaver, Privacy, MQTT and Service menu, plus OLED Care on an OLED set.
 
 <p align="center">
   <a href="docs/screenshots/dashboard.png"><img src="docs/screenshots/dashboard.png" alt="Metrics tab: SoC temperature, system readouts, storage and display panel counters, dark theme (OLED65B8SLC)" width="440"></a>
@@ -60,6 +99,34 @@ default.
 
 ---
 
+### OLED care
+
+The OLED Care tab, or `/?tab=oledcare`, on OLED sets. What each burn-in
+protection does and a switch for it: screen shift and logo dimming on any OLED,
+and on sets carrying LG's panel service, ASBL and Global Stress Reduction &mdash;
+the two normally reachable only from the TV's service menu, with a service
+remote and a PIN.
+
+<p align="center">
+  <a href="docs/screenshots/oledcare.png"><img src="docs/screenshots/oledcare.png" alt="OLED Care tab: screen shift, logo dimming, temporal peak control and global stress reduction, each described, with switches and a warranty warning" width="700"></a>
+</p>
+
+---
+
+### Service menu
+
+The Service menu tab, or `/?tab=servicemenu`. Opens LG's engineering menu on the
+TV &mdash; EZ Adjust or In Start &mdash; without a service remote; the TV still
+asks for its PIN. Newer firmware shows a cut-down version until it is unlocked,
+and the dashboard can unlock it: the TV has to be switched off and on again
+before that takes effect. Sets old enough not to lock it say so.
+
+<p align="center">
+  <a href="docs/screenshots/servicemenu.png"><img src="docs/screenshots/servicemenu.png" alt="Service menu tab: unlock state with a power-cycle note, buttons to open EZ Adjust or In Start, and a warning about what the menu can change" width="700"></a>
+</p>
+
+---
+
 ### Privacy & telemetry
 
 The Privacy tab, or `/?tab=privacy`. It reports what the TV is doing rather than
@@ -84,39 +151,18 @@ and firmware updates use.
 
 ---
 
-## What it's for
-
-1. **Controlling the TV without the cloud.** A D-pad to navigate the TV itself, volume, mute, media playback keys (play, pause, stop, skip), app launcher, picture presets, sound output routing, power and reboot.
-
-2. **Seeing what the TV collects, and switching it off.** Whether LG's
-   content-recognition engine is running and sampling your screen, your
-   advertising identifier and whether ad tracking is limited, and every data
-   agreement recorded on the set with most of them switchable from the
-   dashboard. Includes an on-TV blocker for LG's ad and telemetry
-   endpoints, and a switch for the two diagnostics services that upload to LG.
-   
-3. **Replacing the screen saver.** A clock, a starfield, fireworks, or the
-   TV's own readings, each dim or bright, in place of LG's.
-
-4. **Integrating the TV into Home Assistant.** Optional, over MQTT: up to 69
-   entities arrive as a single auto-discovered device &mdash; no YAML, no LG
-   account &mdash; so the TV can be automated and its telemetry recorded
-   alongside everything else in the house.
-   [Step 3](#3-home-assistant--mqtt-optional) explains what MQTT is.
-
-5. **Seeing what the TV is actually doing.** SoC temperature, per-core CPU
-   load, memory, swap, current draw, Wi-Fi signal and throughput.
-
-6. **Observing OLED panel wear.** Cumulative panel hours, compensation cycle
-   progress, Pixel Refresher countdown with scheduling, completed cycle counters,
-   failure alerts, and ASBL / GSR protection status.
-
-
 ## Core features
 
 * **OLED panel health.** Panel hours, compensation and Pixel Refresher countdowns
-  with scheduling, completed cycle counters, failure alerts, ASBL / GSR
-  protection status, screen shift and logo dimming. Hidden on LCD/QNED sets.
+  with scheduling, completed cycle counters and failure alerts. Hidden on
+  LCD/QNED sets.
+* **Service menu.** Opens LG's engineering menu on the TV without a service
+  remote, and unlocks the full version on firmware that ships it cut down. The
+  unlock needs a power cycle; sets that do not lock it say so.
+* **OLED Care tab.** What each burn-in protection does, and a switch for it.
+  Screen shift and logo dimming on any OLED; on sets that carry LG's panel
+  service, temporal peak control and global stress reduction too - the two
+  normally reachable only from the service menu, with a warning to match.
 * **HDMI 2.1 diagnostics.** Link rate, chroma format, HDCP version, cable error
   counter, ALLM, VRR, QMS, and colorimetry. Requires `/proc/lg/hdmi20`.
 * **Magic Remote & hardware info.** Battery, model, firmware; SoC architecture,
