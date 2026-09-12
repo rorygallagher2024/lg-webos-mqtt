@@ -320,6 +320,21 @@ button.btn-off:hover{color:var(--w60);border-color:var(--w12);background:transpa
 .dp-ok{grid-column:2;grid-row:2}
 .dp-right{grid-column:3;grid-row:2}
 .dp-down{grid-column:2;grid-row:3}
+.oled-row{display:flex;gap:20px;justify-content:space-between;align-items:flex-start;
+          padding:18px 0;border-bottom:1px solid var(--w12)}
+.oled-row:last-child{border-bottom:0}
+.oled-main{max-width:56ch}
+.oled-name{font-size:15px}
+.oled-sub{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--w35);
+          margin-left:8px}
+.oled-desc{font-size:13px;color:var(--w50);margin-top:7px;line-height:1.5}
+.oled-ctl{flex:0 0 auto;display:flex;gap:8px;align-items:center}
+.oled-ctl .pill{min-width:96px}
+/* The service-menu ones are set apart: they are the reason the warning below
+   the list is there. */
+.oled-row.guarded .oled-name{color:var(--cand)}
+.oled-warn{margin-top:24px;border-left:2px solid var(--cand);padding:12px 0 12px 14px;
+           font-size:13px;color:var(--w60);max-width:64ch;line-height:1.55}
 
 
 /* ---- privacy pane ---- */
@@ -557,6 +572,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <button type="button" role="tab" data-tab="control">Control</button>
   <button type="button" role="tab" data-tab="metrics">Metrics</button>
   <button type="button" role="tab" data-tab="privacy">Privacy</button>
+  <button type="button" role="tab" data-tab="oledcare" id="tab-btn-oledcare" hidden>OLED Care</button>
   <button type="button" role="tab" data-tab="screensaver">Screensaver</button>
   <button type="button" role="tab" data-tab="mqtt">MQTT</button>
 </nav>
@@ -844,7 +860,23 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   </div>
 </section>
 
-<section class="priv panel" id="sspane" role="tabpanel" hidden>
+<section class="priv panel" id="oledpane" role="tabpanel" hidden>
+  <div class="pv-top">
+    <div>
+      <div class="pv-h">OLED care</div>
+    </div>
+  </div>
+
+  <div id="oled-rows"></div>
+
+  <div class="oled-warn" id="oled-warn" hidden>
+    Note: the last two are normally reachable only from the TV's service menu.
+    They exist to protect the panel from burn-in, and switching them off makes
+    permanent image retention more likely. Doing so may affect your warranty.
+  </div>
+</section>
+
+<section class="priv panel" id="sspane" role="tabpanel" hidden><section class="priv panel" id="sspane" role="tabpanel" hidden>
   <div class="pv-top">
     <div>
       <div class="pv-h">Screen saver</div>
@@ -1579,6 +1611,9 @@ async function tick() {
     /* The screen saver is drawn by whatever app registered for it, and an
        input registers nothing - so it cannot run over HDMI or Live TV. Say why
        rather than leaving a button that does nothing when pressed. */
+    // The tab is about the panel, so an LCD set has no use for it.
+    if (q('tab-btn-oledcare')) q('tab-btn-oledcare').hidden = !d.oled;
+
     const ssOnInput = /^hdmi[1-4]$/.test(d.app || '') || d.app === 'livetv';
     refuseScreensaver(q('btn_ss'), ssOnInput ? SS_ONLY_IN_APPS : '');
     /* Same control on the Screensaver tab, where it says which way it will go:
@@ -2121,6 +2156,7 @@ function onProcToggle(el) {
 const TABS = {
   control:     'tab-control',
   metrics:     'tab-metrics',
+  oledcare:    'oledpane',
   screensaver: 'sspane',
   privacy:     'privpane',
   mqtt:        'mqttpane'
@@ -2139,6 +2175,7 @@ function showTab(name) {
   try { localStorage.setItem('tab', name); } catch (e) { /* private window */ }
   relayout(false);   // the panel just became measurable
   cfgPollStatus(name === 'mqtt');
+  if (name === 'oledcare') loadOledCare();
   if (name === 'screensaver') loadScreensavers();
   if (name === 'privacy') loadPrivacy();
   if (name === 'mqtt') loadSettings();
@@ -2146,6 +2183,86 @@ function showTab(name) {
 
 document.querySelectorAll('#tabs button').forEach(b =>
   b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+let oledWritable = true;
+
+const OLED_ROWS = [
+  { key: 'screenShift', name: 'Screen Shift', sub: 'Pixel orbiting',
+    desc: 'Nudges the whole picture by a pixel at a time so a static edge never sits on the same line for long. Costs nothing visually.',
+    kind: 'shift' },
+  { key: 'logoDimming', name: 'Logo Dimming', sub: 'Local dimming',
+    desc: 'Dims only the static logos and banners a channel leaves in a corner, and leaves the rest of the picture alone.',
+    kind: 'logo' },
+  { key: 'tpc', name: 'Temporal Peak Control', sub: 'ASBL', guarded: true,
+    desc: 'Lowers overall brightness when a bright image is held, which is what makes a mostly-white screen fade after a few seconds. Switching it off keeps full brightness and puts more heat through the panel.',
+    kind: 'protection' },
+  { key: 'gsr', name: 'Global Stress Reduction', sub: 'GSR', guarded: true,
+    desc: 'Dims the whole screen when it detects a stationary element such as a HUD or news ticker. Switching it off stops the dimming and leaves that element burning in at full brightness.',
+    kind: 'protection' }
+];
+
+async function loadOledCare() {
+  let d;
+  try {
+    d = await (await fetch(api('/api/oledcare'), { cache: 'no-store' })).json();
+  } catch (e) { showErr(e.message); return; }
+  if (!d || !d.ok) { showErr((d && d.error) || 'Could not read the panel protections'); return; }
+  oledWritable = d.writable;
+
+  const state = v => v === null || v === undefined ? null : !!v;
+  const html = OLED_ROWS.map(r => {
+    let pill, cls = r.guarded ? ' guarded' : '';
+    if (r.kind === 'shift') {
+      const on = /on/i.test(d.screenShift || '');
+      pill = `<button class="pill ${on ? 'good' : 'idle'}" data-oled="screenShift" data-next="${on ? 'off' : 'on'}">${on ? 'On' : 'Off'}</button>`;
+    } else if (r.kind === 'logo') {
+      const v = String(d.logoDimming || 'off').toLowerCase();
+      const label = v === 'strong' ? 'High' : v.charAt(0).toUpperCase() + v.slice(1);
+      pill = `<button class="pill ${v === 'off' ? 'idle' : 'good'}" data-oled="logoDimming" data-next="${v === 'off' ? 'light' : (v === 'light' ? 'strong' : 'off')}">${label}</button>`;
+    } else {
+      const on = state(d[r.key]);
+      if (on === null) {
+        pill = `<span class="pill idle fixed" title="This set does not report it">Not reported</span>`;
+      } else if (!d.serviceControls) {
+        pill = `<span class="pill ${on ? 'good' : 'bad'} fixed">${on ? 'On' : 'Off'}</span>`;
+      } else {
+        pill = `<button class="pill ${on ? 'good' : 'bad'}" data-oled="${r.key}" data-next="${on ? '0' : '1'}">${on ? 'On' : 'Off'}</button>`;
+      }
+    }
+    return `<div class="oled-row${cls}">
+      <div class="oled-main">
+        <div class="oled-name">${r.name}<span class="oled-sub">${r.sub}</span></div>
+        <div class="oled-desc">${r.desc}</div>
+      </div>
+      <div class="oled-ctl">${pill}</div>
+    </div>`;
+  }).join('');
+
+  q('oled-rows').innerHTML = html;
+  q('oled-warn').hidden = !d.serviceControls;
+  q('oled-rows').querySelectorAll('button.pill').forEach(b => { b.disabled = !d.writable; });
+}
+
+document.addEventListener('click', async ev => {
+  if (!ev.target.closest) return;
+  const btn = ev.target.closest('#oled-rows button.pill[data-oled]');
+  if (!btn || btn.disabled) return;
+  const key = btn.dataset.oled, next = btn.dataset.next;
+  btn.disabled = true;
+  if (key === 'screenShift') {
+    await c('screenShift', next);
+  } else if (key === 'logoDimming') {
+    await c('logoDimming', next);
+  } else {
+    const on = next === '1';
+    if (!on && !confirm('Switching this off removes a protection against burn-in. Continue?')) {
+      btn.disabled = false;
+      return;
+    }
+    await c('oledProtection', { key, enabled: on });
+  }
+  loadOledCare();
+});
 
 let ssCurrent = 'stock';
 let ssWritable = true;

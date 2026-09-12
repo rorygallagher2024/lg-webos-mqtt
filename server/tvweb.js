@@ -1165,6 +1165,58 @@ function detectOled(cb) {
     });
 }
 
+/*
+ * The panel protections the service menu reaches, through the service that
+ * owns them rather than the files underneath.
+ *
+ * com.webos.service.oledepl fronts eplmanager, which is the only thing on the
+ * set that touches /mnt/lg/cmn_data/pnwash/gsrOff and its neighbours - setting
+ * GSR through the service removes and recreates that file, so the two agree.
+ *
+ * The files are not a substitute for asking. socTpcStatus reads 0 on a C2
+ * whether temporal peak control is on or off, so the old reading of it was
+ * wrong whenever the setting was on. webOS 4 has no such service, and there
+ * the files are all there is.
+ */
+var OLED_EPL = 'com.webos.service.oledepl';
+var oledEplSupported = null;   // null = not yet asked
+
+function readOledProtections(cb) {
+  luna(OLED_EPL + '/getGlobalStressReduction', {}, function (gsr) {
+    if (!gsr || gsr.returnValue !== true) {
+      oledEplSupported = false;
+      return cb(null);
+    }
+    luna(OLED_EPL + '/getTemporalPeakControl', {}, function (tpc) {
+      oledEplSupported = true;
+      cb({
+        gsr: gsr.enable === true,
+        gsrStressCount: (typeof gsr.stressCount === 'number') ? gsr.stressCount : null,
+        tpc: (tpc && tpc.returnValue === true) ? tpc.enable === true : null
+      });
+    });
+  });
+}
+
+function setOledProtection(which, enabled, cb) {
+  var method = (which === 'gsr') ? 'setGlobalStressReduction'
+             : (which === 'tpc') ? 'setTemporalPeakControl' : null;
+  if (!method) return cb({ ok: false, error: 'unknown protection: ' + which });
+  luna(OLED_EPL + '/' + method, { enable: !!enabled }, function (r) {
+    lastStats = null;
+    cachedOled = null;
+    if (!r || r.returnValue !== true) {
+      return cb({ ok: false, error: 'the TV would not change it' });
+    }
+    // Read it back: the call returns true whether or not anything moved.
+    readOledProtections(function (state) {
+      var now = state ? (which === 'gsr' ? state.gsr : state.tpc) : null;
+      cb({ ok: now === !!enabled, state: state,
+           error: now === !!enabled ? undefined : 'the setting did not take' });
+    });
+  });
+}
+
 function refreshOledStats(picSettings, pState, cb) {
   var now = Date.now();
   if (cachedOled && (now - lastOledCheck < 30000)) {
@@ -3064,6 +3116,10 @@ function doControl(action, value, cb) {
       return luna('com.webos.service.settings/setSystemSettings', lightPayload,
                   function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
 
+    case 'oledProtection':
+      var prot = (value && typeof value === 'object') ? value : {};
+      return setOledProtection(String(prot.key || ''), !!prot.enabled, cb);
+
     case 'rcu':
       var rcuName = String(value || '').trim().toLowerCase();
       if (rcuName === 'home') {
@@ -3500,6 +3556,34 @@ var server = http.createServer(function (req, res) {
 
   if (pathname === '/api/hdmi') {
     return hdmiInputs(function (r) { send(res, 200, JSON.stringify(r)); });
+  }
+
+  if (pathname === '/api/oledcare') {
+    return readOledProtections(function (live) {
+      collectStats(function (st) {
+        var oled = st.oled || {};
+        send(res, 200, JSON.stringify({
+          ok: true,
+          isOled: !!st.oled,
+          // Whether this set has the service the service menu goes through.
+          serviceControls: oledEplSupported === true,
+          writable: CONFIG.allowControl,
+          /*
+           * null where the set says nothing. Without the service, all there is
+           * are the marker files, and a set that writes none of them - a B8
+           * writes neither - has not said these are off, only that it does not
+           * report them.
+           */
+          gsr: live ? live.gsr : (oled.gsr_protection ? oled.gsr_protection === 'Active' : null),
+          tpc: live ? live.tpc : (oled.asbl_protection ? oled.asbl_protection === 'Active' : null),
+          gsrStressCount: live ? live.gsrStressCount : null,
+          screenShift: oled.screen_shift || null,
+          logoDimming: oled.logo_dimming || null,
+          panelHours: (oled.panel_hours === undefined) ? null : oled.panel_hours,
+          hoursUntilRefresher: (oled.hours_until_refresher === undefined) ? null : oled.hours_until_refresher
+        }));
+      });
+    });
   }
 
   if (pathname === '/api/cpu') {

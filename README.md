@@ -117,6 +117,10 @@ and firmware updates use.
 * **OLED panel health.** Panel hours, compensation and Pixel Refresher countdowns
   with scheduling, completed cycle counters, failure alerts, ASBL / GSR
   protection status, screen shift and logo dimming. Hidden on LCD/QNED sets.
+* **OLED Care tab.** What each burn-in protection does, and a switch for it.
+  Screen shift and logo dimming on any OLED; on sets that carry LG's panel
+  service, temporal peak control and global stress reduction too - the two
+  normally reachable only from the service menu, with a warning to match.
 * **HDMI 2.1 diagnostics.** Link rate, chroma format, HDCP version, cable error
   counter, ALLM, VRR, QMS, and colorimetry. Requires `/proc/lg/hdmi20`.
 * **Magic Remote & hardware info.** Battery, model, firmware; SoC architecture,
