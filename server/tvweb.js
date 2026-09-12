@@ -1237,16 +1237,41 @@ function openServiceMenu(which, cb) {
 }
 
 var OLED_EPL = 'com.webos.service.oledepl';
-var oledEplSupported = null;   // null = not yet asked
+var OLED_SYSPROP = 'com.webos.service.tv.systemproperty';
+// null = not yet asked, false = neither service answers.
+var oledProtVia = null;
 
-function readOledProtections(cb) {
-  luna(OLED_EPL + '/getGlobalStressReduction', {}, function (gsr) {
-    if (!gsr || gsr.returnValue !== true) {
-      oledEplSupported = false;
+function oledProtControllable() {
+  return oledProtVia === 'epl' || oledProtVia === 'sysprop';
+}
+
+/*
+ * webOS 4 keeps the same two protections behind a different service, with the
+ * values as the strings "true" and "false" - a B8 answers getProperties for
+ * OledTPC and OledGSR and has no oledepl at all. Its own service menu reads
+ * them from there, which is how this was found.
+ */
+function readViaSysprop(cb) {
+  luna(OLED_SYSPROP + '/getProperties', { keys: ['OledTPC', 'OledGSR'] }, function (r) {
+    if (!r || r.returnValue !== true || typeof r.OledTPC === 'undefined') {
+      oledProtVia = false;
       return cb(null);
     }
+    oledProtVia = 'sysprop';
+    cb({
+      gsr: String(r.OledGSR) === 'true',
+      tpc: String(r.OledTPC) === 'true',
+      gsrStressCount: null
+    });
+  });
+}
+
+function readOledProtections(cb) {
+  if (oledProtVia === 'sysprop') return readViaSysprop(cb);
+  luna(OLED_EPL + '/getGlobalStressReduction', {}, function (gsr) {
+    if (!gsr || gsr.returnValue !== true) return readViaSysprop(cb);
     luna(OLED_EPL + '/getTemporalPeakControl', {}, function (tpc) {
-      oledEplSupported = true;
+      oledProtVia = 'epl';
       cb({
         gsr: gsr.enable === true,
         gsrStressCount: (typeof gsr.stressCount === 'number') ? gsr.stressCount : null,
@@ -1257,10 +1282,11 @@ function readOledProtections(cb) {
 }
 
 function setOledProtection(which, enabled, cb) {
-  var method = (which === 'gsr') ? 'setGlobalStressReduction'
-             : (which === 'tpc') ? 'setTemporalPeakControl' : null;
-  if (!method) return cb({ ok: false, error: 'unknown protection: ' + which });
-  luna(OLED_EPL + '/' + method, { enable: !!enabled }, function (r) {
+  if (which !== 'gsr' && which !== 'tpc') {
+    return cb({ ok: false, error: 'unknown protection: ' + which });
+  }
+
+  function afterWrite(r) {
     lastStats = null;
     cachedOled = null;
     if (!r || r.returnValue !== true) {
@@ -1272,6 +1298,20 @@ function setOledProtection(which, enabled, cb) {
       cb({ ok: now === !!enabled, state: state,
            error: now === !!enabled ? undefined : 'the setting did not take' });
     });
+  }
+
+  // Ask first, so a set before any read still goes to the right service.
+  readOledProtections(function () {
+    if (oledProtVia === 'sysprop') {
+      var prop = {};
+      prop[which === 'gsr' ? 'OledGSR' : 'OledTPC'] = enabled ? 'true' : 'false';
+      return luna(OLED_SYSPROP + '/setProperties', prop, afterWrite);
+    }
+    if (oledProtVia !== 'epl') {
+      return cb({ ok: false, error: 'this TV does not offer the control' });
+    }
+    var method = (which === 'gsr') ? 'setGlobalStressReduction' : 'setTemporalPeakControl';
+    luna(OLED_EPL + '/' + method, { enable: !!enabled }, afterWrite);
   });
 }
 
@@ -3634,7 +3674,7 @@ var server = http.createServer(function (req, res) {
           ok: true,
           isOled: !!st.oled,
           // Whether this set has the service the service menu goes through.
-          serviceControls: oledEplSupported === true,
+          serviceControls: oledProtControllable(),
           writable: CONFIG.allowControl,
           /*
            * null where the set says nothing. Without the service, all there is
