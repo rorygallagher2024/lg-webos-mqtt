@@ -833,12 +833,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 </section>
 
 <section class="priv panel" id="svcpane" role="tabpanel" hidden>
-  <div class="pv-top">
-    <div>
-      <div class="pv-h">Service menu</div>
-    </div>
-  </div>
-
   <div id="svc-rows"></div>
 
   <div class="oled-warn">
@@ -849,13 +843,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   </div>
 </section>
 
-<section class="priv panel" id="oledpane" role="tabpanel" hidden><section class="priv panel" id="oledpane" role="tabpanel" hidden>
-  <div class="pv-top">
-    <div>
-      <div class="pv-h">OLED care</div>
-    </div>
-  </div>
-
+<section class="priv panel" id="oledpane" role="tabpanel" hidden>
   <div id="oled-rows"></div>
 
   <div class="oled-warn" id="oled-warn" hidden>
@@ -866,12 +854,6 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
 </section>
 
 <section class="priv panel" id="sspane" role="tabpanel" hidden>
-  <div class="pv-top">
-    <div>
-      <div class="pv-h">Screen saver</div>
-    </div>
-  </div>
-
   <div id="ss-list" class="ss-list"></div>
   <div class="ss-level-row" id="ss-level-row" hidden>
     <div class="ss-level-lbl">Brightness</div>
@@ -2155,7 +2137,7 @@ async function loadServiceMenu() {
     <div class="oled-row">
       <div class="oled-main">
         <div class="oled-name">Open<span class="oled-sub">On the TV screen</span></div>
-        <div class="oled-desc">Puts the menu on the TV, where it asks for its PIN. EZ Adjust is the picture and panel menu; In Start is the wider one.</div>
+        <div class="oled-desc">Puts the menu on the TV, where it asks for a four-digit PIN &mdash; usually 0413, though it varies by model and region. EZ Adjust is the picture and panel menu; In Start is the wider one.</div>
       </div>
       <div class="oled-ctl">
         <button class="pill" data-svc="open" data-menu="ezAdjust" ${dis}>EZ Adjust</button>
