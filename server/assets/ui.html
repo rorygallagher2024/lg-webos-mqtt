@@ -335,6 +335,10 @@ button.btn-off:hover{color:var(--w60);border-color:var(--w12);background:transpa
 .oled-row.guarded .oled-name{color:var(--cand)}
 .oled-warn{margin-top:24px;border-left:2px solid var(--cand);padding:12px 0 12px 14px;
            font-size:13px;color:var(--w60);max-width:64ch;line-height:1.55}
+.oled-none{font-size:12px;letter-spacing:.06em;color:var(--w35);white-space:nowrap}
+/* A protection this set will not talk about is still worth describing, but it
+   should not compete with the ones that answer. */
+.oled-row.silent .oled-name,.oled-row.silent .oled-desc{color:var(--w35)}
 
 
 /* ---- privacy pane ---- */
@@ -2211,7 +2215,9 @@ async function loadOledCare() {
 
   const state = v => v === null || v === undefined ? null : !!v;
   const html = OLED_ROWS.map(r => {
-    let pill, cls = r.guarded ? ' guarded' : '';
+    // Marked apart only when they can actually be changed here - the warning
+    // that explains the colour is hidden otherwise.
+    let pill, cls = (r.guarded && d.serviceControls) ? ' guarded' : '';
     if (r.kind === 'shift') {
       const on = /on/i.test(d.screenShift || '');
       pill = `<button class="pill ${on ? 'good' : 'idle'}" data-oled="screenShift" data-next="${on ? 'off' : 'on'}">${on ? 'On' : 'Off'}</button>`;
@@ -2222,7 +2228,14 @@ async function loadOledCare() {
     } else {
       const on = state(d[r.key]);
       if (on === null) {
-        pill = `<span class="pill idle fixed" title="This set does not report it">Not reported</span>`;
+        /*
+         * Not a pill: there is nothing to press and nothing to report, and a
+         * greyed-out control reads as a fault. The protection is almost
+         * certainly running - LG ships them on - the set just gives no way to
+         * see or change it, which is what this says.
+         */
+        cls += ' silent';
+        pill = `<span class="oled-none">Not adjustable on this TV</span>`;
       } else if (!d.serviceControls) {
         pill = `<span class="pill ${on ? 'good' : 'bad'} fixed">${on ? 'On' : 'Off'}</span>`;
       } else {
