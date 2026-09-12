@@ -98,9 +98,7 @@ default.
 </p>
 
 <p align="center">
-  <a href="docs/screenshots/screensaver-starfield.png"><img src="docs/screenshots/screensaver-starfield.png" alt="Starscape screen saver on OLED: drifting stars and meteor with ion trail" width="440"></a>
-  &nbsp;
-  <a href="docs/screenshots/screensaver-fireworks.png"><img src="docs/screenshots/screensaver-fireworks.png" alt="Fireworks screen saver on OLED: falling sparks on pure black" width="440"></a>
+  <a href="docs/screenshots/screensaver-starfield.png"><img src="docs/screenshots/screensaver-starfield.png" alt="Starscape screen saver on OLED: drifting stars and meteor with ion trail" width="700"></a>
 </p>
 
 ---
