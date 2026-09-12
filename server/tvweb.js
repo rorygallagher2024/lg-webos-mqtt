@@ -2787,7 +2787,7 @@ var SCREENSAVERS = {
   },
   starfield: {
     label: 'Starfield',
-    description: 'Flying through a starfield. Nothing on screen stays still, so nothing can mark the panel.',
+    description: 'A drifting cosmic starscape with occasional shooting stars.',
     qml: 'screensavers/starfield.qml'
   },
   fireworks: {
