@@ -1178,6 +1178,64 @@ function detectOled(cb) {
  * wrong whenever the setting was on. webOS 4 has no such service, and there
  * the files are all there is.
  */
+/*
+ * The service menu.
+ *
+ * factorywin shows a cut-down menu unless it is told otherwise. Its own
+ * condition is
+ *
+ *   isSimplifiedMenuMode = !factoryMode && (!readSvcMenuFlag || isSvcMenu)
+ *   isSvcMenu            = svcMenuFlag && prodkey && RELEASE && !usbAuth
+ *
+ * so on a retail set the only lever is svcMenuFlag, a setting in the "other"
+ * category: false gives the full menu. Earlier sets do not carry the setting at
+ * all - a B8 has the app and no flag - and their menu was never cut down.
+ *
+ * The change is read when the TV starts, so it takes a power cycle.
+ *
+ * Opening it is a relaunch carrying irKey, which the app turns into the key
+ * event the service remote would have sent. The PIN is still asked for on the
+ * TV, which is as it should be.
+ */
+var SERVICE_MENU_APP = 'com.webos.app.factorywin';
+var SERVICE_MENUS = { ezAdjust: 1, inStart: 1 };
+
+function serviceMenuState(cb) {
+  var present = fs.existsSync('/usr/palm/applications/' + SERVICE_MENU_APP);
+  luna('com.webos.settingsservice/getSystemSettings',
+       { category: 'other', keys: ['svcMenuFlag'] }, function (r) {
+    var flag = (r && r.returnValue === true && r.settings &&
+                typeof r.settings.svcMenuFlag !== 'undefined') ? r.settings.svcMenuFlag : null;
+    cb({
+      ok: true,
+      app: present,
+      // A set without the flag has nothing to unlock, not a locked menu.
+      lockable: flag !== null,
+      locked: (flag === null) ? null : (flag === true),
+      writable: CONFIG.allowControl
+    });
+  });
+}
+
+function setServiceMenuLock(locked, cb) {
+  luna('com.webos.settingsservice/setSystemSettings',
+       { category: 'other', settings: { svcMenuFlag: !!locked } }, function (r) {
+    if (!r || r.returnValue !== true) return cb({ ok: false, error: 'the TV would not change it' });
+    serviceMenuState(function (st) {
+      cb({ ok: st.locked === !!locked, state: st,
+           error: st.locked === !!locked ? undefined : 'the setting did not take' });
+    });
+  });
+}
+
+function openServiceMenu(which, cb) {
+  var key = SERVICE_MENUS[which] ? which : 'ezAdjust';
+  luna('com.webos.applicationManager/launch',
+       { id: SERVICE_MENU_APP, params: { irKey: key } }, function (r) {
+    cb({ ok: !!(r && r.returnValue), menu: key });
+  });
+}
+
 var OLED_EPL = 'com.webos.service.oledepl';
 var oledEplSupported = null;   // null = not yet asked
 
@@ -3116,6 +3174,12 @@ function doControl(action, value, cb) {
       return luna('com.webos.service.settings/setSystemSettings', lightPayload,
                   function (r) { lastStats = null; cb({ ok: !!(r && r.returnValue) }); });
 
+    case 'serviceMenuLock':
+      return setServiceMenuLock(!!(value && value.locked), cb);
+
+    case 'serviceMenuOpen':
+      return openServiceMenu(String((value && value.menu) || 'ezAdjust'), cb);
+
     case 'oledProtection':
       var prot = (value && typeof value === 'object') ? value : {};
       return setOledProtection(String(prot.key || ''), !!prot.enabled, cb);
@@ -3556,6 +3620,10 @@ var server = http.createServer(function (req, res) {
 
   if (pathname === '/api/hdmi') {
     return hdmiInputs(function (r) { send(res, 200, JSON.stringify(r)); });
+  }
+
+  if (pathname === '/api/servicemenu') {
+    return serviceMenuState(function (r) { send(res, 200, JSON.stringify(r)); });
   }
 
   if (pathname === '/api/oledcare') {

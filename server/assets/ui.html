@@ -577,6 +577,7 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   <button type="button" role="tab" data-tab="metrics">Metrics</button>
   <button type="button" role="tab" data-tab="privacy">Privacy</button>
   <button type="button" role="tab" data-tab="oledcare" id="tab-btn-oledcare" hidden>OLED Care</button>
+  <button type="button" role="tab" data-tab="servicemenu" id="tab-btn-servicemenu" hidden>Service menu</button>
   <button type="button" role="tab" data-tab="screensaver">Screensaver</button>
   <button type="button" role="tab" data-tab="mqtt">MQTT</button>
 </nav>
@@ -831,7 +832,24 @@ footer{margin-top:38px;font-size:12px;letter-spacing:.10em;text-transform:upperc
   </div>
 </section>
 
-<section class="priv panel" id="oledpane" role="tabpanel" hidden>
+<section class="priv panel" id="svcpane" role="tabpanel" hidden>
+  <div class="pv-top">
+    <div>
+      <div class="pv-h">Service menu</div>
+    </div>
+  </div>
+
+  <div id="svc-rows"></div>
+
+  <div class="oled-warn">
+    The service menu is LG's own engineering menu. It can change panel
+    calibration and hardware settings that the normal menus deliberately keep
+    out of reach, and some of them are not easy to put back. Opening it asks for
+    the PIN on the TV.
+  </div>
+</section>
+
+<section class="priv panel" id="oledpane" role="tabpanel" hidden><section class="priv panel" id="oledpane" role="tabpanel" hidden>
   <div class="pv-top">
     <div>
       <div class="pv-h">OLED care</div>
@@ -1526,6 +1544,7 @@ async function tick() {
        rather than leaving a button that does nothing when pressed. */
     // The tab is about the panel, so an LCD set has no use for it.
     isOledSet = !!d.oled;
+    if (q('tab-btn-servicemenu')) q('tab-btn-servicemenu').hidden = false;
     if (q('tab-btn-oledcare')) q('tab-btn-oledcare').hidden = !isOledSet;
     // If it was showing when the set turned out not to be an OLED, leave it.
     if (!isOledSet && activeTab === 'oledcare') showTab('control');
@@ -2060,6 +2079,7 @@ const TABS = {
   control:     'tab-control',
   metrics:     'tab-metrics',
   oledcare:    'oledpane',
+  servicemenu: 'svcpane',
   screensaver: 'sspane',
   privacy:     'privpane',
   mqtt:        'mqttpane'
@@ -2091,6 +2111,7 @@ function showTab(name) {
   relayout(false);   // the panel just became measurable
   cfgPollStatus(name === 'mqtt');
   if (name === 'oledcare') loadOledCare();
+  if (name === 'servicemenu') loadServiceMenu();
   if (name === 'screensaver') loadScreensavers();
   if (name === 'privacy') loadPrivacy();
   if (name === 'mqtt') loadSettings();
@@ -2098,6 +2119,69 @@ function showTab(name) {
 
 document.querySelectorAll('#tabs button').forEach(b =>
   b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+async function loadServiceMenu() {
+  let d;
+  try {
+    d = await (await fetch(api('/api/servicemenu'), { cache: 'no-store' })).json();
+  } catch (e) { showErr(e.message); return; }
+  if (!d || !d.ok) { showErr((d && d.error) || 'Could not read the service menu state'); return; }
+
+  const dis = d.writable ? '' : 'disabled';
+  let lockRow;
+  if (!d.lockable) {
+    lockRow = `<div class="oled-row silent">
+        <div class="oled-main">
+          <div class="oled-name">Unlock</div>
+          <div class="oled-desc">This TV does not lock its service menu, so there is nothing to unlock. Newer firmware shows a cut-down menu until it is unlocked.</div>
+        </div>
+        <div class="oled-ctl"><span class="oled-none">Not locked on this TV</span></div>
+      </div>`;
+  } else {
+    const locked = d.locked;
+    lockRow = `<div class="oled-row guarded">
+        <div class="oled-main">
+          <div class="oled-name">Unlock<span class="oled-sub">${locked ? 'Showing the cut-down menu' : 'Showing the full menu'}</span></div>
+          <div class="oled-desc">Unlocked, the menu shows every page rather than the handful LG leaves in.
+            <strong>The TV has to be switched off and on again before this takes effect.</strong></div>
+        </div>
+        <div class="oled-ctl">
+          <button class="pill ${locked ? 'bad' : 'good'}" data-svc="lock" data-next="${locked ? '0' : '1'}" ${dis}>${locked ? 'Locked' : 'Unlocked'}</button>
+        </div>
+      </div>`;
+  }
+
+  q('svc-rows').innerHTML = lockRow + `
+    <div class="oled-row">
+      <div class="oled-main">
+        <div class="oled-name">Open<span class="oled-sub">On the TV screen</span></div>
+        <div class="oled-desc">Puts the menu on the TV, where it asks for its PIN. EZ Adjust is the picture and panel menu; In Start is the wider one.</div>
+      </div>
+      <div class="oled-ctl">
+        <button class="pill" data-svc="open" data-menu="ezAdjust" ${dis}>EZ Adjust</button>
+        <button class="pill" data-svc="open" data-menu="inStart" ${dis}>In Start</button>
+      </div>
+    </div>`;
+}
+
+document.addEventListener('click', async ev => {
+  if (!ev.target.closest) return;
+  const btn = ev.target.closest('#svc-rows button.pill[data-svc]');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  if (btn.dataset.svc === 'open') {
+    await c('serviceMenuOpen', { menu: btn.dataset.menu });
+    btn.disabled = false;
+    return;
+  }
+  const wantLocked = btn.dataset.next === '1';
+  if (!wantLocked && !confirm('Unlock the full service menu?\n\nIt can change panel calibration and hardware settings, and the TV must be switched off and on again before this takes effect.')) {
+    btn.disabled = false;
+    return;
+  }
+  await c('serviceMenuLock', { locked: wantLocked });
+  loadServiceMenu();
+});
 
 let oledWritable = true;
 
